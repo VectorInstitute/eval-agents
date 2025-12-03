@@ -22,7 +22,7 @@ jobs:
         uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244
         with:
           # Install a specific version of uv.
-          version: "0.7.6"
+          version: "0.9.7"
           enable-cache: true
 
       - name: "Set up Python"
@@ -32,17 +32,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd aieng-topic-impl
+          cd aieng-eval-agents
           uv venv .venv
           source .venv/bin/activate
           uv sync --all-extras --dev
 
       - name: Build package
-        run: cd aieng-topic-impl && source .venv/bin/activate && uv build
+        run: cd aieng-eval-agents && source .venv/bin/activate && uv build
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e
         with:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
-          packages-dir: aieng-topic-impl/dist/
+          packages-dir: aieng-eval-agents/dist/
