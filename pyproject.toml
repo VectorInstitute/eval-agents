@@ -24,6 +24,7 @@ dependencies = [
     "pytest-asyncio>=0.25.2",
     "scikit-learn>=1.7.0",
     "weaviate-client>=4.15.4",
+    "urllib3>=2.5.0",
 ]
 
 [build-system]

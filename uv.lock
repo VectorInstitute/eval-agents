@@ -28,6 +28,7 @@ dependencies = [
     { name = "pydantic-ai-slim", extra = ["logfire"] },
     { name = "pytest-asyncio" },
     { name = "scikit-learn" },
+    { name = "urllib3" },
     { name = "weaviate-client" },
 ]
 
@@ -85,6 +86,7 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["logfire"], specifier = ">=0.3.7" },
     { name = "pytest-asyncio", specifier = ">=0.25.2" },
     { name = "scikit-learn", specifier = ">=1.7.0" },
+    { name = "urllib3", specifier = ">=2.5.0" },
     { name = "weaviate-client", specifier = ">=4.15.4" },
 ]
 
