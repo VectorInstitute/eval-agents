@@ -1,6 +1,6 @@
 """Test example implementation."""
 
-from aieng.topic.impl import example_impl
+from aieng.agent_evals.impl import example_impl
 
 
 def test_example_impl():
