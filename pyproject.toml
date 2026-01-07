@@ -143,5 +143,5 @@ markers = [
 
 [tool.coverage]
     [tool.coverage.run]
-    source=["aieng-eval-agents/"]
+    source=["aieng-eval-agents/aieng"]
     omit=["aieng-eval-agents/tests/*", "*__init__.py", "scripts/*"]
