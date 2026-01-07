@@ -10,6 +10,7 @@ dependencies = [
     "kagglehub>=0.3.13",
 ]
 
+[dependency-groups]
 dev = [
     "pytest>=8.3.5",
 ]

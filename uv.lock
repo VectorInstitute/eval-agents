@@ -140,8 +140,16 @@ dependencies = [
     { name = "kagglehub" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [{ name = "kagglehub", specifier = ">=0.3.13" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.3.5" }]
 
 [[package]]
 name = "aieng-platform-onboard"
