@@ -43,7 +43,7 @@ jobs:
         uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867
         with:
           # Install a specific version of uv.
-          version: "0.9.7"
+          version: "0.9.22"
           enable-cache: true
 
       - name: "Set up Python"
@@ -57,4 +57,4 @@ jobs:
           uv venv .venv
           source .venv/bin/activate
           uv sync --all-extras --dev
-          uv run pytest -m "not integration_test" tests
+          uv run pytest -m "not integration_test" aieng-eval-agents/tests
