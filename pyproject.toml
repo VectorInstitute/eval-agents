@@ -3,65 +3,58 @@ name = "agentic-ai-evaluation-bootcamp-202602"
 version = "0.1.0"
 description = "Vector Institute Agentic AI Evaluation Bootcamp 202602"
 readme = "README.md"
-authors = [ {name = "Vector AI Engineering", email = "ai_engineering@vectorinstitute.ai"}]
+authors = [ {name = "Vector AI Engineering", email = "ai_engineering@vectorinstitute.ai"} ]
 license = "Apache-2.0"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4.0"
 dependencies = [
-    "aiohttp>=3.12.14",
+    "aieng-eval-agents>=0.1.0",
+    "aiohttp>=3.13.3",
     "beautifulsoup4>=4.13.4",
     "datasets>=3.6.0",
-    "e2b-code-interpreter>=1.5.2",
-    "gradio>=5.37.0",
-    "langfuse>=3.1.3",
+    "e2b-code-interpreter>=2.4.1",
+    "gradio>=6.0.2",
+    "langfuse>=3.10.3",
     "lxml>=6.0.0",
     "nest-asyncio>=1.6.0",
     "numpy<2.3.0",
-    "openai>=1.93.1",
-    "openai-agents>=0.1.0",
-    "plotly>=6.2.0",
-    "pydantic>=2.11.7",
-    "pydantic-ai-slim[logfire]>=0.3.7",
-    "pytest-asyncio>=0.25.2",
+    "openai>=2.8.1",
+    "openai-agents>=0.6.1",
+    "plotly>=6.5.0",
+    "pydantic>=2.12.4",
+    "pydantic-ai-slim[logfire]>=1.26.0",
     "scikit-learn>=1.7.0",
-    "weaviate-client>=4.15.4",
-    "urllib3>=2.6.0",
+    "weaviate-client>=4.18.3",
+    "urllib3>=2.6.3",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src"]
 
 [dependency-groups]
 dev = [
-    "aieng-platform-onboard>=0.3.6",
-    "mypy>=1.14.1",
+    "aieng-platform-onboard>=0.4.0",
+    "mypy>=1.19.0",
     "codecov>=2.1.13",
-    "ipykernel>=6.29.5",
-    "ipython>=9.4.0",
+    "ipykernel>=7.1.0",
+    "ipython>=9.8.0",
     "ipywidgets>=8.1.7",
     "jupyter>=1.1.1",
     "jupyterlab>=4.4.8",
     "nbqa>=1.9.1",
-    "pip-audit>=2.7.3",
-    "pre-commit>=4.1.0",
+    "pip-audit>=2.9.0",
+    "pre-commit>=4.2.0",
     "pytest>=8.3.4",
-    "pytest-asyncio>=0.25.2",
-    "pytest-cov>=6.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
     "pytest-mock>=3.14.0",
-    "ruff>=0.12.2",
-    "transformers>=4.54.1",
+    "ruff>=0.14.7",
+    "transformers>=4.57.3",
 ]
 docs = [
     "jinja2>=3.1.6", # Pinning version to address vulnerability GHSA-cpwx-vrp4-4pq7
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.6.15",
-    "mkdocstrings>=0.24.1",
-    "mkdocstrings-python>=1.16.12",
-    "ipykernel>=6.29.5",
-    "ipython>=9.4.0",
+    "mkdocstrings>=1.0.0",
+    "mkdocstrings-python>=2.0.1",
+    "ipykernel>=7.1.0",
+    "ipython>=9.8.0",
 ]
 web-search = [
     "google-cloud-firestore>=2.21.0",
@@ -73,6 +66,14 @@ web-search = [
 # Default dependency groups to be installed
 [tool.uv]
 default-groups = ["dev", "docs"]
+
+[tool.uv.workspace]
+members = [
+  "aieng-eval-agents",
+]
+
+[tool.uv.sources]
+aieng-eval-agents = { workspace = true }
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml", "*.ipynb"]
@@ -142,5 +143,5 @@ markers = [
 
 [tool.coverage]
     [tool.coverage.run]
-    source=["src/"]
-    omit=["tests/*", "*__init__.py"]
+    source=["aieng-eval-agents/"]
+    omit=["aieng-eval-agents/tests/*", "*__init__.py", "scripts/*"]
