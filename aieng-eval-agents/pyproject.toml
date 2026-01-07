@@ -10,6 +10,10 @@ dependencies = [
     "kagglehub>=0.3.13",
 ]
 
+dev = [
+    "pytest>=8.3.5",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
