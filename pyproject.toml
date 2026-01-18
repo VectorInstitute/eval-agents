@@ -25,6 +25,8 @@ dependencies = [
     "scikit-learn>=1.7.0",
     "weaviate-client>=4.18.3",
     "urllib3>=2.6.3",
+    "authlib>=1.6.6",
+    "filelock>=3.20.3",
 ]
 
 [dependency-groups]
