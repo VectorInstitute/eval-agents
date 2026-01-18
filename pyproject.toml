@@ -27,6 +27,8 @@ dependencies = [
     "urllib3>=2.6.3",
     "authlib>=1.6.6",
     "filelock>=3.20.3",
+    "pyasn1>=0.6.2",
+    "virtualenv>=20.36.1",
 ]
 
 [dependency-groups]

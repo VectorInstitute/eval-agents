@@ -33,10 +33,12 @@ dependencies = [
     { name = "openai" },
     { name = "openai-agents" },
     { name = "plotly" },
+    { name = "pyasn1" },
     { name = "pydantic" },
     { name = "pydantic-ai-slim", extra = ["logfire"] },
     { name = "scikit-learn" },
     { name = "urllib3" },
+    { name = "virtualenv" },
     { name = "weaviate-client" },
 ]
 
@@ -93,10 +95,12 @@ requires-dist = [
     { name = "openai", specifier = ">=2.8.1" },
     { name = "openai-agents", specifier = ">=0.6.1" },
     { name = "plotly", specifier = ">=6.5.0" },
+    { name = "pyasn1", specifier = ">=0.6.2" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-ai-slim", extras = ["logfire"], specifier = ">=1.26.0" },
     { name = "scikit-learn", specifier = ">=1.7.0" },
     { name = "urllib3", specifier = ">=2.6.3" },
+    { name = "virtualenv", specifier = ">=20.36.1" },
     { name = "weaviate-client", specifier = ">=4.18.3" },
 ]
 
@@ -3865,11 +3869,11 @@ wheels = [
 
 [[package]]
 name = "pyasn1"
-version = "0.6.1"
+version = "0.6.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ba/e9/01f1a64245b89f039897cb0130016d79f77d52669aae6ee7b159a6c4c018/pyasn1-0.6.1.tar.gz", hash = "sha256:6f580d2bdd84365380830acf45550f2511469f673cb4a5ae3857a3170128b034", size = 145322, upload-time = "2024-09-10T22:41:42.55Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/b6/6e630dff89739fcd427e3f72b3d905ce0acb85a45d4ec3e2678718a3487f/pyasn1-0.6.2.tar.gz", hash = "sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b", size = 146586, upload-time = "2026-01-16T18:04:18.534Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/f1/d6a797abb14f6283c0ddff96bbdd46937f64122b8c925cab503dd37f8214/pyasn1-0.6.1-py3-none-any.whl", hash = "sha256:0d632f46f2ba09143da3a8afe9e33fb6f92fa2320ab7e886e2d0f7672af84629", size = 83135, upload-time = "2024-09-11T16:00:36.122Z" },
+    { url = "https://files.pythonhosted.org/packages/44/b5/a96872e5184f354da9c84ae119971a0a4c221fe9b27a4d94bd43f2596727/pyasn1-0.6.2-py3-none-any.whl", hash = "sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf", size = 83371, upload-time = "2026-01-16T18:04:17.174Z" },
 ]
 
 [[package]]
@@ -5235,16 +5239,16 @@ wheels = [
 
 [[package]]
 name = "virtualenv"
-version = "20.30.0"
+version = "20.36.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "distlib" },
     { name = "filelock" },
     { name = "platformdirs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/e0/633e369b91bbc664df47dcb5454b6c7cf441e8f5b9d0c250ce9f0546401e/virtualenv-20.30.0.tar.gz", hash = "sha256:800863162bcaa5450a6e4d721049730e7f2dae07720e0902b0e4040bd6f9ada8", size = 4346945, upload-time = "2025-03-31T16:33:29.185Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/aa/a3/4d310fa5f00863544e1d0f4de93bddec248499ccf97d4791bc3122c9d4f3/virtualenv-20.36.1.tar.gz", hash = "sha256:8befb5c81842c641f8ee658481e42641c68b5eab3521d8e092d18320902466ba", size = 6032239, upload-time = "2026-01-09T18:21:01.296Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/ed/3cfeb48175f0671ec430ede81f628f9fb2b1084c9064ca67ebe8c0ed6a05/virtualenv-20.30.0-py3-none-any.whl", hash = "sha256:e34302959180fca3af42d1800df014b35019490b119eba981af27f2fa486e5d6", size = 4329461, upload-time = "2025-03-31T16:33:26.758Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/2a/dc2228b2888f51192c7dc766106cd475f1b768c10caaf9727659726f7391/virtualenv-20.36.1-py3-none-any.whl", hash = "sha256:575a8d6b124ef88f6f51d56d656132389f961062a9177016a50e4f507bbcc19f", size = 6008258, upload-time = "2026-01-09T18:20:59.425Z" },
 ]
 
 [[package]]
