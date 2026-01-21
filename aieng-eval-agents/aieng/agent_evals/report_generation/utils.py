@@ -27,8 +27,7 @@ def oai_agent_stream_to_gradio_messages(stream_event: StreamEvent) -> list[ChatM
             # including tool calls and final outputs.
             # If there is at least one tool call, we mark the response as a thought.
             is_thought = len(data.response.output) > 1 and any(
-                isinstance(message, ResponseFunctionToolCall)
-                for message in data.response.output
+                isinstance(message, ResponseFunctionToolCall) for message in data.response.output
             )
 
             for message in data.response.output:
@@ -168,16 +167,10 @@ class Configs(BaseSettings):
     variables. The class will automatically load and validate them.
     """
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True)
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    openai_api_key: str = Field(
-        validation_alias=AliasChoices(
-            "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"
-        )
-    )
+    openai_api_key: str = Field(validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"))
 
     default_planner_model: str = "gemini-2.5-pro"
     default_worker_model: str = "gemini-2.5-flash"
@@ -187,7 +180,7 @@ class Configs(BaseSettings):
     embedding_model_name: str = "@cf/baai/bge-m3"
 
     weaviate_collection_name: str = "enwiki_20250520"
-    weaviate_api_key: str
+    weaviate_api_key: str | None = None
     # ends with .weaviate.cloud, or it's "localhost"
     weaviate_http_host: str = Field(pattern=r"^.*\.weaviate\.cloud$|localhost")
     # starts with grpc- ends with .weaviate.cloud, or it's "localhost"

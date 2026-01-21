@@ -86,9 +86,7 @@ if __name__ == "__main__":
         # NOTE: Examples must be a list of lists when additional inputs are provided
         additional_inputs=gr.State(value={}, render=False),
         examples=[
-            [
-                "Generate a report on products that customers stop buying after their third order."
-            ],
+            ["Generate a monthly sales performance report for the last year that data is available."],
         ],
         title="2.1: ReAct for Retrieval-Augmented Generation with OpenAI Agent SDK",
     )
