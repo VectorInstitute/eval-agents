@@ -16,10 +16,9 @@ from gradio.components.chatbot import ChatMessage
 
 
 REACT_INSTRUCTIONS = """\
-Perform the task using the search tool. \
+Perform the task using the SQLite database tool. \
 EACH TIME before invoking the function, you must explain your reasons for doing so. \
-Be sure to mention the sources in your response. \
-If the search tool did not return intended results, try again. \
+If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
 For facts that might change over time, you must use the search tool to retrieve the \
@@ -52,7 +51,7 @@ async def _main(
         # We wrap the `search_knowledgebase` method with `function_tool`, which
         # will construct the tool definition JSON schema by extracting the necessary
         # information from the method signature and docstring.
-        tools=[agents.function_tool(client_manager.knowledgebase.search_knowledgebase)],
+        tools=[agents.function_tool(client_manager.sqlite_connection.execute)],
         model=agents.OpenAIChatCompletionsModel(
             model=client_manager.configs.default_worker_model,
             openai_client=client_manager.openai_client,
@@ -86,7 +85,7 @@ if __name__ == "__main__":
         # NOTE: Examples must be a list of lists when additional inputs are provided
         additional_inputs=gr.State(value={}, render=False),
         examples=[
-            ["Generate a monthly sales performance report for the last year that data is available."],
+            ["Generate a monthly sales performance report for the last year with available data."],
         ],
         title="2.1: ReAct for Retrieval-Augmented Generation with OpenAI Agent SDK",
     )

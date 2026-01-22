@@ -5,13 +5,36 @@ like Weaviate and OpenAI to prevent event loop conflicts during Gradio's
 hot-reload process.
 """
 
+import sqlite3
+from typing import Any
+
 from aieng.agent_evals.report_generation.utils import Configs
-from aieng.agent_evals.report_generation.weaviate import (
-    AsyncWeaviateKnowledgeBase,
-    get_weaviate_async_client,
-)
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
+
+
+class SQLiteConnection:
+    """SQLite connection."""
+
+    def __init__(self) -> None:
+        self._connection = sqlite3.connect("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
+
+    def execute(self, query: str) -> list[Any]:
+        """Execute a SQLite query.
+
+        Args:
+            query: The SQLite query to execute.
+
+        Returns
+        -------
+            The result of the query. Will return the result of
+            `execute(query).fetchall()`.
+        """
+        return self._connection.execute(query).fetchall()
+
+    def close(self) -> None:
+        """Close the SQLite connection."""
+        self._connection.close()
 
 
 class AsyncClientManager:
@@ -55,7 +78,7 @@ class AsyncClientManager:
         self._configs: Configs | None = configs
         self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
-        self._knowledgebase: AsyncWeaviateKnowledgeBase | None = None
+        self._sqlite_connection: SQLiteConnection | None = None
         self._initialized: bool = False
 
     @property
@@ -74,36 +97,23 @@ class AsyncClientManager:
         return self._openai_client
 
     @property
-    def weaviate_client(self) -> WeaviateAsyncClient:
-        """Get or create Weaviate client."""
-        if self._weaviate_client is None:
-            self._weaviate_client = get_weaviate_async_client(self.configs)
+    def sqlite_connection(self) -> SQLiteConnection:
+        """Get or create SQLite session."""
+        if self._sqlite_connection is None:
+            self._sqlite_connection = SQLiteConnection()
             self._initialized = True
-        return self._weaviate_client
-
-    @property
-    def knowledgebase(self) -> AsyncWeaviateKnowledgeBase:
-        """Get or create knowledge base instance."""
-        if self._knowledgebase is None:
-            self._knowledgebase = AsyncWeaviateKnowledgeBase(
-                self.weaviate_client,
-                collection_name=self.configs.weaviate_collection_name,
-                embedding_model_name=self.configs.embedding_model_name,
-            )
-            self._initialized = True
-        return self._knowledgebase
+        return self._sqlite_connection
 
     async def close(self) -> None:
         """Close all initialized async clients."""
-        if self._weaviate_client is not None:
-            await self._weaviate_client.close()
-            self._weaviate_client = None
-
         if self._openai_client is not None:
             await self._openai_client.close()
             self._openai_client = None
 
-        self._knowledgebase = None
+        if self._sqlite_connection is not None:
+            self._sqlite_connection.close()
+            self._sqlite_connection = None
+
         self._initialized = False
 
     def is_initialized(self) -> bool:
