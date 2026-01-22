@@ -6,18 +6,25 @@ hot-reload process.
 """
 
 import sqlite3
+import urllib.parse
+from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from aieng.agent_evals.report_generation.utils import Configs
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
+
+
+SQLITE_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
+REPORTS_OUTPUT_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/reports/")
 
 
 class SQLiteConnection:
     """SQLite connection."""
 
     def __init__(self) -> None:
-        self._connection = sqlite3.connect("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
+        self._connection = sqlite3.connect(SQLITE_DB_PATH)
 
     def execute(self, query: str) -> list[Any]:
         """Execute a SQLite query.
@@ -35,6 +42,33 @@ class SQLiteConnection:
     def close(self) -> None:
         """Close the SQLite connection."""
         self._connection.close()
+
+
+class ReportFileWriter:
+    """Write reports to a file."""
+
+    def write_report_to_file(
+        self, report_data: list[Any], report_columns: list[str], filename: str = "report.xlsx"
+    ) -> str:
+        """Write a report to a XLSX file.
+
+        Args:
+            report_data: The data of the report
+            report_columns: The columns of the report
+            filename: The name of the file to create. Default is "report.xlsx".
+
+        Returns
+        -------
+            The URL link to the report file.
+        """
+        # Create reports directory if it doesn't exist
+        REPORTS_OUTPUT_PATH.mkdir(exist_ok=True)
+        filepath = REPORTS_OUTPUT_PATH / filename
+
+        report_df = pd.DataFrame(report_data, columns=report_columns)
+        report_df.to_excel(filepath, index=False)
+
+        return _make_gradio_file_link(filepath)
 
 
 class AsyncClientManager:
@@ -79,6 +113,7 @@ class AsyncClientManager:
         self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
+        self._report_file_writer: ReportFileWriter | None = None
         self._initialized: bool = False
 
     @property
@@ -104,6 +139,14 @@ class AsyncClientManager:
             self._initialized = True
         return self._sqlite_connection
 
+    @property
+    def report_file_writer(self) -> ReportFileWriter:
+        """Get or create ReportFileWriter."""
+        if self._report_file_writer is None:
+            self._report_file_writer = ReportFileWriter()
+            self._initialized = True
+        return self._report_file_writer
+
     async def close(self) -> None:
         """Close all initialized async clients."""
         if self._openai_client is not None:
@@ -119,3 +162,16 @@ class AsyncClientManager:
     def is_initialized(self) -> bool:
         """Check if any clients have been initialized."""
         return self._initialized
+
+
+def _make_gradio_file_link(filepath: Path) -> str:
+    """Make a Gradio file link from a filepath.
+
+    Args:
+        filepath: The path to the file.
+
+    Returns
+    -------
+        A Gradio file link.
+    """
+    return f"gradio_api/file={urllib.parse.quote(str(filepath), safe='')}"

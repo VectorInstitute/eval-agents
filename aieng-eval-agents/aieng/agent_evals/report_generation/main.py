@@ -6,7 +6,7 @@ from typing import Any, AsyncGenerator
 
 import agents
 import gradio as gr
-from aieng.agent_evals.report_generation.async_client_manager import AsyncClientManager
+from aieng.agent_evals.report_generation.async_client_manager import REPORTS_OUTPUT_PATH, AsyncClientManager
 from aieng.agent_evals.report_generation.utils import (
     get_or_create_session,
     oai_agent_stream_to_gradio_messages,
@@ -21,8 +21,8 @@ EACH TIME before invoking the function, you must explain your reasons for doing 
 If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
-For facts that might change over time, you must use the search tool to retrieve the \
-most up-to-date information.
+When the report is done, use the report file writer tool to write it to a file. \
+At the end, provide a link to the report file to the user.
 """
 
 
@@ -51,7 +51,10 @@ async def _main(
         # We wrap the `search_knowledgebase` method with `function_tool`, which
         # will construct the tool definition JSON schema by extracting the necessary
         # information from the method signature and docstring.
-        tools=[agents.function_tool(client_manager.sqlite_connection.execute)],
+        tools=[
+            agents.function_tool(client_manager.sqlite_connection.execute),
+            agents.function_tool(client_manager.report_file_writer.write_report_to_file),
+        ],
         model=agents.OpenAIChatCompletionsModel(
             model=client_manager.configs.default_worker_model,
             openai_client=client_manager.openai_client,
@@ -100,6 +103,6 @@ if __name__ == "__main__":
     )
 
     try:
-        demo.launch(share=False)
+        demo.launch(share=False, allowed_paths=[REPORTS_OUTPUT_PATH.absolute()])
     finally:
         asyncio.run(AsyncClientManager.get_instance().close())
