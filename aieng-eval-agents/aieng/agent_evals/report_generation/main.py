@@ -86,6 +86,15 @@ if __name__ == "__main__":
         additional_inputs=gr.State(value={}, render=False),
         examples=[
             ["Generate a monthly sales performance report for the last year with available data."],
+            ["Generate a report of the top 5 selling products per year and the total sales for each product."],
+            ["Generate a report of the average order value per invoice per month."],
+            ["Generate a report with the month-over-month trends in sales."],
+            ["Generate a report on sales revenue by country per year."],
+            ["Generate a report on the 5 highest-value customers per year vs. the average customer."],
+            [
+                "Generate a report on the average amount spent by one time buyers for each year vs. the average customer."
+            ],
+            ["Generate a report on the daily, weekly and monthly sales trends."],
         ],
         title="2.1: ReAct for Retrieval-Augmented Generation with OpenAI Agent SDK",
     )
