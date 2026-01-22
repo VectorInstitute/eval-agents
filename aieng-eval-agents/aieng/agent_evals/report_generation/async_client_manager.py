@@ -88,6 +88,7 @@ class AsyncClientManager:
             self._knowledgebase = AsyncWeaviateKnowledgeBase(
                 self.weaviate_client,
                 collection_name=self.configs.weaviate_collection_name,
+                embedding_model_name=self.configs.embedding_model_name,
             )
             self._initialized = True
         return self._knowledgebase

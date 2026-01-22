@@ -25,3 +25,4 @@ wheels/
 
 .env
 .gradio
+aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db
