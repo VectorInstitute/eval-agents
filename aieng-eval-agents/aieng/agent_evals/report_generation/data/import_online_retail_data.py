@@ -1,17 +1,53 @@
-"""Convert InvoiceDate format in OnlineRetail.db.
-
-Convert from 'MM/DD/YY HH:MM' to 'YYYY-MM-DD HH:MM' for better searching abilities.
-"""
+"""Import the Online Retail dataset to a SQLite database."""
 
 import logging
+import os
 import sqlite3
 from datetime import datetime
+from pathlib import Path
+
+import click
+import pandas as pd
+from dotenv import load_dotenv
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+load_dotenv()
 
-DB_PATH = "aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db"
+# Will use this as default if no path is provided in the
+# REPORT_GENERATION_DB_PATH env var
+DEFAULT_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
+
+
+@click.command()
+@click.option("--dataset-path", required=True, help="OnlieRetail dataset CSV path.")
+def main(dataset_path: str):
+    """Import the Online Retail dataset to the database.
+
+    Args:
+        dataset_path: The path to the CSV file containing the dataset.
+    """
+    db_path = os.getenv("REPORT_GENERATION_DB_PATH", DEFAULT_DB_PATH)
+
+    assert Path(dataset_path).exists(), f"Dataset path {dataset_path} does not exist"
+    assert Path(db_path).parent.exists(), f"Database path {db_path} does not exist"
+
+    conn = sqlite3.connect(db_path)
+    logger.info("Creating tables according to the OnlineRetail.ddl file")
+
+    with open(Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.ddl"), "r") as file:
+        conn.executescript(file.read())
+    conn.commit()
+
+    logger.info(f"Importing dataset from {dataset_path} to database at {db_path}")
+
+    df = pd.read_csv(dataset_path)
+    df["InvoiceDate"] = df["InvoiceDate"].apply(convert_date)
+    df.to_sql("sales", conn, if_exists="append", index=False)
+
+    conn.close()
+    logger.info(f"Dataset imported successfully to database at {db_path}")
 
 
 def convert_date(date_str: str) -> str | None:
@@ -57,43 +93,6 @@ def convert_date(date_str: str) -> str | None:
     except ValueError as e:
         logger.warning(f"Could not parse date: {date_str} - {e}")
         return None
-
-
-def main():
-    """Convert all InvoiceDate values in the database."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Get all rows with InvoiceDate
-    cursor.execute("SELECT rowid, InvoiceDate FROM sales WHERE InvoiceDate IS NOT NULL AND InvoiceDate != ''")
-    rows = cursor.fetchall()
-
-    logger.info(f"Found {len(rows)} rows with InvoiceDate to convert")
-
-    updated_count = 0
-    error_count = 0
-
-    for rowid, old_date in rows:
-        new_date = convert_date(old_date)
-        if new_date:
-            try:
-                cursor.execute("UPDATE sales SET InvoiceDate = ? WHERE rowid = ?", (new_date, rowid))
-                updated_count += 1
-                if updated_count % 100 == 0:
-                    logger.info(f"Updated {updated_count} rows...")
-            except Exception as e:
-                logger.error(f"Error updating rowid {rowid}: {e}")
-                error_count += 1
-        else:
-            logger.warning(f"Could not convert date for rowid {rowid}: {old_date}")
-            error_count += 1
-
-    conn.commit()
-    conn.close()
-
-    logger.info("Conversion complete!")
-    logger.info(f"  Updated: {updated_count} rows")
-    logger.info(f"  Errors: {error_count} rows")
 
 
 if __name__ == "__main__":

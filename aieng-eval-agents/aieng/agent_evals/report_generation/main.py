@@ -6,14 +6,16 @@ from typing import Any, AsyncGenerator
 
 import agents
 import gradio as gr
-from aieng.agent_evals.report_generation.async_client_manager import REPORTS_OUTPUT_PATH, AsyncClientManager
-from aieng.agent_evals.report_generation.utils import (
+from aieng.agent_evals.async_client_manager import AsyncClientManager, ReportFileWriter
+from aieng.agent_evals.utils import (
     get_or_create_session,
     oai_agent_stream_to_gradio_messages,
 )
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
 
+
+load_dotenv()
 
 REACT_INSTRUCTIONS = """\
 Perform the task using the SQLite database tool. \
@@ -22,7 +24,7 @@ If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
-At the end, provide a link to the report file to the user.
+At the end, provide the report file as a downloadable hyperlink to the user.
 """
 
 
@@ -103,6 +105,9 @@ if __name__ == "__main__":
     )
 
     try:
-        demo.launch(share=False, allowed_paths=[REPORTS_OUTPUT_PATH.absolute()])
+        demo.launch(
+            share=False,
+            allowed_paths=[ReportFileWriter.get_reports_output_path().absolute()],
+        )
     finally:
         asyncio.run(AsyncClientManager.get_instance().close())

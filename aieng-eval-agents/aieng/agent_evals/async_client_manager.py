@@ -5,26 +5,30 @@ like Weaviate and OpenAI to prevent event loop conflicts during Gradio's
 hot-reload process.
 """
 
+import os
 import sqlite3
 import urllib.parse
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from aieng.agent_evals.report_generation.utils import Configs
+from aieng.agent_evals.configs import Configs
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
 
 
-SQLITE_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
-REPORTS_OUTPUT_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/reports/")
+# Will use these as default if no path is provided in the
+# REPORT_GENERATION_DB_PATH and REPORTS_OUTPUT_PATH env vars
+DEFAULT_SQLITE_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
+DEFAULT_REPORTS_OUTPUT_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/reports/")
 
 
 class SQLiteConnection:
     """SQLite connection."""
 
     def __init__(self) -> None:
-        self._connection = sqlite3.connect(SQLITE_DB_PATH)
+        db_path = os.getenv("REPORT_GENERATION_DB_PATH", DEFAULT_SQLITE_DB_PATH)
+        self._connection = sqlite3.connect(db_path)
 
     def execute(self, query: str) -> list[Any]:
         """Execute a SQLite query.
@@ -48,7 +52,11 @@ class ReportFileWriter:
     """Write reports to a file."""
 
     def write_report_to_file(
-        self, report_data: list[Any], report_columns: list[str], filename: str = "report.xlsx"
+        self,
+        report_data: list[Any],
+        report_columns: list[str],
+        filename: str = "report.xlsx",
+        gradio_link: bool = True,
     ) -> str:
         """Write a report to a XLSX file.
 
@@ -56,19 +64,40 @@ class ReportFileWriter:
             report_data: The data of the report
             report_columns: The columns of the report
             filename: The name of the file to create. Default is "report.xlsx".
+            gradio_link: Whether to return a file link that works with Gradio UI.
+                Default is True.
 
         Returns
         -------
-            The URL link to the report file.
+            The path to the report file. If `gradio_link` is True, will return
+                a URL link that allows Gradio UI to donwload the file.
         """
         # Create reports directory if it doesn't exist
-        REPORTS_OUTPUT_PATH.mkdir(exist_ok=True)
-        filepath = REPORTS_OUTPUT_PATH / filename
+        reports_output_path = self.get_reports_output_path()
+        reports_output_path.mkdir(exist_ok=True)
+        filepath = reports_output_path / filename
 
         report_df = pd.DataFrame(report_data, columns=report_columns)
         report_df.to_excel(filepath, index=False)
 
-        return _make_gradio_file_link(filepath)
+        file_uri = str(filepath)
+        if gradio_link:
+            file_uri = f"gradio_api/file={urllib.parse.quote(str(file_uri), safe='')}"
+
+        return file_uri
+
+    @staticmethod
+    def get_reports_output_path() -> Path:
+        """Get the reports output path.
+
+        If no path is provided in the REPORTS_OUTPUT_PATH env var, will use the
+        default path in DEFAULT_REPORTS_OUTPUT_PATH.
+
+        Returns
+        -------
+            The reports output path.
+        """
+        return Path(os.getenv("REPORTS_OUTPUT_PATH", DEFAULT_REPORTS_OUTPUT_PATH))
 
 
 class AsyncClientManager:
@@ -162,16 +191,3 @@ class AsyncClientManager:
     def is_initialized(self) -> bool:
         """Check if any clients have been initialized."""
         return self._initialized
-
-
-def _make_gradio_file_link(filepath: Path) -> str:
-    """Make a Gradio file link from a filepath.
-
-    Args:
-        filepath: The path to the file.
-
-    Returns
-    -------
-        A Gradio file link.
-    """
-    return f"gradio_api/file={urllib.parse.quote(str(filepath), safe='')}"
