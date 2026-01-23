@@ -54,5 +54,10 @@ jobs:
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
         with:
           virtual-environment: .venv/
+          # Skipping one nbconvert vulnerability that has no fix version
+          # Skipping one orjson vulnerability that has no fix version
+          # Skipping one protobuf vulnerability that has no fix version
           ignore-vulns: |
             GHSA-xm59-rqc7-hhvf
+            GHSA-hx9q-6w63-j58v
+            GHSA-7gcm-g887-7qv7
