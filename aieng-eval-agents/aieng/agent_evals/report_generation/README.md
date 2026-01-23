@@ -46,3 +46,6 @@ uv run --env-file .env python -m aieng.agent_evals.report_generation.main
 
 The agent will be available in a [Gradio](https://www.gradio.app/) web UI under the
 local address http://127.0.0.1:7860 which can be accessed on your preferred browser.
+
+On the UI, there will be a few examples of requests you can make for this agent. It also
+features a text input so you can make your own report requests to it.
