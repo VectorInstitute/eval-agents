@@ -1,15 +1,24 @@
 """Functions and objects pertaining to Langfuse."""
 
+import base64
 import logging
+import os
 from enum import Enum
 from typing import Any
 
+import logfire
+import nest_asyncio
 from agents.items import ToolCallOutputItem
 from agents.stream_events import RawResponsesStreamEvent, RunItemStreamEvent
+from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse  # type: ignore[attr-defined]
 from openai.types.responses import ResponseFunctionToolCall, ResponseOutputText
 from openai.types.responses.response_completed_event import ResponseCompletedEvent
 from openai.types.responses.response_output_message import ResponseOutputMessage
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from pydantic import BaseModel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -92,12 +101,6 @@ def parse_agent_stream_response(stream_item: Any, trace_id: str) -> list[LangFus
         # The completed event may contain multiple output messages,
         # including tool calls and final outputs.
         # If there is at least one tool call, we mark the response as a thought.
-        is_thought = len(stream_item.data.response.output) > 1 and any(
-            isinstance(message, ResponseFunctionToolCall) for message in stream_item.data.response.output
-        )
-
-        logger.info(f"################# Is thought: {is_thought}")
-
         for message in stream_item.data.response.output:
             if isinstance(message, ResponseOutputMessage):
                 for _item in message.content:
@@ -118,6 +121,66 @@ def parse_agent_stream_response(stream_item: Any, trace_id: str) -> list[LangFus
         logger.debug(f"Untracked stream item type: type={type(stream_item)}, item={stream_item}")
 
     return [LangFuseTracedResponse(answer=message.model_dump_json(), trace_id=trace_id) for message in messages]
+
+
+def configure_oai_agents_sdk(service_name: str) -> None:
+    """Register Langfuse as tracing provider for OAI Agents SDK.
+
+    Parameters
+    ----------
+    service_name : str
+        The name of the service to configure.
+    """
+    nest_asyncio.apply()
+    logfire.configure(service_name=service_name, send_to_logfire=False, scrubbing=False)
+    logfire.instrument_openai_agents()
+
+
+def set_up_langfuse_otlp_env_vars():
+    """Set up environment variables for Langfuse OpenTelemetry integration.
+
+    OTLP = OpenTelemetry Protocol.
+
+    This function updates environment variables.
+
+    Also refer to:
+    langfuse.com/docs/integrations/openaiagentssdk/openai-agents
+    """
+    configs = Configs()
+
+    langfuse_key = f"{configs.langfuse_public_key}:{configs.langfuse_secret_key}".encode()
+    langfuse_auth = base64.b64encode(langfuse_key).decode()
+
+    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = configs.langfuse_host + "/api/public/otel"
+    os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {langfuse_auth}"
+
+    logging.info(f"Langfuse host: {configs.langfuse_host}")
+
+
+def setup_langfuse_tracer(service_name: str = "aieng-eval-agents") -> "trace.Tracer":
+    """Register Langfuse as the default tracing provider and return tracer.
+
+    Parameters
+    ----------
+    service_name : str
+        The name of the service to configure. Default is "aieng-eval-agents".
+
+    Returns
+    -------
+    tracer: OpenTelemetry Tracer
+    """
+    set_up_langfuse_otlp_env_vars()
+    configure_oai_agents_sdk(service_name)
+
+    # Create a TracerProvider for OpenTelemetry
+    trace_provider = TracerProvider()
+
+    # Add a SimpleSpanProcessor with the OTLPSpanExporter to send traces
+    trace_provider.add_span_processor(SimpleSpanProcessor(OTLPSpanExporter()))
+
+    # Set the global default tracer provider
+    trace.set_tracer_provider(trace_provider)
+    return trace.get_tracer(__name__)
 
 
 def flush_langfuse(langfuse_client: Langfuse) -> None:

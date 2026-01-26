@@ -9,7 +9,12 @@ import agents
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager, ReportFileWriter
-from aieng.agent_evals.langfuse import LangFuseTracedResponse, parse_agent_stream_response
+from aieng.agent_evals.langfuse import (
+    LangFuseTracedResponse,
+    flush_langfuse,
+    parse_agent_stream_response,
+    setup_langfuse_tracer,
+)
 from aieng.agent_evals.utils import (
     get_or_create_session,
     oai_agent_stream_to_gradio_messages,
@@ -38,7 +43,7 @@ async def agent_session_handler(
     query: str,
     history: list[ChatMessage],
     session_state: dict[str, Any],
-    traced_responses: list[LangFuseTracedResponse] | None = None,
+    enable_trace: bool = True,
 ) -> AsyncGenerator[list[ChatMessage], Any]:
     """Handle the agent session.
 
@@ -50,9 +55,9 @@ async def agent_session_handler(
         The history of the conversation.
     session_state : dict[str, Any]
         The currentsession state.
-    traced_responses : list[LangFuseTracedResponse] | None, optional
-        A list that will be populated with the agent responses to be sent to Langfuse
-        trace. If None, no responses will be recorded. Default is None.
+    enable_trace : bool, optional
+        Whether to enable tracing with Langfuse for evaluation purposes.
+        Default is True.
 
     Returns
     -------
@@ -70,6 +75,13 @@ async def agent_session_handler(
 
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
+
+    # Initialize langfuse tracing if enabled
+    trace_id: str | None = None
+    traced_responses: list[LangFuseTracedResponse] = []
+    if enable_trace:
+        setup_langfuse_tracer("aieng-eval-agents:report-generation")
+        trace_id = client_manager.langfuse_client.get_current_trace_id()
 
     # Define an agent using the OpenAI Agent SDK
     main_agent = agents.Agent(
@@ -93,11 +105,8 @@ async def agent_session_handler(
     result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
 
     async for _item in result_stream.stream_events():
-        if traced_responses is not None:
-            parsed_responses = parse_agent_stream_response(
-                _item,
-                client_manager.langfuse_client.get_current_trace_id(),
-            )
+        if enable_trace:
+            parsed_responses = parse_agent_stream_response(_item, trace_id)
             traced_responses.extend(parsed_responses)
             logger.debug(f"Added {len(parsed_responses)} agent responses to Langfuse trace")
 
@@ -106,6 +115,8 @@ async def agent_session_handler(
         turn_messages += oai_agent_stream_to_gradio_messages(_item)
         if len(turn_messages) > 0:
             yield turn_messages
+
+    flush_langfuse(client_manager.langfuse_client)
 
 
 @click.command()
@@ -132,11 +143,7 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
     # of OpenAI models
     agents.set_tracing_disabled(disabled=True)
 
-    traced_responses: list[LangFuseTracedResponse] | None = None
-    if enable_trace:
-        traced_responses = []
-
-    partial_agent_session_handler = partial(agent_session_handler, traced_responses=traced_responses)
+    partial_agent_session_handler = partial(agent_session_handler, enable_trace=enable_trace)
 
     demo = gr.ChatInterface(
         partial_agent_session_handler,
