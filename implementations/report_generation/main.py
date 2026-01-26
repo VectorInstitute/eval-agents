@@ -2,14 +2,15 @@
 
 import asyncio
 import logging
+import os
 from functools import partial
+from pathlib import Path
 from typing import Any, AsyncGenerator
 
 import agents
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.impl.report_generation.file_writer import get_reports_output_path, write_report_to_file
 from aieng.agent_evals.langfuse import (
     LangFuseTracedResponse,
     flush_langfuse,
@@ -22,6 +23,8 @@ from aieng.agent_evals.utils import (
 )
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
+
+from implementations.report_generation.file_writer import get_reports_output_path, write_report_to_file
 
 
 load_dotenv(verbose=True)
@@ -38,6 +41,21 @@ Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
 At the end, provide the report file as a downloadable hyperlink to the user.
 """
+
+
+def get_sqlite_db_path() -> Path:
+    """Get the SQLite database path.
+
+    If no path is provided in the REPORT_GENERATION_DB_PATH env var, will use the
+    default path in `implementations/report_generation/data/OnlineRetail.db`.
+
+    Returns
+    -------
+    Path
+        The SQLite database path.
+    """
+    default_sqlite_db_path = "implementations/report_generation/data/OnlineRetail.db"
+    return Path(os.getenv("REPORT_GENERATION_DB_PATH", default_sqlite_db_path))
 
 
 async def agent_session_handler(
@@ -93,7 +111,7 @@ async def agent_session_handler(
         # will construct the tool definition JSON schema by extracting the necessary
         # information from the method signature and docstring.
         tools=[
-            agents.function_tool(client_manager.sqlite_connection.execute),
+            agents.function_tool(client_manager.sqlite_connection(get_sqlite_db_path()).execute),
             agents.function_tool(write_report_to_file),
         ],
         model=agents.OpenAIChatCompletionsModel(
@@ -140,10 +158,6 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
         Whether to enable public link for the Gradio app. If True,
         will make the Gradio app available at a public URL. Default is False.
     """
-    # Disable tracing to OpenAI platform since we are using Gemini models instead
-    # of OpenAI models
-    agents.set_tracing_disabled(disabled=True)
-
     partial_agent_session_handler = partial(agent_session_handler, enable_trace=enable_trace)
 
     demo = gr.ChatInterface(
@@ -171,7 +185,7 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
     try:
         demo.launch(
             share=enable_public_link,
-            allowed_paths=[get_reports_output_path().absolute()],
+            allowed_paths=[str(get_reports_output_path().absolute())],
         )
     finally:
         asyncio.run(AsyncClientManager.get_instance().close())

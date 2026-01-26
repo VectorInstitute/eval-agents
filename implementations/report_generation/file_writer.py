@@ -9,7 +9,7 @@ import pandas as pd
 
 
 # Will use this as default if no path is provided in the REPORTS_OUTPUT_PATH env var
-DEFAULT_REPORTS_OUTPUT_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/reports/")
+DEFAULT_REPORTS_OUTPUT_PATH = Path("implementations/report_generation/reports/")
 
 
 def write_report_to_file(

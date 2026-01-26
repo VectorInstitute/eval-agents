@@ -1,7 +1,6 @@
 """Import the Online Retail dataset to a SQLite database."""
 
 import logging
-import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -10,15 +9,14 @@ import click
 import pandas as pd
 from dotenv import load_dotenv
 
+from implementations.report_generation.main import get_sqlite_db_path
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 load_dotenv()
 
-# Will use this as default if no path is provided in the
-# REPORT_GENERATION_DB_PATH env var
-DEFAULT_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/OnlineRetail.db")
-DDL_FILE_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/OnlineRetail.ddl")
+DDL_FILE_PATH = Path("implementations/report_generation/data/OnlineRetail.ddl")
 
 
 @click.command()
@@ -31,7 +29,7 @@ def main(dataset_path: str):
     dataset_path : str
         The path to the CSV file containing the dataset.
     """
-    db_path = os.getenv("REPORT_GENERATION_DB_PATH", DEFAULT_DB_PATH)
+    db_path = get_sqlite_db_path()
 
     assert Path(dataset_path).exists(), f"Dataset path {dataset_path} does not exist"
     assert Path(db_path).parent.exists(), f"Database path {db_path} does not exist"
