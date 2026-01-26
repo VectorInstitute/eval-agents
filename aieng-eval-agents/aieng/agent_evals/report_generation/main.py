@@ -15,7 +15,9 @@ from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
 
 
-load_dotenv()
+load_dotenv(verbose=True)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 
 REACT_INSTRUCTIONS = """\
 Perform the task using the SQLite database tool. \
@@ -75,9 +77,6 @@ async def _main(
 
 
 if __name__ == "__main__":
-    load_dotenv(verbose=True)
-    logging.basicConfig(level=logging.INFO)
-
     # Disable tracing to OpenAI platform since we are using Gemini models instead
     # of OpenAI models
     agents.set_tracing_disabled(disabled=True)
