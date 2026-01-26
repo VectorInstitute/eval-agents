@@ -5,7 +5,6 @@ like Weaviate and OpenAI to prevent event loop conflicts during Gradio's
 hot-reload process.
 """
 
-import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -15,17 +14,19 @@ from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
 
 
-# Will use this as default if no path is provided in the
-# REPORT_GENERATION_DB_PATH env var
-DEFAULT_SQLITE_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/OnlineRetail.db")
-
-
 class SQLiteConnection:
     """SQLite connection."""
 
-    def __init__(self) -> None:
-        db_path = os.getenv("REPORT_GENERATION_DB_PATH", DEFAULT_SQLITE_DB_PATH)
-        self._connection = sqlite3.connect(db_path)
+    def __init__(self, db_path: Path) -> None:
+        """Initialize the SQLite connection.
+
+        Parameters
+        ----------
+        db_path : Path
+            The path to the SQLite database.
+        """
+        self.db_path = db_path
+        self.connection = sqlite3.connect(db_path)
 
     def execute(self, query: str) -> list[Any]:
         """Execute a SQLite query.
@@ -41,11 +42,11 @@ class SQLiteConnection:
             The result of the query. Will return the result of
             `execute(query).fetchall()`.
         """
-        return self._connection.execute(query).fetchall()
+        return self.connection.execute(query).fetchall()
 
     def close(self) -> None:
         """Close the SQLite connection."""
-        self._connection.close()
+        self.connection.close()
 
 
 class AsyncClientManager:
@@ -127,17 +128,21 @@ class AsyncClientManager:
             self._initialized = True
         return self._openai_client
 
-    @property
-    def sqlite_connection(self) -> SQLiteConnection:
+    def sqlite_connection(self, db_path: Path) -> SQLiteConnection:
         """Get or create SQLite session.
+
+        Parameters
+        ----------
+        db_path : Path
+            The path to the SQLite database.
 
         Returns
         -------
         SQLiteConnection
             The SQLite connection instance.
         """
-        if self._sqlite_connection is None:
-            self._sqlite_connection = SQLiteConnection()
+        if self._sqlite_connection is None or self._sqlite_connection.db_path != db_path:
+            self._sqlite_connection = SQLiteConnection(db_path)
             self._initialized = True
         return self._sqlite_connection
 
