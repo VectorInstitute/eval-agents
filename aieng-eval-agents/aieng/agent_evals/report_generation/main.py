@@ -30,11 +30,27 @@ At the end, provide the report file as a downloadable hyperlink to the user.
 """
 
 
-async def _main(
+async def agent_session_handler(
     query: str,
     history: list[ChatMessage],
     session_state: dict[str, Any],
 ) -> AsyncGenerator[list[ChatMessage], Any]:
+    """Handle the agent session.
+
+    Parameters
+    ----------
+    query : str
+        The query to the agent.
+    history : list[ChatMessage]
+        The history of the conversation.
+    session_state : dict[str, Any]
+        The currentsession state.
+
+    Returns
+    -------
+    AsyncGenerator[list[ChatMessage], Any]
+        An async chat messages generator.
+    """
     # Initialize list of chat messages for a single turn
     turn_messages: list[ChatMessage] = []
 
@@ -76,13 +92,21 @@ async def _main(
             yield turn_messages
 
 
-if __name__ == "__main__":
+def start_gradio_app(enable_public_link: bool = False) -> None:
+    """Start the Gradio app with the agent session handler.
+
+    Parameters
+    ----------
+    enable_public_link : bool, optional
+        Whether to enable public link for the Gradio app. If True,
+        will make the Gradio app available at a public URL. Default is False.
+    """
     # Disable tracing to OpenAI platform since we are using Gemini models instead
     # of OpenAI models
     agents.set_tracing_disabled(disabled=True)
 
     demo = gr.ChatInterface(
-        _main,
+        agent_session_handler,
         chatbot=gr.Chatbot(height=600),
         textbox=gr.Textbox(lines=1, placeholder="Enter your prompt"),
         # Additional input to maintain session state across multiple turns
@@ -105,8 +129,12 @@ if __name__ == "__main__":
 
     try:
         demo.launch(
-            share=False,
+            share=enable_public_link,
             allowed_paths=[ReportFileWriter.get_reports_output_path().absolute()],
         )
     finally:
         asyncio.run(AsyncClientManager.get_instance().close())
+
+
+if __name__ == "__main__":
+    start_gradio_app(enable_public_link=False)
