@@ -17,7 +17,8 @@ load_dotenv()
 
 # Will use this as default if no path is provided in the
 # REPORT_GENERATION_DB_PATH env var
-DEFAULT_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
+DEFAULT_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/OnlineRetail.db")
+DDL_FILE_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/OnlineRetail.ddl")
 
 
 @click.command()
@@ -38,7 +39,7 @@ def main(dataset_path: str):
     conn = sqlite3.connect(db_path)
     logger.info("Creating tables according to the OnlineRetail.ddl file")
 
-    with open(Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.ddl"), "r") as file:
+    with open(DDL_FILE_PATH, "r") as file:
         conn.executescript(file.read())
     conn.commit()
 

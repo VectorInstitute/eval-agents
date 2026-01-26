@@ -25,5 +25,5 @@ wheels/
 
 .env
 .gradio
-aieng-eval-agents/aieng/agent_evals/report_generation/data/*.db
-aieng-eval-agents/aieng/agent_evals/report_generation/reports/*
+aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/*.db
+aieng-eval-agents/aieng/agent_evals/impl/report_generation/reports/*

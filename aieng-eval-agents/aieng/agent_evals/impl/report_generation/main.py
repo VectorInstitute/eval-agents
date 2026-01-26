@@ -8,7 +8,8 @@ from typing import Any, AsyncGenerator
 import agents
 import click
 import gradio as gr
-from aieng.agent_evals.async_client_manager import AsyncClientManager, ReportFileWriter
+from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.impl.report_generation.file_writer import get_reports_output_path, write_report_to_file
 from aieng.agent_evals.langfuse import (
     LangFuseTracedResponse,
     flush_langfuse,
@@ -93,7 +94,7 @@ async def agent_session_handler(
         # information from the method signature and docstring.
         tools=[
             agents.function_tool(client_manager.sqlite_connection.execute),
-            agents.function_tool(client_manager.report_file_writer.write_report_to_file),
+            agents.function_tool(write_report_to_file),
         ],
         model=agents.OpenAIChatCompletionsModel(
             model=client_manager.configs.default_worker_model,
@@ -170,7 +171,7 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
     try:
         demo.launch(
             share=enable_public_link,
-            allowed_paths=[ReportFileWriter.get_reports_output_path().absolute()],
+            allowed_paths=[get_reports_output_path().absolute()],
         )
     finally:
         asyncio.run(AsyncClientManager.get_instance().close())

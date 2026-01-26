@@ -21,7 +21,7 @@ detailed data structure, please check the [OnlineRetail.ddl](data/Online%20Retai
 
 ## Importing the Data
 
-To import the data, pleasde download the dataset file from the link below and save it to your
+To import the data, please download the dataset file from the link below and save it to your
 file system.
 
 https://archive.ics.uci.edu/static/public/352/online+retail.zip
@@ -29,7 +29,7 @@ https://archive.ics.uci.edu/static/public/352/online+retail.zip
 You can import the dataset to the database by running the script below:
 
 ```bash
-uv run --env-file .env python -m aieng.agent_evals.report_generation.data.import_online_retail_data --dataset-path <path_to_the_csv_file>
+uv run --env-file .env python -m aieng.agent_evals.impl.report_generation.data.import_online_retail_data --dataset-path <path_to_the_csv_file>
 ```
 
 Replace `<path_to_the_csv_file>` with the path the dataset's .CSV file is saved in your machine.
@@ -42,7 +42,7 @@ an environment variable named `REPORT_GENERATION_DB_PATH`.
 To run the agent, please execute:
 
 ```bash
-uv run --env-file .env python -m aieng.agent_evals.report_generation.main
+uv run --env-file .env python -m aieng.agent_evals.impl.report_generation.main
 ```
 
 The agent will be available through a [Gradio](https://www.gradio.app/) web UI under the
