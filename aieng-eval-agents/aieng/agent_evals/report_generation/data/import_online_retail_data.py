@@ -25,8 +25,10 @@ DEFAULT_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/da
 def main(dataset_path: str):
     """Import the Online Retail dataset to the database.
 
-    Args:
-        dataset_path: The path to the CSV file containing the dataset.
+    Parameters
+    ----------
+    dataset_path : str
+        The path to the CSV file containing the dataset.
     """
     db_path = os.getenv("REPORT_GENERATION_DB_PATH", DEFAULT_DB_PATH)
 
@@ -53,13 +55,16 @@ def main(dataset_path: str):
 def convert_date(date_str: str) -> str | None:
     """Convert date from 'MM/DD/YY HH:MM' to 'YYYY-MM-DD HH:MM'.
 
-    Args:
-        date_str: Date string in format 'MM/DD/YY HH:MM' or 'MM/DD/YY H:MM'
-                  Example: "12/19/10 16:26" -> "2010-12-19 16:26"
+    Parameters
+    ----------
+    date_str : str
+        Date string in format 'MM/DD/YY HH:MM' or 'MM/DD/YY H:MM'.
+        Example: "12/19/10 16:26" -> "2010-12-19 16:26".
 
     Returns
     -------
-        Converted date string in format 'YYYY-MM-DD HH:MM' or None if parsing fails
+    str | None
+        Converted date string in format 'YYYY-MM-DD HH:MM' or None if parsing fails.
     """
     if not date_str or date_str.strip() == "":
         return None

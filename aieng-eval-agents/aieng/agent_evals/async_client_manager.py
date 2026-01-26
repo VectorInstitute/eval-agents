@@ -33,11 +33,14 @@ class SQLiteConnection:
     def execute(self, query: str) -> list[Any]:
         """Execute a SQLite query.
 
-        Args:
-            query: The SQLite query to execute.
+        Parameters
+        ----------
+        query : str
+            The SQLite query to execute.
 
         Returns
         -------
+        list[Any]
             The result of the query. Will return the result of
             `execute(query).fetchall()`.
         """
@@ -60,17 +63,23 @@ class ReportFileWriter:
     ) -> str:
         """Write a report to a XLSX file.
 
-        Args:
-            report_data: The data of the report
-            report_columns: The columns of the report
-            filename: The name of the file to create. Default is "report.xlsx".
-            gradio_link: Whether to return a file link that works with Gradio UI.
-                Default is True.
+        Parameters
+        ----------
+        report_data : list[Any]
+            The data of the report.
+        report_columns : list[str]
+            The columns of the report.
+        filename : str, optional
+            The name of the file to create. Default is "report.xlsx".
+        gradio_link : bool, optional
+            Whether to return a file link that works with Gradio UI.
+            Default is True.
 
         Returns
         -------
+        str
             The path to the report file. If `gradio_link` is True, will return
-                a URL link that allows Gradio UI to donwload the file.
+            a URL link that allows Gradio UI to download the file.
         """
         # Create reports directory if it doesn't exist
         reports_output_path = self.get_reports_output_path()
@@ -95,6 +104,7 @@ class ReportFileWriter:
 
         Returns
         -------
+        Path
             The reports output path.
         """
         return Path(os.getenv("REPORTS_OUTPUT_PATH", DEFAULT_REPORTS_OUTPUT_PATH))
@@ -130,6 +140,7 @@ class AsyncClientManager:
 
         Returns
         -------
+        AsyncClientManager
             The singleton instance of the client manager.
         """
         if cls._singleton_instance is None:
@@ -137,7 +148,14 @@ class AsyncClientManager:
         return cls._singleton_instance
 
     def __init__(self, configs: Configs | None = None) -> None:
-        """Initialize manager with optional configs."""
+        """Initialize manager with optional configs.
+
+        Parameters
+        ----------
+        configs : Configs | None, optional
+            Configuration object for client setup. If None, a new ``Configs()``
+            is created.
+        """
         self._configs: Configs | None = configs
         self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
@@ -147,14 +165,26 @@ class AsyncClientManager:
 
     @property
     def configs(self) -> Configs:
-        """Get or create configs instance."""
+        """Get or create configs instance.
+
+        Returns
+        -------
+        Configs
+            The configuration instance.
+        """
         if self._configs is None:
             self._configs = Configs()  # pyright: ignore[reportCallIssue]
         return self._configs
 
     @property
     def openai_client(self) -> AsyncOpenAI:
-        """Get or create OpenAI client."""
+        """Get or create OpenAI client.
+
+        Returns
+        -------
+        AsyncOpenAI
+            The OpenAI async client instance.
+        """
         if self._openai_client is None:
             self._openai_client = AsyncOpenAI()
             self._initialized = True
@@ -162,7 +192,13 @@ class AsyncClientManager:
 
     @property
     def sqlite_connection(self) -> SQLiteConnection:
-        """Get or create SQLite session."""
+        """Get or create SQLite session.
+
+        Returns
+        -------
+        SQLiteConnection
+            The SQLite connection instance.
+        """
         if self._sqlite_connection is None:
             self._sqlite_connection = SQLiteConnection()
             self._initialized = True
@@ -170,14 +206,24 @@ class AsyncClientManager:
 
     @property
     def report_file_writer(self) -> ReportFileWriter:
-        """Get or create ReportFileWriter."""
+        """Get or create ReportFileWriter.
+
+        Returns
+        -------
+        ReportFileWriter
+            The report file writer instance.
+        """
         if self._report_file_writer is None:
             self._report_file_writer = ReportFileWriter()
             self._initialized = True
         return self._report_file_writer
 
     async def close(self) -> None:
-        """Close all initialized async clients."""
+        """Close all initialized async clients.
+
+        This method closes the OpenAI client and SQLite connection if they
+        have been initialized.
+        """
         if self._openai_client is not None:
             await self._openai_client.close()
             self._openai_client = None
@@ -189,5 +235,11 @@ class AsyncClientManager:
         self._initialized = False
 
     def is_initialized(self) -> bool:
-        """Check if any clients have been initialized."""
+        """Check if any clients have been initialized.
+
+        Returns
+        -------
+        bool
+            True if any clients have been initialized, False otherwise.
+        """
         return self._initialized

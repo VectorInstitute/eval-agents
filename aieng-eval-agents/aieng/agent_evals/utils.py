@@ -15,6 +15,16 @@ def oai_agent_stream_to_gradio_messages(stream_event: StreamEvent) -> list[ChatM
     """Parse agent sdk "stream event" into a list of gr messages.
 
     Adds extra data for tool use to make the gradio display informative.
+
+    Parameters
+    ----------
+    stream_event : StreamEvent
+        The stream event from the agent SDK.
+
+    Returns
+    -------
+    list[ChatMessage]
+        A list of Gradio chat messages parsed from the stream event.
     """
     output: list[ChatMessage] = []
 
@@ -80,13 +90,17 @@ def get_or_create_session(
 ) -> SQLiteSession:
     """Get existing session or create a new one for conversation persistence.
 
-    Args:
-        history: The history of the conversation.
-        session_state: The state of the session.
+    Parameters
+    ----------
+    history : list[ChatMessage]
+        The history of the conversation.
+    session_state : dict[str, Any]
+        The state of the session.
 
     Returns
     -------
-        The session.
+    SQLiteSession
+        The session instance.
     """
     if len(history) == 0:
         session = SQLiteSession(session_id=str(uuid.uuid4()))
