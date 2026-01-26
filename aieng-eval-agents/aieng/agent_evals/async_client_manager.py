@@ -13,6 +13,7 @@ from typing import Any
 
 import pandas as pd
 from aieng.agent_evals.configs import Configs
+from langfuse import Langfuse
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
 
@@ -161,6 +162,7 @@ class AsyncClientManager:
         self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
         self._report_file_writer: ReportFileWriter | None = None
+        self._langfuse_client: Langfuse | None = None
         self._initialized: bool = False
 
     @property
@@ -217,6 +219,23 @@ class AsyncClientManager:
             self._report_file_writer = ReportFileWriter()
             self._initialized = True
         return self._report_file_writer
+
+    @property
+    def langfuse_client(self) -> Langfuse:
+        """Get or create Langfuse client.
+
+        Returns
+        -------
+        Langfuse
+            The Langfuse client instance.
+        """
+        if self._langfuse_client is None:
+            self._langfuse_client = Langfuse(
+                public_key=self.configs.langfuse_public_key,
+                secret_key=self.configs.langfuse_secret_key,
+            )
+            self._initialized = True
+        return self._langfuse_client
 
     async def close(self) -> None:
         """Close all initialized async clients.

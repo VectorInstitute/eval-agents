@@ -2,11 +2,14 @@
 
 import asyncio
 import logging
+from functools import partial
 from typing import Any, AsyncGenerator
 
 import agents
+import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager, ReportFileWriter
+from aieng.agent_evals.langfuse import LangFuseTracedResponse, parse_agent_stream_response
 from aieng.agent_evals.utils import (
     get_or_create_session,
     oai_agent_stream_to_gradio_messages,
@@ -17,6 +20,7 @@ from gradio.components.chatbot import ChatMessage
 
 load_dotenv(verbose=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 REACT_INSTRUCTIONS = """\
@@ -34,6 +38,7 @@ async def agent_session_handler(
     query: str,
     history: list[ChatMessage],
     session_state: dict[str, Any],
+    traced_responses: list[LangFuseTracedResponse] | None = None,
 ) -> AsyncGenerator[list[ChatMessage], Any]:
     """Handle the agent session.
 
@@ -45,6 +50,9 @@ async def agent_session_handler(
         The history of the conversation.
     session_state : dict[str, Any]
         The currentsession state.
+    traced_responses : list[LangFuseTracedResponse] | None, optional
+        A list that will be populated with the agent responses to be sent to Langfuse
+        trace. If None, no responses will be recorded. Default is None.
 
     Returns
     -------
@@ -85,6 +93,14 @@ async def agent_session_handler(
     result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
 
     async for _item in result_stream.stream_events():
+        if traced_responses is not None:
+            parsed_responses = parse_agent_stream_response(
+                _item,
+                client_manager.langfuse_client.get_current_trace_id(),
+            )
+            traced_responses.extend(parsed_responses)
+            logger.debug(f"Added {len(parsed_responses)} agent responses to Langfuse trace")
+
         # Parse the stream events, convert to Gradio chat messages and append to
         # the chat history
         turn_messages += oai_agent_stream_to_gradio_messages(_item)
@@ -92,11 +108,22 @@ async def agent_session_handler(
             yield turn_messages
 
 
-def start_gradio_app(enable_public_link: bool = False) -> None:
+@click.command()
+@click.option("--enable-trace", required=False, default=True, help="Whether to enable tracing with Langfuse.")
+@click.option(
+    "--enable-public-link",
+    required=False,
+    default=False,
+    help="Whether to enable public link for the Gradio app.",
+)
+def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False) -> None:
     """Start the Gradio app with the agent session handler.
 
     Parameters
     ----------
+    enable_trace : bool, optional
+        Whether to enable tracing with Langfuse for evaluation purposes.
+        Default is True.
     enable_public_link : bool, optional
         Whether to enable public link for the Gradio app. If True,
         will make the Gradio app available at a public URL. Default is False.
@@ -105,8 +132,14 @@ def start_gradio_app(enable_public_link: bool = False) -> None:
     # of OpenAI models
     agents.set_tracing_disabled(disabled=True)
 
+    traced_responses: list[LangFuseTracedResponse] | None = None
+    if enable_trace:
+        traced_responses = []
+
+    partial_agent_session_handler = partial(agent_session_handler, traced_responses=traced_responses)
+
     demo = gr.ChatInterface(
-        agent_session_handler,
+        partial_agent_session_handler,
         chatbot=gr.Chatbot(height=600),
         textbox=gr.Textbox(lines=1, placeholder="Enter your prompt"),
         # Additional input to maintain session state across multiple turns
@@ -137,4 +170,4 @@ def start_gradio_app(enable_public_link: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    start_gradio_app(enable_public_link=False)
+    start_gradio_app()
