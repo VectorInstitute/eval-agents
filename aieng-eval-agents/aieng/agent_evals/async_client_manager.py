@@ -7,20 +7,17 @@ hot-reload process.
 
 import os
 import sqlite3
-import urllib.parse
 from pathlib import Path
 from typing import Any
 
-import pandas as pd
 from aieng.agent_evals.configs import Configs
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
 
 
-# Will use these as default if no path is provided in the
-# REPORT_GENERATION_DB_PATH and REPORTS_OUTPUT_PATH env vars
-DEFAULT_SQLITE_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/data/OnlineRetail.db")
-DEFAULT_REPORTS_OUTPUT_PATH = Path("aieng-eval-agents/aieng/agent_evals/report_generation/reports/")
+# Will use this as default if no path is provided in the
+# REPORT_GENERATION_DB_PATH env var
+DEFAULT_SQLITE_DB_PATH = Path("aieng-eval-agents/aieng/agent_evals/impl/report_generation/data/OnlineRetail.db")
 
 
 class SQLiteConnection:
@@ -49,65 +46,6 @@ class SQLiteConnection:
     def close(self) -> None:
         """Close the SQLite connection."""
         self._connection.close()
-
-
-class ReportFileWriter:
-    """Write reports to a file."""
-
-    def write_report_to_file(
-        self,
-        report_data: list[Any],
-        report_columns: list[str],
-        filename: str = "report.xlsx",
-        gradio_link: bool = True,
-    ) -> str:
-        """Write a report to a XLSX file.
-
-        Parameters
-        ----------
-        report_data : list[Any]
-            The data of the report.
-        report_columns : list[str]
-            The columns of the report.
-        filename : str, optional
-            The name of the file to create. Default is "report.xlsx".
-        gradio_link : bool, optional
-            Whether to return a file link that works with Gradio UI.
-            Default is True.
-
-        Returns
-        -------
-        str
-            The path to the report file. If `gradio_link` is True, will return
-            a URL link that allows Gradio UI to download the file.
-        """
-        # Create reports directory if it doesn't exist
-        reports_output_path = self.get_reports_output_path()
-        reports_output_path.mkdir(exist_ok=True)
-        filepath = reports_output_path / filename
-
-        report_df = pd.DataFrame(report_data, columns=report_columns)
-        report_df.to_excel(filepath, index=False)
-
-        file_uri = str(filepath)
-        if gradio_link:
-            file_uri = f"gradio_api/file={urllib.parse.quote(str(file_uri), safe='')}"
-
-        return file_uri
-
-    @staticmethod
-    def get_reports_output_path() -> Path:
-        """Get the reports output path.
-
-        If no path is provided in the REPORTS_OUTPUT_PATH env var, will use the
-        default path in DEFAULT_REPORTS_OUTPUT_PATH.
-
-        Returns
-        -------
-        Path
-            The reports output path.
-        """
-        return Path(os.getenv("REPORTS_OUTPUT_PATH", DEFAULT_REPORTS_OUTPUT_PATH))
 
 
 class AsyncClientManager:
@@ -160,7 +98,6 @@ class AsyncClientManager:
         self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
-        self._report_file_writer: ReportFileWriter | None = None
         self._initialized: bool = False
 
     @property
@@ -203,20 +140,6 @@ class AsyncClientManager:
             self._sqlite_connection = SQLiteConnection()
             self._initialized = True
         return self._sqlite_connection
-
-    @property
-    def report_file_writer(self) -> ReportFileWriter:
-        """Get or create ReportFileWriter.
-
-        Returns
-        -------
-        ReportFileWriter
-            The report file writer instance.
-        """
-        if self._report_file_writer is None:
-            self._report_file_writer = ReportFileWriter()
-            self._initialized = True
-        return self._report_file_writer
 
     async def close(self) -> None:
         """Close all initialized async clients.
