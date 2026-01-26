@@ -102,10 +102,6 @@ def start_gradio_app(enable_public_link: bool = False) -> None:
         Whether to enable public link for the Gradio app. If True,
         will make the Gradio app available at a public URL. Default is False.
     """
-    # Disable tracing to OpenAI platform since we are using Gemini models instead
-    # of OpenAI models
-    agents.set_tracing_disabled(disabled=True)
-
     demo = gr.ChatInterface(
         agent_session_handler,
         chatbot=gr.Chatbot(height=600),
