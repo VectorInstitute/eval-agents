@@ -1,47 +1,148 @@
-"""Knowledge-grounded QA agent using Gemini with Google Search grounding.
+"""Knowledge-grounded QA agent using Google ADK with Google Search.
 
-This module provides the main agent class for knowledge-grounded question
-answering, using Gemini's built-in Google Search grounding capability.
+This module provides a proper ReAct agent that explicitly calls
+Google Search and shows the reasoning process through observable tool calls.
 """
 
+import asyncio
 import logging
-from typing import TYPE_CHECKING
+import uuid
+from typing import Any
 
-from google import genai
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from .config import KnowledgeAgentConfig
-from .grounding_tool import GeminiGroundingTool, GroundedResponse, GroundingChunk
-
-
-if TYPE_CHECKING:
-    pass
+from .grounding_tool import (
+    GroundedResponse,
+    GroundingChunk,
+    create_google_search_tool,
+    format_response_with_citations,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-# System instructions for the knowledge-grounded QA agent
-KNOWLEDGE_AGENT_INSTRUCTIONS = """\
-You are a knowledge-grounded research assistant. Your role is to provide
-accurate, comprehensive answers by searching the web for relevant information.
+def _process_function_calls(
+    event: Any,
+    tool_calls: list[dict[str, Any]],
+    search_queries: list[str],
+) -> None:
+    """Extract tool calls and search queries from event function calls."""
+    if not hasattr(event, "get_function_calls"):
+        return
+    function_calls = event.get_function_calls()
+    if not function_calls:
+        return
+    for fc in function_calls:
+        tool_call_info = {
+            "name": getattr(fc, "name", "unknown"),
+            "args": getattr(fc, "args", {}),
+        }
+        tool_calls.append(tool_call_info)
+        logger.info(f"Tool call: {tool_call_info['name']}({tool_call_info['args']})")
 
-## Guidelines
+        # Extract search queries from google_search calls
+        tool_name = str(tool_call_info["name"])
+        tool_args = tool_call_info["args"]
+        if "search" in tool_name.lower() and isinstance(tool_args, dict):
+            query = tool_args.get("query", "")
+            if query:
+                search_queries.append(query)
 
-1. **Search thoroughly**: Use Google Search to find relevant, up-to-date information.
-   Do not rely solely on your training data for facts that may have changed.
 
-2. **Cite your sources**: Always mention where you found the information and
-   include source URLs when available.
+def _process_function_responses(event: Any, sources: list[GroundingChunk]) -> None:
+    """Extract sources from event function responses."""
+    if not hasattr(event, "get_function_responses"):
+        return
+    function_responses = event.get_function_responses()
+    if not function_responses:
+        return
+    for fr in function_responses:
+        response_data = getattr(fr, "response", {})
+        if not isinstance(response_data, dict):
+            continue
+        # Extract sources from search tool response
+        for src in response_data.get("sources", []):
+            if isinstance(src, dict):
+                sources.append(
+                    GroundingChunk(
+                        title=src.get("title", ""),
+                        uri=src.get("uri") or src.get("url") or "",
+                    )
+                )
+        # Extract grounding_chunks if present
+        for chunk in response_data.get("grounding_chunks", []):
+            if isinstance(chunk, dict) and "web" in chunk:
+                sources.append(
+                    GroundingChunk(
+                        title=chunk["web"].get("title", ""),
+                        uri=chunk["web"].get("uri", ""),
+                    )
+                )
 
-3. **Be comprehensive**: For complex questions that require multiple pieces of
-   information, search multiple times to gather all relevant facts.
 
-4. **Be honest about uncertainty**: If you cannot find relevant information or if
-   search results are inconclusive, say so clearly rather than guessing.
+def _process_grounding_metadata(
+    event: Any,
+    sources: list[GroundingChunk],
+    search_queries: list[str],
+) -> None:
+    """Extract sources and search queries from grounding metadata."""
+    gm = getattr(event, "grounding_metadata", None)
+    if not gm and hasattr(event, "content") and event.content:
+        gm = getattr(event.content, "grounding_metadata", None)
+    if not gm:
+        return
 
-5. **Synthesize information**: When answering complex questions, synthesize findings
-   from multiple sources into a coherent response.
+    # Extract grounding chunks
+    if hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
+        for chunk in gm.grounding_chunks:
+            if hasattr(chunk, "web") and chunk.web:
+                sources.append(
+                    GroundingChunk(
+                        title=getattr(chunk.web, "title", "") or "",
+                        uri=getattr(chunk.web, "uri", "") or "",
+                    )
+                )
+    # Extract web search queries
+    if hasattr(gm, "web_search_queries") and gm.web_search_queries:
+        for q in gm.web_search_queries:
+            if q and q not in search_queries:
+                search_queries.append(q)
+
+
+def _extract_final_response(event: Any) -> str | None:
+    """Extract final response text from event if it's a final response."""
+    if not hasattr(event, "is_final_response") or not event.is_final_response():
+        return None
+    if not hasattr(event, "content") or not event.content:
+        return None
+    if not hasattr(event.content, "parts") or not event.content.parts:
+        return None
+    return event.content.parts[0].text or ""
+
+
+SYSTEM_INSTRUCTIONS = """\
+You are a knowledge-grounded research assistant. Your role is to answer
+questions accurately by searching the web for relevant information.
+
+## How to Answer Questions
+
+1. **Search First**: Always search the web before answering factual questions
+   that require current information. Do not rely solely on your training data.
+
+2. **Be Thorough**: For complex questions, search multiple times to gather
+   all relevant facts before synthesizing your answer.
+
+3. **Cite Sources**: Always mention which sources you used to answer the question.
+
+4. **Be Honest**: If you cannot find relevant information, say so clearly.
+
+5. **Synthesize Information**: When answering complex questions, synthesize
+   findings from multiple sources into a coherent response.
 
 ## Response Format
 
@@ -49,16 +150,14 @@ When answering questions:
 - Provide a clear, direct answer first
 - Include relevant context and details from your sources
 - List the sources used at the end of your response
-
-Remember: Accuracy and completeness are more important than speed.
 """
 
 
 class KnowledgeGroundedAgent:
-    """A knowledge-grounded QA agent using Gemini with Google Search.
+    """A ReAct agent for knowledge-grounded QA using Google Search.
 
-    This agent uses Gemini's built-in Google Search grounding to answer questions
-    with real-time web information.
+    This agent uses Google ADK with explicit Google Search tool calls,
+    making the reasoning process observable and traceable.
 
     Parameters
     ----------
@@ -71,8 +170,6 @@ class KnowledgeGroundedAgent:
     ----------
     config : KnowledgeAgentConfig
         The configuration settings.
-    grounding_tool : GeminiGroundingTool
-        The Gemini grounding tool.
 
     Examples
     --------
@@ -102,106 +199,138 @@ class KnowledgeGroundedAgent:
         self.config = config
         self.model = model or config.default_worker_model
 
-        # Initialize Gemini client with grounding
-        self._client = genai.Client(api_key=config.openai_api_key)
+        # Create the Google Search tool
+        self._search_tool = create_google_search_tool()
 
-        # Also create the grounding tool for direct access
-        self.grounding_tool = GeminiGroundingTool(config=config, model=self.model)
-
-    def answer(self, question: str) -> GroundedResponse:
-        """Answer a question using Google Search grounding.
-
-        Parameters
-        ----------
-        question : str
-            The question to answer.
-
-        Returns
-        -------
-        GroundedResponse
-            The grounded response with text, search queries, and sources.
-        """
-        logger.info(f"Answering question: {question[:100]}...")
-
-        # Prepend system instructions to the question
-        prompt = f"{KNOWLEDGE_AGENT_INSTRUCTIONS}\n\n**Question:** {question}"
-
-        response = self._client.models.generate_content(
+        # Create ADK agent with Google Search tool
+        self._agent = Agent(
+            name="knowledge_qa_agent",
             model=self.model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-            ),
+            instruction=SYSTEM_INSTRUCTIONS,
+            tools=[self._search_tool],
         )
 
-        return self._parse_response(response)
+        # Session service for conversation history
+        self._session_service = InMemorySessionService()
 
-    async def answer_async(self, question: str) -> GroundedResponse:
-        """Async version of answer for concurrent operations.
+        # Runner orchestrates the ReAct loop
+        self._runner = Runner(
+            app_name="knowledge_agent",
+            agent=self._agent,
+            session_service=self._session_service,
+        )
+
+        # Track active sessions
+        self._sessions: dict[str, str] = {}  # Maps external session_id to ADK session_id
+
+    async def _get_or_create_session_async(self, session_id: str | None = None) -> str:
+        """Get or create an ADK session for the given session ID.
+
+        Parameters
+        ----------
+        session_id : str, optional
+            External session ID. If not provided, generates a new one.
+
+        Returns
+        -------
+        str
+            The ADK session ID.
+        """
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+
+        if session_id not in self._sessions:
+            # Create a new ADK session through the session service
+            session = await self._session_service.create_session(
+                app_name="knowledge_agent",
+                user_id="user",
+                state={},
+            )
+            self._sessions[session_id] = session.id
+
+        return self._sessions[session_id]
+
+    async def answer_async(
+        self,
+        question: str,
+        session_id: str | None = None,
+    ) -> GroundedResponse:
+        """Answer a question using the ReAct loop asynchronously.
 
         Parameters
         ----------
         question : str
             The question to answer.
+        session_id : str, optional
+            Session ID for multi-turn conversations.
 
         Returns
         -------
         GroundedResponse
-            The grounded response with text, search queries, and sources.
+            The response with text, tool calls, and sources.
         """
         logger.info(f"Answering question (async): {question[:100]}...")
 
-        prompt = f"{KNOWLEDGE_AGENT_INSTRUCTIONS}\n\n**Question:** {question}"
+        adk_session_id = await self._get_or_create_session_async(session_id)
 
-        response = await self._client.aio.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-            ),
+        # Create the user message
+        content = types.Content(
+            role="user",
+            parts=[types.Part(text=question)],
         )
 
-        return self._parse_response(response)
+        # Collect events from the ReAct loop
+        tool_calls: list[dict[str, Any]] = []
+        sources: list[GroundingChunk] = []
+        search_queries: list[str] = []
+        final_response = ""
 
-    def _parse_response(self, response: types.GenerateContentResponse) -> GroundedResponse:
-        """Parse a Gemini response into a GroundedResponse.
+        async for event in self._runner.run_async(
+            user_id="user",
+            session_id=adk_session_id,
+            new_message=content,
+        ):
+            logger.debug(f"Event: {event}")
+            _process_function_calls(event, tool_calls, search_queries)
+            _process_function_responses(event, sources)
+            _process_grounding_metadata(event, sources, search_queries)
+            text = _extract_final_response(event)
+            if text is not None:
+                final_response = text
+
+        return GroundedResponse(
+            text=final_response,
+            search_queries=search_queries,
+            sources=sources,
+            tool_calls=tool_calls,
+        )
+
+    def answer(
+        self,
+        question: str,
+        session_id: str | None = None,
+    ) -> GroundedResponse:
+        """Answer a question using the ReAct loop.
 
         Parameters
         ----------
-        response : types.GenerateContentResponse
-            The raw Gemini response.
+        question : str
+            The question to answer.
+        session_id : str, optional
+            Session ID for multi-turn conversations.
 
         Returns
         -------
         GroundedResponse
-            Parsed response with metadata.
+            The response with text, tool calls, and sources.
+
+        Notes
+        -----
+        This is a synchronous wrapper around answer_async(). For Jupyter notebooks,
+        use `await agent.answer_async(question)` directly instead.
         """
-        search_queries: list[str] = []
-        sources: list[GroundingChunk] = []
-
-        if response.candidates and len(response.candidates) > 0:
-            candidate = response.candidates[0]
-            grounding_metadata = getattr(candidate, "grounding_metadata", None)
-
-            if grounding_metadata:
-                if hasattr(grounding_metadata, "web_search_queries"):
-                    search_queries = list(grounding_metadata.web_search_queries or [])
-
-                if hasattr(grounding_metadata, "grounding_chunks"):
-                    for chunk in grounding_metadata.grounding_chunks or []:
-                        if hasattr(chunk, "web") and chunk.web:
-                            sources.append(
-                                GroundingChunk(
-                                    title=getattr(chunk.web, "title", "") or "",
-                                    uri=getattr(chunk.web, "uri", "") or "",
-                                )
-                            )
-
-        return GroundedResponse(
-            text=response.text or "",
-            search_queries=search_queries,
-            sources=sources,
-        )
+        logger.info(f"Answering question: {question[:100]}...")
+        return asyncio.run(self.answer_async(question, session_id))
 
     def format_answer(self, response: GroundedResponse) -> str:
         """Format a grounded response for display.
@@ -216,7 +345,7 @@ class KnowledgeGroundedAgent:
         str
             Formatted response with citations.
         """
-        return self.grounding_tool.format_response_with_citations(response)
+        return format_response_with_citations(response)
 
 
 class AsyncClientManager:
@@ -248,7 +377,6 @@ class AsyncClientManager:
         """
         self._config = config
         self._agent: KnowledgeGroundedAgent | None = None
-        self._grounding_tool: GeminiGroundingTool | None = None
         self._initialized = False
 
     @property
@@ -263,20 +391,6 @@ class AsyncClientManager:
         if self._config is None:
             self._config = KnowledgeAgentConfig()  # type: ignore[call-arg]
         return self._config
-
-    @property
-    def grounding_tool(self) -> GeminiGroundingTool:
-        """Get or create the Gemini grounding tool.
-
-        Returns
-        -------
-        GeminiGroundingTool
-            The grounding tool instance.
-        """
-        if self._grounding_tool is None:
-            self._grounding_tool = GeminiGroundingTool(config=self.config)
-            self._initialized = True
-        return self._grounding_tool
 
     @property
     def agent(self) -> KnowledgeGroundedAgent:
@@ -295,7 +409,6 @@ class AsyncClientManager:
     def close(self) -> None:
         """Close all initialized clients and reset state."""
         self._agent = None
-        self._grounding_tool = None
         self._initialized = False
 
     def is_initialized(self) -> bool:

@@ -1,7 +1,7 @@
-"""Knowledge-grounded QA agent using Gemini with Google Search grounding.
+"""Knowledge-grounded QA agent using Google ADK with Google Search.
 
 This package provides tools for building and evaluating knowledge-grounded
-question answering agents using Gemini's built-in Google Search capability.
+question answering agents using Google ADK with explicit Google Search tool calls.
 
 Example
 -------
@@ -23,7 +23,12 @@ from .evaluation import (
     DSQAExample,
     EvaluationResult,
 )
-from .grounding_tool import GeminiGroundingTool, GroundedResponse, GroundingChunk
+from .grounding_tool import (
+    GroundedResponse,
+    GroundingChunk,
+    create_google_search_tool,
+    format_response_with_citations,
+)
 from .session import ConversationSession, Message, get_or_create_session
 
 
@@ -34,7 +39,8 @@ __all__ = [
     # Config
     "KnowledgeAgentConfig",
     # Grounding tool
-    "GeminiGroundingTool",
+    "create_google_search_tool",
+    "format_response_with_citations",
     "GroundedResponse",
     "GroundingChunk",
     # Session management

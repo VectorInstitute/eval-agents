@@ -1,12 +1,13 @@
 """Gradio app for the Knowledge-Grounded QA Agent.
 
 This app provides an interactive chat interface for testing the
-knowledge-grounded QA agent with Gemini's Google Search grounding.
+knowledge-grounded QA agent with Google ADK and explicit Google Search tool calls.
 
 Run with:
     uv run --env-file .env gradio implementations/knowledge_agent/gradio_app.py
 """
 
+import asyncio
 import logging
 from typing import Any, Generator
 
@@ -34,6 +35,23 @@ def format_sources(sources: list) -> str:
         if source.uri:
             lines.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
     return "\n".join(lines)
+
+
+def format_tool_calls(tool_calls: list) -> str:
+    """Format tool calls for display."""
+    if not tool_calls:
+        return ""
+
+    lines = []
+    for tc in tool_calls:
+        name = tc.get("name", "unknown")
+        args = tc.get("args", {})
+        if "search" in name.lower():
+            query = args.get("query", str(args))
+            lines.append(f'Searched: "{query}"')
+        else:
+            lines.append(f"{name}({args})")
+    return ", ".join(lines)
 
 
 def chat(
@@ -64,23 +82,26 @@ def chat(
     # Show thinking indicator
     thinking_message = ChatMessage(
         role="assistant",
-        content="Searching...",
-        metadata={"title": "Searching the web"},
+        content="Searching the web...",
+        metadata={"title": "ReAct Agent Processing"},
     )
     yield [thinking_message]
 
     try:
-        # Get response from agent
-        response = client_manager.agent.answer(query)
+        # Get response from agent (run async in sync context)
+        response = asyncio.run(client_manager.agent.answer_async(query))
 
         # Format response with sources
         formatted_response = response.text
         if response.sources:
             formatted_response += format_sources(response.sources)
 
-        # Add search queries as metadata if available
+        # Create metadata showing tool calls (ReAct trace)
         metadata: dict[str, str] | None = None
-        if response.search_queries:
+        tool_info = format_tool_calls(response.tool_calls)
+        if tool_info:
+            metadata = {"title": f"Tools: {tool_info}"}
+        elif response.search_queries:
             title = f"Searched: {', '.join(response.search_queries[:2])}"
             if len(response.search_queries) > 2:
                 title += f" (+{len(response.search_queries) - 2} more)"
@@ -145,10 +166,11 @@ if __name__ == "__main__":
         ),
         examples=examples,
         additional_inputs=gr.State(value={}, render=False),
-        title="Knowledge-Grounded QA Agent",
+        title="Knowledge-Grounded QA Agent (ADK + Google Search)",
         description=(
             "Ask questions that require up-to-date information. "
-            "The agent uses Gemini with Google Search grounding to find answers."
+            "This agent uses Google ADK with explicit Google Search tool calls, "
+            "making the reasoning process observable. Tool calls are shown in the message header."
         ),
     )
 

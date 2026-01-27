@@ -149,6 +149,12 @@ max-doc-length = 88
 markers = [
     "integration_test: marks tests as integration tests",
 ]
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    # Ignore deprecation warnings from google-adk/google-genai internal code
+    "ignore:deprecated:DeprecationWarning:google.adk.runners",
+    "ignore:Inheritance class AiohttpClientSession:DeprecationWarning:google.genai",
+]
 
 [tool.coverage]
     [tool.coverage.run]

@@ -1,19 +1,18 @@
-"""Gemini Google Search grounding tool for knowledge-grounded QA.
+"""Google Search grounding tool for knowledge-grounded QA using ADK.
 
-This module provides tools for using Gemini's built-in Google Search grounding
-capability to answer questions with real-time web information.
+This module provides the GoogleSearchTool configuration for use with
+Google ADK agents, enabling explicit and traceable web search capabilities.
 """
 
 import logging
 from typing import TYPE_CHECKING
 
-from google import genai
-from google.genai import types
+from google.adk.tools.google_search_tool import GoogleSearchTool
 from pydantic import BaseModel, Field
 
 
 if TYPE_CHECKING:
-    from .config import KnowledgeAgentConfig
+    pass
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,7 @@ class GroundingChunk(BaseModel):
 
 
 class GroundedResponse(BaseModel):
-    """Response from Gemini with Google Search grounding.
+    """Response from the knowledge agent with grounding information.
 
     Attributes
     ----------
@@ -45,182 +44,59 @@ class GroundedResponse(BaseModel):
         The search queries that were executed.
     sources : list[GroundingChunk]
         The web sources used to ground the response.
+    tool_calls : list[dict]
+        List of tool calls made during the response generation.
     """
 
     text: str
     search_queries: list[str] = Field(default_factory=list)
     sources: list[GroundingChunk] = Field(default_factory=list)
+    tool_calls: list[dict] = Field(default_factory=list)
 
 
-class GeminiGroundingTool:
-    """Tool for generating responses grounded in Google Search results.
+def create_google_search_tool() -> GoogleSearchTool:
+    """Create a GoogleSearchTool configured for use with other tools.
 
-    This class uses the Gemini API with Google Search grounding to generate
-    responses that are backed by real-time web information.
+    This creates a GoogleSearchTool with bypass_multi_tools_limit=True,
+    which allows it to be used alongside other custom tools in an ADK agent.
+    The tool calls are explicit and visible in the agent's reasoning trace.
 
-    Parameters
-    ----------
-    config : KnowledgeAgentConfig, optional
-        Configuration settings. If not provided, creates default config.
-    model : str, optional
-        The Gemini model to use. Defaults to config.default_worker_model.
+    Returns
+    -------
+    GoogleSearchTool
+        A configured GoogleSearchTool instance.
 
     Examples
     --------
-    >>> from aieng.agent_evals.knowledge_agent import GeminiGroundingTool
-    >>> tool = GeminiGroundingTool()
-    >>> response = tool.search("What is the current population of Tokyo?")
-    >>> print(response.text)
+    >>> from aieng.agent_evals.knowledge_agent.grounding_tool import (
+    ...     create_google_search_tool,
+    ... )
+    >>> search_tool = create_google_search_tool()
+    >>> # Use with an ADK agent
+    >>> agent = Agent(tools=[search_tool])
     """
+    return GoogleSearchTool(bypass_multi_tools_limit=True)
 
-    def __init__(
-        self,
-        config: "KnowledgeAgentConfig | None" = None,
-        model: str | None = None,
-    ) -> None:
-        """Initialize the Gemini grounding tool.
 
-        Parameters
-        ----------
-        config : KnowledgeAgentConfig, optional
-            Configuration settings. If not provided, creates default config.
-        model : str, optional
-            The Gemini model to use. Defaults to config.default_worker_model.
-        """
-        if config is None:
-            from .config import KnowledgeAgentConfig  # noqa: PLC0415
+def format_response_with_citations(response: GroundedResponse) -> str:
+    """Format a grounded response with inline citations.
 
-            config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+    Parameters
+    ----------
+    response : GroundedResponse
+        The grounded response to format.
 
-        self.config = config
-        self.model = model or config.default_worker_model
+    Returns
+    -------
+    str
+        Formatted response text with citations appended.
+    """
+    output_parts = [response.text]
 
-        # Initialize Gemini client
-        self._client = genai.Client(api_key=config.openai_api_key)
+    if response.sources:
+        output_parts.append("\n\n**Sources:**")
+        for i, source in enumerate(response.sources, 1):
+            if source.uri:
+                output_parts.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
 
-    def search(self, query: str) -> GroundedResponse:
-        """Generate a response grounded in Google Search results.
-
-        Parameters
-        ----------
-        query : str
-            The question or query to answer.
-
-        Returns
-        -------
-        GroundedResponse
-            The response with text, search queries used, and sources.
-        """
-        logger.info(f"Generating grounded response for: {query[:100]}...")
-
-        response = self._client.models.generate_content(
-            model=self.model,
-            contents=query,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-            ),
-        )
-
-        # Extract grounding metadata
-        search_queries: list[str] = []
-        sources: list[GroundingChunk] = []
-
-        if response.candidates and len(response.candidates) > 0:
-            candidate = response.candidates[0]
-            grounding_metadata = getattr(candidate, "grounding_metadata", None)
-
-            if grounding_metadata:
-                # Extract search queries
-                if hasattr(grounding_metadata, "web_search_queries"):
-                    search_queries = list(grounding_metadata.web_search_queries or [])
-
-                # Extract grounding chunks (sources)
-                if hasattr(grounding_metadata, "grounding_chunks"):
-                    for chunk in grounding_metadata.grounding_chunks or []:
-                        if hasattr(chunk, "web") and chunk.web:
-                            sources.append(
-                                GroundingChunk(
-                                    title=getattr(chunk.web, "title", "") or "",
-                                    uri=getattr(chunk.web, "uri", "") or "",
-                                )
-                            )
-
-        return GroundedResponse(
-            text=response.text or "",
-            search_queries=search_queries,
-            sources=sources,
-        )
-
-    async def search_async(self, query: str) -> GroundedResponse:
-        """Async version of search for concurrent operations.
-
-        Parameters
-        ----------
-        query : str
-            The question or query to answer.
-
-        Returns
-        -------
-        GroundedResponse
-            The response with text, search queries used, and sources.
-        """
-        logger.info(f"Generating grounded response (async) for: {query[:100]}...")
-
-        response = await self._client.aio.models.generate_content(
-            model=self.model,
-            contents=query,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-            ),
-        )
-
-        # Extract grounding metadata
-        search_queries: list[str] = []
-        sources: list[GroundingChunk] = []
-
-        if response.candidates and len(response.candidates) > 0:
-            candidate = response.candidates[0]
-            grounding_metadata = getattr(candidate, "grounding_metadata", None)
-
-            if grounding_metadata:
-                if hasattr(grounding_metadata, "web_search_queries"):
-                    search_queries = list(grounding_metadata.web_search_queries or [])
-
-                if hasattr(grounding_metadata, "grounding_chunks"):
-                    for chunk in grounding_metadata.grounding_chunks or []:
-                        if hasattr(chunk, "web") and chunk.web:
-                            sources.append(
-                                GroundingChunk(
-                                    title=getattr(chunk.web, "title", "") or "",
-                                    uri=getattr(chunk.web, "uri", "") or "",
-                                )
-                            )
-
-        return GroundedResponse(
-            text=response.text or "",
-            search_queries=search_queries,
-            sources=sources,
-        )
-
-    def format_response_with_citations(self, response: GroundedResponse) -> str:
-        """Format a grounded response with inline citations.
-
-        Parameters
-        ----------
-        response : GroundedResponse
-            The grounded response to format.
-
-        Returns
-        -------
-        str
-            Formatted response text with citations appended.
-        """
-        output_parts = [response.text]
-
-        if response.sources:
-            output_parts.append("\n\n**Sources:**")
-            for i, source in enumerate(response.sources, 1):
-                if source.uri:
-                    output_parts.append(f"[{i}] [{source.title}]({source.uri})")
-
-        return "\n".join(output_parts)
+    return "\n".join(output_parts)

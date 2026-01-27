@@ -1,12 +1,13 @@
-"""Tests for Gemini grounding tool."""
+"""Tests for Google Search grounding tool."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_agent.grounding_tool import (
-    GeminiGroundingTool,
     GroundedResponse,
     GroundingChunk,
+    create_google_search_tool,
+    format_response_with_citations,
 )
 
 
@@ -37,10 +38,12 @@ class TestGroundedResponse:
             sources=[
                 GroundingChunk(title="Source 1", uri="https://source1.com"),
             ],
+            tool_calls=[{"name": "google_search", "args": {"query": "test"}}],
         )
         assert response.text == "Test response"
         assert len(response.search_queries) == 2
         assert len(response.sources) == 1
+        assert len(response.tool_calls) == 1
 
     def test_grounded_response_defaults(self):
         """Test default values for grounded response."""
@@ -48,39 +51,29 @@ class TestGroundedResponse:
         assert response.text == "Just text"
         assert response.search_queries == []
         assert response.sources == []
+        assert response.tool_calls == []
 
 
-class TestGeminiGroundingTool:
-    """Tests for the GeminiGroundingTool class."""
+class TestCreateGoogleSearchTool:
+    """Tests for the create_google_search_tool function."""
 
-    @pytest.fixture
-    def mock_config(self):
-        """Create a mock config for testing."""
-        config = MagicMock()
-        config.openai_api_key = "test-api-key"
-        config.default_worker_model = "gemini-2.5-flash"
-        return config
+    @patch("aieng.agent_evals.knowledge_agent.grounding_tool.GoogleSearchTool")
+    def test_creates_tool_with_bypass_flag(self, mock_tool_class):
+        """Test that the tool is created with bypass_multi_tools_limit=True."""
+        mock_tool = MagicMock()
+        mock_tool_class.return_value = mock_tool
 
-    @patch("aieng.agent_evals.knowledge_agent.grounding_tool.genai.Client")
-    def test_tool_initialization(self, mock_client_class, mock_config):
-        """Test initializing the grounding tool."""
-        tool = GeminiGroundingTool(config=mock_config)
+        result = create_google_search_tool()
 
-        assert tool.config is mock_config
-        assert tool.model == "gemini-2.5-flash"
-        mock_client_class.assert_called_once_with(api_key="test-api-key")
+        mock_tool_class.assert_called_once_with(bypass_multi_tools_limit=True)
+        assert result is mock_tool
 
-    @patch("aieng.agent_evals.knowledge_agent.grounding_tool.genai.Client")
-    def test_tool_with_custom_model(self, mock_client_class, mock_config):
-        """Test initializing with a custom model."""
-        tool = GeminiGroundingTool(config=mock_config, model="gemini-2.5-pro")
-        assert tool.model == "gemini-2.5-pro"
 
-    def test_format_response_with_citations(self, mock_config):
+class TestFormatResponseWithCitations:
+    """Tests for the format_response_with_citations function."""
+
+    def test_format_response_with_citations(self):
         """Test formatting response with citations."""
-        with patch("aieng.agent_evals.knowledge_agent.grounding_tool.genai.Client"):
-            tool = GeminiGroundingTool(config=mock_config)
-
         response = GroundedResponse(
             text="The answer is 42.",
             search_queries=["meaning of life"],
@@ -90,42 +83,60 @@ class TestGeminiGroundingTool:
             ],
         )
 
-        formatted = tool.format_response_with_citations(response)
+        formatted = format_response_with_citations(response)
 
         assert "The answer is 42." in formatted
         assert "**Sources:**" in formatted
         assert "[Wikipedia](https://en.wikipedia.org/wiki/42)" in formatted
         assert "[Guide](https://example.com/guide)" in formatted
 
-    def test_format_response_without_sources(self, mock_config):
+    def test_format_response_without_sources(self):
         """Test formatting response without sources."""
-        with patch("aieng.agent_evals.knowledge_agent.grounding_tool.genai.Client"):
-            tool = GeminiGroundingTool(config=mock_config)
-
         response = GroundedResponse(text="Simple answer.")
 
-        formatted = tool.format_response_with_citations(response)
+        formatted = format_response_with_citations(response)
 
         assert formatted == "Simple answer."
         assert "Sources" not in formatted
 
+    def test_format_response_with_empty_title(self):
+        """Test formatting response with source that has empty title."""
+        response = GroundedResponse(
+            text="Answer here.",
+            sources=[
+                GroundingChunk(title="", uri="https://example.com/page"),
+            ],
+        )
+
+        formatted = format_response_with_citations(response)
+
+        assert "[Source](https://example.com/page)" in formatted
+
+    def test_format_response_skips_sources_without_uri(self):
+        """Test that sources without URI are skipped."""
+        response = GroundedResponse(
+            text="Answer here.",
+            sources=[
+                GroundingChunk(title="No URI", uri=""),
+                GroundingChunk(title="Has URI", uri="https://example.com"),
+            ],
+        )
+
+        formatted = format_response_with_citations(response)
+
+        assert "No URI" not in formatted
+        assert "[Has URI](https://example.com)" in formatted
+
 
 @pytest.mark.integration_test
-class TestGeminiGroundingToolIntegration:
-    """Integration tests for the GeminiGroundingTool.
+class TestGoogleSearchToolIntegration:
+    """Integration tests for the Google Search tool.
 
     These tests require a valid GOOGLE_API_KEY environment variable.
     """
 
-    def test_search_real_query(self):
-        """Test a real search query."""
-        from aieng.agent_evals.knowledge_agent import (  # noqa: PLC0415
-            GeminiGroundingTool,
-        )
-
-        tool = GeminiGroundingTool()
-        response = tool.search("What is the capital of France?")
-
-        assert response.text
-        assert "Paris" in response.text
-        # May or may not have search queries depending on model decision
+    def test_create_google_search_tool_real(self):
+        """Test creating a real GoogleSearchTool instance."""
+        tool = create_google_search_tool()
+        # The tool should be a GoogleSearchTool instance with bypass flag
+        assert tool is not None
