@@ -163,9 +163,7 @@ class KnowledgeGroundedAgent:
 
         return self._parse_response(response)
 
-    def _parse_response(
-        self, response: types.GenerateContentResponse
-    ) -> GroundedResponse:
+    def _parse_response(self, response: types.GenerateContentResponse) -> GroundedResponse:
         """Parse a Gemini response into a GroundedResponse.
 
         Parameters

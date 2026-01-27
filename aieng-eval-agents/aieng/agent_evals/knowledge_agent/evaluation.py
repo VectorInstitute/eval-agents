@@ -244,9 +244,7 @@ class DeepSearchQADataset:
         list[DSQAExample]
             Randomly sampled examples.
         """
-        sampled_df = self.dataframe.sample(
-            n=min(n, len(self)), random_state=random_state
-        )
+        sampled_df = self.dataframe.sample(n=min(n, len(self)), random_state=random_state)
         return [
             DSQAExample(
                 example_id=row["example_id"],
@@ -378,9 +376,7 @@ class DeepSearchQAEvaluator:
             sources_used=sources_used,
         )
 
-    def evaluate_sample(
-        self, n: int = 10, random_state: int | None = None
-    ) -> list[EvaluationResult]:
+    def evaluate_sample(self, n: int = 10, random_state: int | None = None) -> list[EvaluationResult]:
         """Evaluate a random sample of examples.
 
         Parameters

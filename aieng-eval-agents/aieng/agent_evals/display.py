@@ -75,15 +75,10 @@ def display_response(
         console = create_console()
 
     # Main response panel
-    console.print(
-        Panel(Markdown(response.text), title=f"📖 {title}", border_style="blue")
-    )
+    console.print(Panel(Markdown(response.text), title=f"📖 {title}", border_style="blue"))
 
     # Stats bar
-    stats = (
-        f"[success]✓[/success] {len(response.search_queries)} queries | "
-        f"{len(response.sources)} sources"
-    )
+    stats = f"[success]✓[/success] {len(response.search_queries)} queries | {len(response.sources)} sources"
     console.print(f"\n{stats}\n")
 
     # Search queries
@@ -92,18 +87,14 @@ def display_response(
         for i, sq in enumerate(response.search_queries[:5], 1):
             query_tree.add(f"[info]{i}.[/info] {sq}")
         if len(response.search_queries) > 5:
-            query_tree.add(
-                f"[muted]... and {len(response.search_queries) - 5} more[/muted]"
-            )
+            query_tree.add(f"[muted]... and {len(response.search_queries) - 5} more[/muted]")
         console.print(query_tree)
 
     # Sources
     if show_sources and response.sources:
         source_tree = Tree("[bold]📚 Sources[/bold]")
         for i, source in enumerate(response.sources, 1):
-            source_tree.add(
-                f"[muted][{i}][/muted] [link={source.uri}]{source.title}[/link]"
-            )
+            source_tree.add(f"[muted][{i}][/muted] [link={source.uri}]{source.title}[/link]")
         console.print(source_tree)
 
 
@@ -127,9 +118,7 @@ def display_source_table(
         console.print("[muted]No sources available[/muted]")
         return
 
-    source_table = Table(
-        title="📚 Sources", show_header=True, header_style="bold green"
-    )
+    source_table = Table(title="📚 Sources", show_header=True, header_style="bold green")
     source_table.add_column("#", style="muted", width=3)
     source_table.add_column("Title", style="white")
     source_table.add_column("URL", style="blue", overflow="fold")
@@ -270,9 +259,7 @@ def display_evaluation_result(
         f"[muted]Sources: {sources_used} | Queries: {len(search_queries)}[/muted]"
     )
 
-    console.print(
-        Panel(content, title=f"Example {example_id}", border_style=border_color)
-    )
+    console.print(Panel(content, title=f"Example {example_id}", border_style=border_color))
 
 
 def display_metrics_table(
