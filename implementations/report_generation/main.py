@@ -52,7 +52,7 @@ def get_sqlite_db_path() -> Path:
     return Path(os.getenv("REPORT_GENERATION_DB_PATH", default_sqlite_db_path))
 
 
-def report_generation_agent(enable_trace: bool = True) -> agents.Agent:
+def get_report_generation_agent(enable_trace: bool = True) -> agents.Agent:
     """
     Define the report generation agent.
 
@@ -127,7 +127,7 @@ async def agent_session_handler(
     # previous turns in the conversation
     session = get_or_create_session(history, session_state)
 
-    main_agent = report_generation_agent(enable_trace=enable_trace)
+    main_agent = get_report_generation_agent(enable_trace=enable_trace)
 
     # Run the agent in streaming mode to get and display intermediate outputs
     result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
