@@ -11,16 +11,8 @@ import agents
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.langfuse import (
-    LangFuseTracedResponse,
-    flush_langfuse,
-    parse_agent_stream_response,
-    setup_langfuse_tracer,
-)
-from aieng.agent_evals.utils import (
-    get_or_create_session,
-    oai_agent_stream_to_gradio_messages,
-)
+from aieng.agent_evals.langfuse import flush_langfuse, setup_langfuse_tracer
+from aieng.agent_evals.utils import get_or_create_session, oai_agent_stream_to_gradio_messages
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
 
@@ -41,6 +33,8 @@ Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
 At the end, provide the report file as a downloadable hyperlink to the user.
 """
+
+LANGFUSE_PROJECT_NAME = "Report Generation"
 
 
 def get_sqlite_db_path() -> Path:
@@ -95,12 +89,9 @@ async def agent_session_handler(
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
 
-    # Initialize langfuse tracing if enabled
-    trace_id: str | None = None
-    traced_responses: list[LangFuseTracedResponse] = []
+    # Setup langfuse tracing if enabled
     if enable_trace:
-        setup_langfuse_tracer("aieng-eval-agents:report-generation")
-        trace_id = client_manager.langfuse_client.get_current_trace_id()
+        setup_langfuse_tracer(LANGFUSE_PROJECT_NAME)
 
     # Define an agent using the OpenAI Agent SDK
     main_agent = agents.Agent(
@@ -124,18 +115,14 @@ async def agent_session_handler(
     result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
 
     async for _item in result_stream.stream_events():
-        if enable_trace:
-            parsed_responses = parse_agent_stream_response(_item, trace_id)
-            traced_responses.extend(parsed_responses)
-            logger.debug(f"Added {len(parsed_responses)} agent responses to Langfuse trace")
-
         # Parse the stream events, convert to Gradio chat messages and append to
         # the chat history
         turn_messages += oai_agent_stream_to_gradio_messages(_item)
         if len(turn_messages) > 0:
             yield turn_messages
 
-    flush_langfuse(client_manager.langfuse_client)
+    if enable_trace:
+        flush_langfuse(client_manager.langfuse_client)
 
 
 @click.command()

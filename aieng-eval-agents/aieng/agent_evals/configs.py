@@ -49,8 +49,8 @@ class Configs(BaseSettings):
         Langfuse public key (must start with pk-lf-).
     langfuse_secret_key : str
         Langfuse secret key (must start with sk-lf-).
-    langfuse_host : str, default='https://us.cloud.langfuse.com'
-        Langfuse host URL.
+    langfuse_base_url : str, default='https://us.cloud.langfuse.com'
+        Langfuse host's base URL.
     e2b_api_key : str or None
         Optional E2B.dev API key for code interpreter (must start with e2b_).
     default_code_interpreter_template : str or None
