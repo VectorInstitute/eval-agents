@@ -98,45 +98,56 @@ async def evaluate() -> None:
         }
     ]
 
+    # Get a report generation agent to run the examples
     report_generation_agent = get_report_generation_agent(enable_trace=True)
 
+    # Run the examples in the dataset
     trace_id_by_example_id = {}
     for example in evaluation_dataset:
+        # If a trace ID is provided, skip running and use it instead
         if "trace_id" in example and example["trace_id"]:
             assert isinstance(example["trace_id"], str), "Trace ID must be a string."
             logger.info(f"Skipping the inference, found trace ID {example['trace_id']} for example '{example['id']}'")
             trace_id_by_example_id[example["id"]] = example["trace_id"]
             continue
 
+        # Create a new trace ID for this run and record it so we can
+        # recover the details later
         trace_id = langfuse_client.create_trace_id(seed=str(uuid4()))
         trace_id_by_example_id[example["id"]] = trace_id
         logger.info(f"Running example '{example['id']}' with trace ID {trace_id}")
 
+        # Open a new Langfuse observation and run the example
         evaluation_name = f"evaluation example {example['id']}"
         with langfuse_client.start_as_current_observation(name=evaluation_name, trace_context={"trace_id": trace_id}):
             assert isinstance(example["user_input"], str), "User input must be a string."
 
             await agents.Runner.run(report_generation_agent, input=example["user_input"])
 
+    # Get an evaluator agent to evaluate the results of the examples
+    # stored in Langfuse traces against the ground truth
     evaluator_agent = get_evaluator_agent(EVALUATOR_INSTRUCTIONS + ADDITONAL_EVALUATOR_INSTRUCTIONS)
 
+    # Run the evaluations
     evaluation_results = {}
     correct_count = 0
     total_count = 0
     for example in evaluation_dataset:
+        # Get the Langfuse trace for the example given its trace ID
         trace_id = trace_id_by_example_id[example["id"]]
         trace = get_trace_with_retry(trace_id, langfuse_client)
-        observations = sorted(trace.observations, key=lambda obs: obs.start_time)
 
         found_report = False
-        for observation in observations:
+        for observation in trace.observations:
             assert observation.name is not None, "Observation name must not be None."
+            # Find the observation that contains the report data, i.e. the one
+            # that contains the call to the report write_report_to_file function
             if "write_report_to_file" in observation.name:
                 found_report = True
-
-                logger.info(f"Evaluating example '{example['id']}'")
-
                 assert isinstance(example["user_input"], str), "User input must be a string."
+
+                # Evaluate the example against the ground truth using the evaluator
+                logger.info(f"Evaluating example '{example['id']}'")
                 evaluator_query = EvaluatorQuery(
                     question=example["user_input"],
                     ground_truth=json.dumps(example["expected_output"]),
@@ -145,14 +156,18 @@ async def evaluate() -> None:
                 result = await agents.Runner.run(evaluator_agent, input=evaluator_query.get_query())
                 evaluation_response = result.final_output_as(EvaluatorResponse)
 
+                # Record the evaluation results
                 evaluation_results[example["id"]] = evaluation_response.model_dump()
                 evaluation_results[example["id"]]["trace_id"] = trace_id
 
+                # Update the metrics
                 correct_count += 1 if evaluation_response.is_answer_correct else 0
                 total_count += 1
 
                 break
 
+        # If no call to the write_report_to_file function was found
+        # record a failed evaluation
         if not found_report:
             logger.error(f"No report found for example '{example['id']}'")
             evaluation_response = EvaluatorResponse(explanation="No report found", is_answer_correct=False)
@@ -160,11 +175,13 @@ async def evaluate() -> None:
             evaluation_results[example["id"]]["trace_id"] = trace_id
             total_count += 1
 
+    # Print the evaluation results
     logger.info("Evaluation Finished.")
     logger.info(f"Accuracy: {correct_count / total_count} ({correct_count}/{total_count})")
     logger.info("Evaluation Results:")
     logger.info(f"{evaluation_results}")
 
+    # Gracefully close the services
     await client_manager.close()
 
 
