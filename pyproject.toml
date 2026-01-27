@@ -26,6 +26,7 @@ dependencies = [
     "scikit-learn>=1.7.0",
     "weaviate-client>=4.18.3",
     "urllib3>=2.6.3",
+    "openpyxl>=3.1.5",
     "authlib>=1.6.6",
     "filelock>=3.20.3",
     "pyasn1>=0.6.2",
@@ -82,7 +83,7 @@ aieng-eval-agents = { workspace = true }
 
 [tool.ruff]
 include = ["*.py", "pyproject.toml", "*.ipynb"]
-line-length = 88
+line-length = 120
 
 [tool.ruff.format]
 quote-style = "double"

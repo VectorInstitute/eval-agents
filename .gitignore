@@ -24,3 +24,6 @@ wheels/
 **.ipynb_checkpoints
 
 .env
+.gradio
+implementations/report_generation/data/*.db
+implementations/report_generation/reports/*
