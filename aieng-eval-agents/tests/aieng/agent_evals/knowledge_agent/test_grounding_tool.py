@@ -85,9 +85,7 @@ class TestGeminiGroundingTool:
             text="The answer is 42.",
             search_queries=["meaning of life"],
             sources=[
-                GroundingChunk(
-                    title="Wikipedia", uri="https://en.wikipedia.org/wiki/42"
-                ),
+                GroundingChunk(title="Wikipedia", uri="https://en.wikipedia.org/wiki/42"),
                 GroundingChunk(title="Guide", uri="https://example.com/guide"),
             ],
         )

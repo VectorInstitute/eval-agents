@@ -40,17 +40,11 @@ class KnowledgeAgentConfig(BaseSettings):
     'gemini-2.5-flash'
     """
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True)
 
     # OpenAI-compatible API settings (works with Gemini via OpenAI endpoint)
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    openai_api_key: str = Field(
-        validation_alias=AliasChoices(
-            "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"
-        )
-    )
+    openai_api_key: str = Field(validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"))
 
     # Model selection (using stable Gemini 2.5 models)
     # See https://ai.google.dev/gemini-api/docs/models for latest models
