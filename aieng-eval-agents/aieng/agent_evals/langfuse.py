@@ -7,12 +7,10 @@ import os
 import logfire
 import nest_asyncio
 from aieng.agent_evals.configs import Configs
-from langfuse import Langfuse  # type: ignore[attr-defined]
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -77,20 +75,3 @@ def setup_langfuse_tracer(service_name: str = "aieng-eval-agents") -> "trace.Tra
     # Set the global default tracer provider
     trace.set_tracer_provider(trace_provider)
     return trace.get_tracer(__name__)
-
-
-def flush_langfuse(langfuse_client: Langfuse) -> None:
-    """Flush shared LangFuse Client. Rich Progress included.
-
-    Parameters
-    ----------
-    langfuse_client : Langfuse
-        The Langfuse client to flush.
-    """
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        progress.add_task("Finalizing Langfuse annotations...", total=None)
-        langfuse_client.flush()

@@ -76,7 +76,8 @@ class Configs(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True)
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    openai_api_key: str = Field(validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"))
+    openai_api_key: str
+    gemini_api_key: str = Field(validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"))
 
     default_planner_model: str = "gemini-2.5-pro"
     default_worker_model: str = "gemini-2.5-flash"

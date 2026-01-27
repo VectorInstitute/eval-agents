@@ -11,7 +11,7 @@ import agents
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.langfuse import flush_langfuse, setup_langfuse_tracer
+from aieng.agent_evals.langfuse import setup_langfuse_tracer
 from aieng.agent_evals.utils import get_or_create_session, oai_agent_stream_to_gradio_messages
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
@@ -52,6 +52,47 @@ def get_sqlite_db_path() -> Path:
     return Path(os.getenv("REPORT_GENERATION_DB_PATH", default_sqlite_db_path))
 
 
+def report_generation_agent(enable_trace: bool = True) -> agents.Agent:
+    """
+    Define the report generation agent.
+
+    Parameters
+    ----------
+    enable_trace : bool, optional
+        Whether to enable tracing with Langfuse for evaluation purposes.
+        Default is True.
+
+    Returns
+    -------
+    agents.Agent
+        The report generation agent.
+    """
+    # Setup langfuse tracing if enabled
+    if enable_trace:
+        setup_langfuse_tracer(LANGFUSE_PROJECT_NAME)
+
+    # Get the client manager singleton instance
+    client_manager = AsyncClientManager.get_instance()
+
+    # Define an agent using the OpenAI Agent SDK
+    return agents.Agent(
+        name="Report Generation Agent",  # Agent name for logging and debugging purposes
+        instructions=REACT_INSTRUCTIONS,  # System instructions for the agent
+        # Tools available to the agent
+        # We wrap the `search_knowledgebase` method with `function_tool`, which
+        # will construct the tool definition JSON schema by extracting the necessary
+        # information from the method signature and docstring.
+        tools=[
+            agents.function_tool(client_manager.sqlite_connection(get_sqlite_db_path()).execute),
+            agents.function_tool(write_report_to_file),
+        ],
+        model=agents.OpenAIChatCompletionsModel(
+            model=client_manager.configs.default_worker_model,
+            openai_client=client_manager.openai_client,
+        ),
+    )
+
+
 async def agent_session_handler(
     query: str,
     history: list[ChatMessage],
@@ -86,30 +127,7 @@ async def agent_session_handler(
     # previous turns in the conversation
     session = get_or_create_session(history, session_state)
 
-    # Get the client manager singleton instance
-    client_manager = AsyncClientManager.get_instance()
-
-    # Setup langfuse tracing if enabled
-    if enable_trace:
-        setup_langfuse_tracer(LANGFUSE_PROJECT_NAME)
-
-    # Define an agent using the OpenAI Agent SDK
-    main_agent = agents.Agent(
-        name="Report Generation Agent",  # Agent name for logging and debugging purposes
-        instructions=REACT_INSTRUCTIONS,  # System instructions for the agent
-        # Tools available to the agent
-        # We wrap the `search_knowledgebase` method with `function_tool`, which
-        # will construct the tool definition JSON schema by extracting the necessary
-        # information from the method signature and docstring.
-        tools=[
-            agents.function_tool(client_manager.sqlite_connection(get_sqlite_db_path()).execute),
-            agents.function_tool(write_report_to_file),
-        ],
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_worker_model,
-            openai_client=client_manager.openai_client,
-        ),
-    )
+    main_agent = report_generation_agent(enable_trace=enable_trace)
 
     # Run the agent in streaming mode to get and display intermediate outputs
     result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
@@ -120,9 +138,6 @@ async def agent_session_handler(
         turn_messages += oai_agent_stream_to_gradio_messages(_item)
         if len(turn_messages) > 0:
             yield turn_messages
-
-    if enable_trace:
-        flush_langfuse(client_manager.langfuse_client)
 
 
 @click.command()
