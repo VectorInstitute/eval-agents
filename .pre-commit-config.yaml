@@ -25,7 +25,7 @@ repos:
       - id: uv-lock
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13
+    rev: v0.14.14
     hooks:
     - id: ruff
       args: [--fix, --exit-non-zero-on-fix]
@@ -46,7 +46,7 @@ repos:
     rev: 1.9.1
     hooks:
     - id: nbqa-ruff
-      args: [--fix, --exit-non-zero-on-fix, --ignore=D100]
+      args: [--fix, --exit-non-zero-on-fix, "--ignore=D100,D103,E402,F704,PLE1142"]
 
 ci:
     autofix_commit_msg: |
