@@ -1,7 +1,7 @@
 [
     {
         "id": "1",
-        "user_input": "Generate a monthly sales performance report.",
+        "input": "Generate a monthly sales performance report.",
         "expected_output": {
             "report_data": [
                 ["2010-12", 748957.0199999774],
@@ -23,7 +23,7 @@
         }
     }, {
         "id": "2",
-        "user_input": "Generate a report of the top 5 selling products per year and the total sales for each product.",
+        "input": "Generate a report of the top 5 selling products per year and the total sales for each product.",
         "expected_output": {
             "report_data": [
                 ["2010", "REGENCY CAKESTAND 3 TIER", 26897.360000000022],
@@ -42,7 +42,7 @@
         }
     }, {
         "id": "3",
-        "user_input": "Generate a report of the average order value per invoice per month.",
+        "input": "Generate a report of the average order value per invoice per month.",
         "expected_output": {
             "report_data": [
                 ["2010-12", 369.6727640671277],
@@ -64,7 +64,7 @@
         }
     }, {
         "id": "4",
-        "user_input": "Generate a report with the month-over-month trends in sales.",
+        "input": "Generate a report with the month-over-month trends in sales.",
         "expected_output": {
             "report_data": [
                 ["2010-12", 748957.0199999774, null, null],
@@ -91,7 +91,7 @@
         }
     }, {
         "id": "5",
-        "user_input": "Generate a report on sales revenue by country per year.",
+        "input": "Generate a report on sales revenue by country per year.",
         "expected_output": {
             "report_data": [
                 ["2010", "Australia", 1005.0999999999999],
@@ -160,7 +160,7 @@
         }
     }, {
         "id": "6",
-        "user_input": "Generate a report on the 5 highest-value customers per year vs. the average customer.",
+        "input": "Generate a report on the 5 highest-value customers per year vs. the average customer.",
         "expected_output": {
             "report_data": [
                 [2010, 18102, 27834.61, 21.89273279816576],
@@ -179,7 +179,7 @@
         }
     }, {
         "id": "7",
-        "user_input": "Generate a report on the average amount spent by one time buyers for each year vs. the average customer.",
+        "input": "Generate a report on the average amount spent by one time buyers for each year vs. the average customer.",
         "expected_output": {
             "report_data": [
                 ["2010", 11.04, 17.63],
