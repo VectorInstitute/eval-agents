@@ -74,19 +74,21 @@ async def evaluate(dataset_name: str):
 
     # Run the experiment with the agent task and evaluator
     result = dataset.run_experiment(
-        name="Evaluate Report Generation Agent with Local Data",
-        description="Evaluate the report generation agent with data from a local dataset",
+        name="Evaluate Report Generation Agent",
+        description="Evaluate the Report Generation Agent with data from Langfuse",
         task=agent_task,
         evaluators=[llm_evaluator],
         max_concurrency=1,
     )
 
     # Log the evaluation result
-    logger.info("Evaluation result:")
-    logger.info("%s", result.format())
+    logger.info(result.format().replace("\\n", "\n"))
 
-    # Gracefully close the services
-    await client_manager.close()
+    try:
+        # Gracefully close the services
+        await client_manager.close()
+    except Exception as e:
+        logger.warning(f"Client manager services not closed successfully: {e}")
 
 
 async def agent_task(*, item: DatasetItemClient, **kwargs) -> str | None:
