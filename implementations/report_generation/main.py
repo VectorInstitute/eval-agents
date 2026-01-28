@@ -31,7 +31,8 @@ If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
-At the end, provide the report file as a downloadable hyperlink to the user.
+At the end, provide the report file as a downloadable hyperlink to the user. \
+Make sure the link can be clicked on by the user.
 """
 
 LANGFUSE_PROJECT_NAME = "Report Generation"
@@ -170,7 +171,7 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
         # NOTE: Examples must be a list of lists when additional inputs are provided
         additional_inputs=gr.State(value={}, render=False),
         examples=[
-            ["Generate a monthly sales performance report for the last year with available data."],
+            ["Generate a monthly sales performance report."],
             ["Generate a report of the top 5 selling products per year and the total sales for each product."],
             ["Generate a report of the average order value per invoice per month."],
             ["Generate a report with the month-over-month trends in sales."],
@@ -179,7 +180,6 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
             [
                 "Generate a report on the average amount spent by one time buyers for each year vs. the average customer."
             ],
-            ["Generate a report on the daily, weekly and monthly sales trends."],
         ],
         title="2.1: ReAct for Retrieval-Augmented Generation with OpenAI Agent SDK",
     )

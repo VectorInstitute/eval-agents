@@ -4,14 +4,17 @@ import asyncio
 import json
 import logging
 import time
+from pathlib import Path
 from uuid import uuid4
 
 import agents
+import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from dotenv import load_dotenv
 from langfuse import Langfuse  # type: ignore[import-untyped]
 from langfuse.api.resources.commons.types import TraceWithFullDetails
 from pydantic import BaseModel
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from implementations.report_generation.main import get_report_generation_agent
 
@@ -29,7 +32,7 @@ Disregard the following aspects when comparing the "Proposed Answer" to the "Gro
 - The order of the items should not matter, unless explicitly specified in the "Question".
 - The formatting of the values should not matter, unless explicitly specified in the "Question".
 - The column and row names have to be similar but not necessarily exact, unless explicitly specified in the "Question".
-- The filename should not matter, unless explicitly specified in the "Question".
+- The filename has to be similar by name but not necessarily exact, unless explicitly specified in the "Question".
 - The numerical values should be equal to the second decimal place.
 """
 
@@ -47,6 +50,9 @@ EVALUATOR_TEMPLATE = """\
 {proposed_response}
 
 """
+
+DEFAULT_EVALUATION_DATASET_PATH = "implementations/report_generation/data/OnlineRetailReportEval.json"
+DEFAULT_EVALUATION_OUTPUT_PATH = "implementations/report_generation/reports/"
 
 
 class EvaluatorQuery(BaseModel):
@@ -68,35 +74,28 @@ class EvaluatorResponse(BaseModel):
     is_answer_correct: bool
 
 
-async def evaluate() -> None:
-    """Evaluate the report generation agent."""
+async def evaluate(
+    dataset_path: str = DEFAULT_EVALUATION_DATASET_PATH,
+    output_path: str = DEFAULT_EVALUATION_OUTPUT_PATH,
+) -> None:
+    """Evaluate the report generation agent against a given dataset.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the evaluation dataset. Default is DEFAULT_EVALUATION_DATASET_PATH.
+    output_path : str
+        Path to the evaluation output reports. Default is
+        DEFAULT_EVALUATION_OUTPUT_PATH.
+    """
     # Get the client manager singleton instance and langfuse client
     client_manager = AsyncClientManager.get_instance()
     langfuse_client = client_manager.langfuse_client
 
-    evaluation_dataset = [
-        {
-            "id": "1",
-            "user_input": "Generate a report of the top 5 selling products per year and the total sales for each product.",
-            "expected_output": {
-                "report_data": [
-                    ["2010", "REGENCY CAKESTAND 3 TIER", 26897.360000000022],
-                    ["2010", "DOTCOM POSTAGE", 24671.189999999995],
-                    ["2010", "WHITE HANGING HEART T-LIGHT HOLDER", 9877.8200000000052],
-                    ["2010", "RED WOOLLY HOTTIE WHITE HEART.", 9291.7299999999959],
-                    ["2010", "PAPER CHAIN KIT 50'S CHRISTMAS ", 9205.1499999999942],
-                    ["2011", "DOTCOM POSTAGE", 181574.29000000004],
-                    ["2011", "REGENCY CAKESTAND 3 TIER", 137864.82999999981],
-                    ["2011", "PARTY BUNTING", 97095.240000000456],
-                    ["2011", "WHITE HANGING HEART T-LIGHT HOLDER", 89790.649999999092],
-                    ["2011", "JUMBO BAG RED RETROSPOT", 88383.680000001812],
-                ],
-                "report_columns": ["SaleYear", "Description", "TotalSales"],
-                "filename": "top_selling_products_report.xlsx",
-            },
-            # "trace_id": "34990d826a68971d76cbb439a613010e",
-        }
-    ]
+    logger.info(f"Loading evaluation dataset from '{dataset_path}'")
+    with open(dataset_path, "r") as file:
+        evaluation_dataset = json.load(file)
+    logger.info(f"Loaded {len(evaluation_dataset)} examples from '{dataset_path}'")
 
     # Get a report generation agent to run the examples
     report_generation_agent = get_report_generation_agent(enable_trace=True)
@@ -104,25 +103,8 @@ async def evaluate() -> None:
     # Run the examples in the dataset
     trace_id_by_example_id = {}
     for example in evaluation_dataset:
-        # If a trace ID is provided, skip running and use it instead
-        if "trace_id" in example and example["trace_id"]:
-            assert isinstance(example["trace_id"], str), "Trace ID must be a string."
-            logger.info(f"Skipping the inference, found trace ID {example['trace_id']} for example '{example['id']}'")
-            trace_id_by_example_id[example["id"]] = example["trace_id"]
-            continue
-
-        # Create a new trace ID for this run and record it so we can
-        # recover the details later
-        trace_id = langfuse_client.create_trace_id(seed=str(uuid4()))
+        trace_id = await run_example(example, report_generation_agent, langfuse_client)
         trace_id_by_example_id[example["id"]] = trace_id
-        logger.info(f"Running example '{example['id']}' with trace ID {trace_id}")
-
-        # Open a new Langfuse observation and run the example
-        evaluation_name = f"evaluation example {example['id']}"
-        with langfuse_client.start_as_current_observation(name=evaluation_name, trace_context={"trace_id": trace_id}):
-            assert isinstance(example["user_input"], str), "User input must be a string."
-
-            await agents.Runner.run(report_generation_agent, input=example["user_input"])
 
     # Get an evaluator agent to evaluate the results of the examples
     # stored in Langfuse traces against the ground truth
@@ -133,99 +115,165 @@ async def evaluate() -> None:
     correct_count = 0
     total_count = 0
     for example in evaluation_dataset:
-        # Get the Langfuse trace for the example given its trace ID
         trace_id = trace_id_by_example_id[example["id"]]
-        trace = get_trace_with_retry(trace_id, langfuse_client)
+        evaluation_response = await evaluate_example(example, trace_id, langfuse_client, evaluator_agent)
 
-        found_report = False
-        for observation in trace.observations:
-            assert observation.name is not None, "Observation name must not be None."
-            # Find the observation that contains the report data, i.e. the one
-            # that contains the call to the report write_report_to_file function
-            if "write_report_to_file" in observation.name:
-                found_report = True
-                assert isinstance(example["user_input"], str), "User input must be a string."
+        # Record the evaluation results
+        evaluation_results[example["id"]] = evaluation_response.model_dump()
+        evaluation_results[example["id"]]["trace_id"] = trace_id
 
-                # Evaluate the example against the ground truth using the evaluator
-                logger.info(f"Evaluating example '{example['id']}'")
-                evaluator_query = EvaluatorQuery(
-                    question=example["user_input"],
-                    ground_truth=json.dumps(example["expected_output"]),
-                    proposed_response=json.dumps(observation.input),
-                )
-                result = await agents.Runner.run(evaluator_agent, input=evaluator_query.get_query())
-                evaluation_response = result.final_output_as(EvaluatorResponse)
-
-                # Record the evaluation results
-                evaluation_results[example["id"]] = evaluation_response.model_dump()
-                evaluation_results[example["id"]]["trace_id"] = trace_id
-
-                # Update the metrics
-                correct_count += 1 if evaluation_response.is_answer_correct else 0
-                total_count += 1
-
-                break
-
-        # If no call to the write_report_to_file function was found
-        # record a failed evaluation
-        if not found_report:
-            logger.error(f"No report found for example '{example['id']}'")
-            evaluation_response = EvaluatorResponse(explanation="No report found", is_answer_correct=False)
-            evaluation_results[example["id"]] = evaluation_response.model_dump()
-            evaluation_results[example["id"]]["trace_id"] = trace_id
-            total_count += 1
+        # Update the metrics
+        total_count += 1
+        if evaluation_response.is_answer_correct:
+            correct_count += 1
+        else:
+            logger.error(f"Example '{example['id']}' is incorrect. Explanation: {evaluation_response.explanation}")
 
     # Print the evaluation results
     logger.info("Evaluation Finished.")
     logger.info(f"Accuracy: {correct_count / total_count} ({correct_count}/{total_count})")
-    logger.info("Evaluation Results:")
-    logger.info(f"{evaluation_results}")
+
+    data_file_name = Path(dataset_path).name
+    output_file_name = data_file_name.replace(".json", f"_{int(time.time())}.json")
+    output_file_path = Path(output_path) / output_file_name
+    with open(output_file_path, "w") as file:
+        json.dump(evaluation_results, file, indent=4)
+        logger.info(f"Evaluation results saved to '{output_file_path}'")
 
     # Gracefully close the services
     await client_manager.close()
 
 
-def get_trace_with_retry(
+async def run_example(example: dict, agent: agents.Agent, langfuse_client: Langfuse) -> str:
+    """Run an example and return the langfusetrace ID.
+
+    Parameters
+    ----------
+    example : dict
+        The example to run.
+    agent : agents.Agent
+        The agent to run the example with.
+    langfuse_client : Langfuse
+        The Langfuse client to record the agent's trace.
+
+    Returns
+    -------
+    str
+        The Langfuse trace ID.
+    """
+    # If a trace ID is provided, skip running and use it instead
+    if "trace_id" in example and example["trace_id"]:
+        assert isinstance(example["trace_id"], str), "Trace ID must be a string."
+        logger.info(f"Skipping the inference, found trace ID {example['trace_id']} for example '{example['id']}'")
+        return example["trace_id"]
+
+    # Create a new trace ID for this run and record it so we can
+    # recover the details later
+    trace_id = langfuse_client.create_trace_id(seed=str(uuid4()))
+    logger.info(f"Running example '{example['id']}' with trace ID {trace_id}")
+
+    # Open a new Langfuse observation and run the example
+    evaluation_name = f"evaluation example {example['id']}"
+    with langfuse_client.start_as_current_observation(name=evaluation_name, trace_context={"trace_id": trace_id}):
+        assert isinstance(example["user_input"], str), "User input must be a string."
+        await call_agent_with_retry(agent, example["user_input"])
+
+    return trace_id
+
+
+async def evaluate_example(
+    example: dict,
     trace_id: str,
     langfuse_client: Langfuse,
-    max_retries: int = 10,
-    backoff_factor: int = 2,
-) -> TraceWithFullDetails:
-    """Get a trace from Langfuse with a retry mechanism.
+    agent: agents.Agent,
+) -> EvaluatorResponse:
+    """Evaluate an example and return the evaluation response.
 
-    The initial retry delay is 2 seconds.
+    Parameters
+    ----------
+    example : dict
+        The example to evaluate.
+    trace_id : str
+        The trace ID of the example.
+    langfuse_client : Langfuse
+        The Langfuse client to use.
+    agent : agents.Agent
+        The agent to use to evaluate the example.
+
+    Returns
+    -------
+    EvaluatorResponse
+        The evaluation response.
+    """
+    # Get the Langfuse trace for the example given its trace ID
+    logger.info(f"Getting trace for example '{example['id']}' with trace ID {trace_id}")
+    trace = call_trace_with_retry(trace_id, langfuse_client)
+
+    for observation in trace.observations:
+        assert observation.name is not None, "Observation name must not be None."
+        # Find the observation that contains the report data, i.e. the one
+        # that contains the call to the report write_report_to_file function
+        if "write_report_to_file" in observation.name:
+            assert isinstance(example["user_input"], str), "User input must be a string."
+
+            # Evaluate the example against the ground truth using the evaluator
+            logger.info(f"Evaluating example '{example['id']}'")
+            evaluator_query = EvaluatorQuery(
+                question=example["user_input"],
+                ground_truth=json.dumps(example["expected_output"]),
+                proposed_response=json.dumps(observation.input),
+            )
+
+            logger.info(f"Calling evaluator agent for example '{example['id']}'")
+            result = await call_agent_with_retry(agent, evaluator_query.get_query())
+            return result.final_output_as(EvaluatorResponse)
+
+    # If no call to the write_report_to_file function was found
+    # record a failed evaluation
+    logger.error(f"No report found for example '{example['id']}'")
+    return EvaluatorResponse(explanation="No report found", is_answer_correct=False)
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential())
+async def call_agent_with_retry(agent: agents.Agent, agent_input: str) -> agents.RunResult:
+    """
+    Call an agent using Tenacity's retry mechanism.
+
+    Parameters
+    ----------
+    agent : agents.Agent
+        The agent to call.
+    agent_input : str
+        The input to the agent.
+
+    Returns
+    -------
+    agents.RunResult
+        The result of the agent call.
+    """
+    logger.info(f"Calling agent '{agent.name}'...")
+    return await agents.Runner.run(agent, input=agent_input)
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_exponential())
+def call_trace_with_retry(trace_id: str, langfuse_client: Langfuse) -> TraceWithFullDetails:
+    """
+    Call a trace using Tenacity's retry mechanism.
 
     Parameters
     ----------
     trace_id : str
-        The ID of the trace to get.
+        The trace ID to call.
     langfuse_client : Langfuse
         The Langfuse client to use.
-    max_retries : int, optional
-        The maximum number of retries. Default is 10.
-    backoff_factor : int, optional
-        The backoff factor. Default is 2.
 
     Returns
     -------
     TraceWithFullDetails
-        The trace object retrieved from Langfuse.
-
-    Raises
-    ------
-    Exception
-        If the trace is not found after the maximum number of retries.
+        The trace as returned by langfuse.
     """
-    t = 2
-    for retry in range(max_retries):
-        try:
-            return langfuse_client.api.trace.get(trace_id=trace_id)
-        except Exception:
-            logger.error(f"Trace {trace_id} not found. Retrying in {t} seconds ({retry + 1}/{max_retries})...")
-            time.sleep(t)
-            t *= backoff_factor
-
-    raise Exception(f"Failed to get trace {trace_id} after {max_retries} retries")
+    logger.info(f"Calling langfuse with trace ID {trace_id}...")
+    return langfuse_client.api.trace.get(trace_id=trace_id)
 
 
 def get_evaluator_agent(evaluator_instructions: str) -> agents.Agent:
@@ -252,5 +300,31 @@ def get_evaluator_agent(evaluator_instructions: str) -> agents.Agent:
     )
 
 
+@click.command()
+@click.option(
+    "--dataset-path",
+    required=False,
+    default=DEFAULT_EVALUATION_DATASET_PATH,
+    help="Path to the evaluation dataset.",
+)
+@click.option(
+    "--output-path",
+    required=False,
+    default=DEFAULT_EVALUATION_OUTPUT_PATH,
+    help="Path to the evaluation output reports.",
+)
+def cli(dataset_path: str, output_path: str) -> None:
+    """Evaluate the report generation agent against a given dataset.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the evaluation dataset.
+    output_path : str
+        Path to the evaluation output reports.
+    """
+    asyncio.run(evaluate(dataset_path, output_path))
+
+
 if __name__ == "__main__":
-    asyncio.run(evaluate())
+    cli()
