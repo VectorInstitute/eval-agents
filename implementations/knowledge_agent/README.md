@@ -1,17 +1,18 @@
 # Knowledge-Grounded QA Agent
 
-This implementation demonstrates a knowledge-grounded question answering agent using **Gemini's Google Search grounding** capability, evaluated on the **DeepSearchQA** benchmark.
+This implementation demonstrates a knowledge-grounded question answering agent using **Google ADK** with explicit **Google Search tool calls**, evaluated on the **DeepSearchQA** benchmark.
 
 ## Overview
 
-The knowledge agent uses Gemini's built-in Google Search tool to answer questions that require real-time information. Unlike traditional RAG systems that rely on pre-indexed documents, this approach searches the live web to find relevant information.
+The knowledge agent uses a ReAct (Reasoning + Acting) architecture powered by Google ADK. It explicitly calls Google Search as a tool, making the reasoning process transparent through observable Thought → Action → Observation cycles. This approach searches the live web to find relevant information for questions requiring real-time data.
 
 ## Features
 
-- **Google Search Grounding**: Uses Gemini's native search capability for real-time information retrieval
-- **Source Citation**: Automatically includes source URLs in responses
+- **ReAct Architecture**: Explicit tool calls with traceable reasoning (Thought → Action → Observation)
+- **Google Search Tool**: Uses ADK's `GoogleSearchTool` for real-time web search
+- **Source Citation**: Automatically extracts and includes source URLs from search results
 - **DeepSearchQA Evaluation**: Built-in evaluation on the DeepSearchQA benchmark (900 research tasks)
-- **Multi-turn Conversations**: Session management for follow-up questions
+- **Multi-turn Conversations**: Session management via ADK's `InMemorySessionService`
 - **Gradio Interface**: Interactive chat UI for testing
 
 ## Setup
@@ -49,10 +50,16 @@ uv run --env-file .env gradio implementations/knowledge_agent/gradio_app.py
 from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
 
 agent = KnowledgeGroundedAgent()
+
+# In async context (Jupyter notebooks, async functions)
+response = await agent.answer_async("What is the current population of Tokyo?")
+
+# In sync context (scripts)
 response = agent.answer("What is the current population of Tokyo?")
 
 print(response.text)
 print(f"Sources: {[s.uri for s in response.sources]}")
+print(f"Tool calls: {response.tool_calls}")
 ```
 
 ### Evaluation on DeepSearchQA
@@ -60,15 +67,14 @@ print(f"Sources: {[s.uri for s in response.sources]}")
 ```python
 from aieng.agent_evals.knowledge_agent import (
     KnowledgeGroundedAgent,
-    DeepSearchQADataset,
     DeepSearchQAEvaluator,
 )
 
 agent = KnowledgeGroundedAgent()
 evaluator = DeepSearchQAEvaluator(agent)
 
-# Evaluate a sample
-results = evaluator.evaluate_sample(n=10, random_state=42)
+# Evaluate a sample (use await in Jupyter)
+results = await evaluator.evaluate_sample_async(n=10, random_state=42)
 
 # Convert to DataFrame for analysis
 df = evaluator.results_to_dataframe(results)
@@ -77,8 +83,8 @@ print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
 
 ## Notebooks
 
-1. **01_grounding_basics.ipynb**: Introduction to Gemini's Google Search grounding
-2. **02_agent_basics.ipynb**: Creating and using the knowledge agent
+1. **01_grounding_basics.ipynb**: Introduction to the knowledge agent and Google Search tool
+2. **02_agent_basics.ipynb**: Creating agents with custom instructions
 3. **03_multi_turn.ipynb**: Multi-turn conversations and DeepSearchQA evaluation
 
 ## Architecture
@@ -86,11 +92,10 @@ print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
 ```
 aieng.agent_evals.knowledge_agent/
 ├── config.py          # Configuration (Pydantic settings)
-├── grounding_tool.py  # Gemini Google Search grounding tool
-├── agent.py           # KnowledgeGroundedAgent class
-├── session.py         # Multi-turn session management
-├── evaluation.py      # DeepSearchQA dataset and evaluator
-└── wikipedia_tool.py  # Alternative Wikipedia search tool
+├── grounding_tool.py  # GoogleSearchTool wrapper and response models
+├── agent.py           # KnowledgeGroundedAgent (ADK Agent + Runner)
+├── session.py         # Conversation session management
+└── evaluation.py      # DeepSearchQA dataset and evaluator
 ```
 
 ## DeepSearchQA Dataset
@@ -106,18 +111,17 @@ Example question:
 
 ## Models
 
-The agent supports Gemini models with Google Search grounding:
+The agent supports Gemini models via Google ADK:
 
 | Model | Best For |
 |-------|----------|
 | `gemini-2.5-flash` (default) | Fast, cost-effective |
 | `gemini-2.5-pro` | Complex reasoning |
-| `gemini-3-flash-preview` | Latest capabilities (preview) |
 
 See [Gemini models documentation](https://ai.google.dev/gemini-api/docs/models) for the full list.
 
 ## References
 
-- [Grounding with Google Search - Gemini API](https://ai.google.dev/gemini-api/docs/google-search)
+- [Google ADK (Agent Development Kit)](https://google.github.io/adk-docs/)
 - [DeepSearchQA Dataset - Kaggle](https://www.kaggle.com/datasets/deepmind/deepsearchqa)
 - [Google GenAI Python SDK](https://github.com/googleapis/python-genai)
