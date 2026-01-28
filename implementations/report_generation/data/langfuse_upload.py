@@ -30,12 +30,15 @@ async def upload_dataset_to_langfuse(dataset_path: str, dataset_name: str):
     client_manager = AsyncClientManager.get_instance()
     langfuse_client = client_manager.langfuse_client
 
+    # Load the ground truth dataset from the file path
     logger.info(f"Loading dataset from '{dataset_path}'")
     with open(dataset_path, "r") as file:
         dataset = json.load(file)
 
+    # Create the dataset in Langfuse
     langfuse_client.create_dataset(name=dataset_name)
 
+    # Upload each item to the dataset
     for item in dataset:
         assert "input" in item, "`input` is required for all items in the dataset"
         assert "expected_output" in item, "`expected_output` is required for all items in the dataset"

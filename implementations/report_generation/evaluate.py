@@ -73,6 +73,7 @@ async def evaluate(dataset_name: str):
     dataset = langfuse_client.get_dataset(dataset_name)
 
     # Run the experiment with the agent task and evaluator
+    # against the dataset items
     result = dataset.run_experiment(
         name="Evaluate Report Generation Agent",
         description="Evaluate the Report Generation Agent with data from Langfuse",
