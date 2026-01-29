@@ -16,6 +16,14 @@ import base64
 import logging
 import os
 
+from langfuse import get_client
+from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
 from .config import KnowledgeAgentConfig
 
 
@@ -96,8 +104,6 @@ def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
 
     try:
         # Verify Langfuse client authentication
-        from langfuse import get_client  # noqa: PLC0415
-
         _langfuse_client = get_client()
         if not _langfuse_client.auth_check():
             logger.warning("Langfuse authentication failed. Check your credentials.")
@@ -111,13 +117,6 @@ def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
         # Configure OpenTelemetry environment variables
         os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = otel_endpoint
         os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {auth_string}"
-
-        # Set up TracerProvider with OTLP exporter
-        from opentelemetry import trace  # noqa: PLC0415
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter  # noqa: PLC0415
-        from opentelemetry.sdk.resources import Resource  # noqa: PLC0415
-        from opentelemetry.sdk.trace import TracerProvider  # noqa: PLC0415
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # noqa: PLC0415
 
         # Create a resource with service name
         resource = Resource.create({"service.name": "knowledge-agent"})
@@ -138,8 +137,6 @@ def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
         trace.set_tracer_provider(provider)
 
         # Initialize OpenInference instrumentation for Google ADK
-        from openinference.instrumentation.google_adk import GoogleADKInstrumentor  # noqa: PLC0415
-
         GoogleADKInstrumentor().instrument(tracer_provider=provider)
 
         _instrumented = True
