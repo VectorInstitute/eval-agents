@@ -15,13 +15,14 @@ Example
 >>> print(response.text)
 """
 
+from aieng.agent_evals.configs import Configs
+
 from .agent import (
-    AsyncClientManager,
     EnhancedGroundedResponse,
     EnhancedKnowledgeAgent,
+    KnowledgeAgentManager,
     KnowledgeGroundedAgent,
 )
-from .config import KnowledgeAgentConfig
 from .evaluation import (
     DeepSearchQADataset,
     DeepSearchQAEvaluator,
@@ -57,7 +58,6 @@ from .planner import (
     StepExecution,
     StepStatus,
 )
-from .session import ConversationSession, Message, get_or_create_session
 from .tracing import flush_traces, init_tracing, is_tracing_enabled
 from .web_tools import (
     create_fetch_url_tool,
@@ -72,9 +72,9 @@ __all__ = [
     "KnowledgeGroundedAgent",
     "EnhancedKnowledgeAgent",
     "EnhancedGroundedResponse",
-    "AsyncClientManager",
+    "KnowledgeAgentManager",
     # Config
-    "KnowledgeAgentConfig",
+    "Configs",
     # Grounding tool
     "create_google_search_tool",
     "format_response_with_citations",
@@ -100,10 +100,6 @@ __all__ = [
     "MetricsAggregator",
     "EvaluationMetrics",
     "EnhancedEvaluationResult",
-    # Session management
-    "ConversationSession",
-    "Message",
-    "get_or_create_session",
     # Evaluation
     "DeepSearchQADataset",
     "DeepSearchQAEvaluator",

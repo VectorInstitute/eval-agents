@@ -6,9 +6,9 @@ import pytest
 from aieng.agent_evals.knowledge_agent.agent import (
     ENHANCED_SYSTEM_INSTRUCTIONS,
     SYSTEM_INSTRUCTIONS,
-    AsyncClientManager,
     EnhancedGroundedResponse,
     EnhancedKnowledgeAgent,
+    KnowledgeAgentManager,
     KnowledgeGroundedAgent,
 )
 from aieng.agent_evals.knowledge_agent.grounding_tool import GroundedResponse, GroundingChunk
@@ -618,32 +618,9 @@ class TestKnowledgeGroundedAgent:
         assert response.search_queries == []
         assert response.sources == []
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
-    def test_format_answer(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test format_answer method."""
-        agent = KnowledgeGroundedAgent(config=mock_config)
 
-        response = GroundedResponse(
-            text="Test answer.",
-            sources=[],
-        )
-
-        formatted = agent.format_answer(response)
-        assert "Test answer." in formatted
-
-
-class TestAsyncClientManager:
-    """Tests for the AsyncClientManager class."""
+class TestKnowledgeAgentManager:
+    """Tests for the KnowledgeAgentManager class."""
 
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
@@ -657,10 +634,10 @@ class TestAsyncClientManager:
         mock_runner_class,
     ):
         """Test that clients are lazily initialized."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.KnowledgeAgentConfig") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
-            manager = AsyncClientManager()
+            manager = KnowledgeAgentManager()
 
             # Should not be initialized yet
             assert not manager.is_initialized()
@@ -683,10 +660,10 @@ class TestAsyncClientManager:
         mock_runner_class,
     ):
         """Test closing the client manager."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.KnowledgeAgentConfig") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
-            manager = AsyncClientManager()
+            manager = KnowledgeAgentManager()
             _ = manager.agent
             assert manager.is_initialized()
 
@@ -705,10 +682,10 @@ class TestAsyncClientManager:
         mock_runner_class,
     ):
         """Test that agent is reused on multiple accesses."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.KnowledgeAgentConfig") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
-            manager = AsyncClientManager()
+            manager = KnowledgeAgentManager()
 
             agent1 = manager.agent
             agent2 = manager.agent

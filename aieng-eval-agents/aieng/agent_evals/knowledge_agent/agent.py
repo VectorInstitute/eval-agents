@@ -11,18 +11,17 @@ import time
 import uuid
 from typing import Any
 
+from aieng.agent_evals.configs import Configs
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from .config import KnowledgeAgentConfig
 from .grounding_tool import (
     GroundedResponse,
     GroundingChunk,
     create_google_search_tool,
-    format_response_with_citations,
 )
 from .planner import ResearchPlan, ResearchPlanner, StepExecution
 from .web_tools import create_fetch_url_tool, create_read_pdf_tool
@@ -31,17 +30,26 @@ from .web_tools import create_fetch_url_tool, create_read_pdf_tool
 logger = logging.getLogger(__name__)
 
 
-def _process_function_calls(
-    event: Any,
-    tool_calls: list[dict[str, Any]],
-    search_queries: list[str],
-) -> None:
-    """Extract tool calls and search queries from event function calls."""
+def _extract_tool_calls(event: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from event function calls.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        List of tool call dictionaries with 'name' and 'args' keys.
+    """
     if not hasattr(event, "get_function_calls"):
-        return
+        return []
     function_calls = event.get_function_calls()
     if not function_calls:
-        return
+        return []
+
+    tool_calls = []
     for fc in function_calls:
         tool_call_info = {
             "name": getattr(fc, "name", "unknown"),
@@ -49,23 +57,53 @@ def _process_function_calls(
         }
         tool_calls.append(tool_call_info)
         logger.info(f"Tool call: {tool_call_info['name']}({tool_call_info['args']})")
+    return tool_calls
 
-        # Extract search queries from google_search calls
-        tool_name = str(tool_call_info["name"])
-        tool_args = tool_call_info["args"]
+
+def _extract_search_queries_from_tool_calls(tool_calls: list[dict[str, Any]]) -> list[str]:
+    """Extract search queries from tool calls.
+
+    Parameters
+    ----------
+    tool_calls : list[dict[str, Any]]
+        List of tool call dictionaries.
+
+    Returns
+    -------
+    list[str]
+        Search queries found in the tool calls.
+    """
+    queries = []
+    for tool_call in tool_calls:
+        tool_name = str(tool_call.get("name", ""))
+        tool_args = tool_call.get("args", {})
         if "search" in tool_name.lower() and isinstance(tool_args, dict):
             query = tool_args.get("query", "")
             if query:
-                search_queries.append(query)
+                queries.append(query)
+    return queries
 
 
-def _process_function_responses(event: Any, sources: list[GroundingChunk]) -> None:
-    """Extract sources from event function responses."""
+def _extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
+    """Extract sources from event function responses.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[GroundingChunk]
+        Sources extracted from the function responses.
+    """
     if not hasattr(event, "get_function_responses"):
-        return
+        return []
     function_responses = event.get_function_responses()
     if not function_responses:
-        return
+        return []
+
+    sources = []
     for fr in function_responses:
         response_data = getattr(fr, "response", {})
         if not isinstance(response_data, dict):
@@ -88,21 +126,29 @@ def _process_function_responses(event: Any, sources: list[GroundingChunk]) -> No
                         uri=chunk["web"].get("uri", ""),
                     )
                 )
+    return sources
 
 
-def _process_grounding_metadata(
-    event: Any,
-    sources: list[GroundingChunk],
-    search_queries: list[str],
-) -> None:
-    """Extract sources and search queries from grounding metadata."""
+def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
+    """Extract sources from grounding metadata.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[GroundingChunk]
+        Sources extracted from the grounding metadata.
+    """
     gm = getattr(event, "grounding_metadata", None)
     if not gm and hasattr(event, "content") and event.content:
         gm = getattr(event.content, "grounding_metadata", None)
     if not gm:
-        return
+        return []
 
-    # Extract grounding chunks
+    sources = []
     if hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
         for chunk in gm.grounding_chunks:
             if hasattr(chunk, "web") and chunk.web:
@@ -112,11 +158,34 @@ def _process_grounding_metadata(
                         uri=getattr(chunk.web, "uri", "") or "",
                     )
                 )
-    # Extract web search queries
+    return sources
+
+
+def _extract_grounding_queries(event: Any) -> list[str]:
+    """Extract search queries from grounding metadata.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[str]
+        Search queries from the grounding metadata.
+    """
+    gm = getattr(event, "grounding_metadata", None)
+    if not gm and hasattr(event, "content") and event.content:
+        gm = getattr(event.content, "grounding_metadata", None)
+    if not gm:
+        return []
+
+    queries = []
     if hasattr(gm, "web_search_queries") and gm.web_search_queries:
         for q in gm.web_search_queries:
-            if q and q not in search_queries:
-                search_queries.append(q)
+            if q:
+                queries.append(q)
+    return queries
 
 
 def _extract_final_response(event: Any) -> str | None:
@@ -166,14 +235,14 @@ class KnowledgeGroundedAgent:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration settings. If not provided, creates default config.
     model : str, optional
         The model to use. If not provided, uses config.default_worker_model.
 
     Attributes
     ----------
-    config : KnowledgeAgentConfig
+    config : Configs
         The configuration settings.
 
     Examples
@@ -186,20 +255,20 @@ class KnowledgeGroundedAgent:
 
     def __init__(
         self,
-        config: KnowledgeAgentConfig | None = None,
+        config: Configs | None = None,
         model: str | None = None,
     ) -> None:
         """Initialize the knowledge-grounded agent.
 
         Parameters
         ----------
-        config : KnowledgeAgentConfig, optional
+        config : Configs, optional
             Configuration settings. If not provided, creates default config.
         model : str, optional
             The model to use. If not provided, uses config.default_worker_model.
         """
         if config is None:
-            config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+            config = Configs()  # type: ignore[call-arg]
 
         self.config = config
         self.model = model or config.default_worker_model
@@ -296,12 +365,24 @@ class KnowledgeGroundedAgent:
             new_message=content,
         ):
             logger.debug(f"Event: {event}")
-            _process_function_calls(event, tool_calls, search_queries)
-            _process_function_responses(event, sources)
-            _process_grounding_metadata(event, sources, search_queries)
-            extracted_text = _extract_final_response(event)
-            if extracted_text is not None:
-                final_response = extracted_text
+
+            # Extract tool calls and search queries from function calls
+            new_tool_calls = _extract_tool_calls(event)
+            tool_calls.extend(new_tool_calls)
+            search_queries.extend(_extract_search_queries_from_tool_calls(new_tool_calls))
+
+            # Extract sources from function responses
+            sources.extend(_extract_sources_from_responses(event))
+
+            # Extract sources and queries from grounding metadata
+            sources.extend(_extract_grounding_sources(event))
+            for q in _extract_grounding_queries(event):
+                if q not in search_queries:
+                    search_queries.append(q)
+
+            text = _extract_final_response(event)
+            if text is not None:
+                final_response = text
 
         return GroundedResponse(
             text=final_response,
@@ -337,47 +418,35 @@ class KnowledgeGroundedAgent:
         logger.info(f"Answering question: {question[:100]}...")
         return asyncio.run(self.answer_async(question, session_id))
 
-    def format_answer(self, response: GroundedResponse) -> str:
-        """Format a grounded response for display.
 
-        Parameters
-        ----------
-        response : GroundedResponse
-            The grounded response to format.
+class KnowledgeAgentManager:
+    """Manages KnowledgeGroundedAgent lifecycle with lazy initialization.
 
-        Returns
-        -------
-        str
-            Formatted response with citations.
-        """
-        return format_response_with_citations(response)
-
-
-class AsyncClientManager:
-    """Manages async client lifecycle with lazy initialization and cleanup.
-
-    This class ensures clients are created only once and properly closed,
-    preventing resource warnings from unclosed event loops.
+    This class provides convenient lifecycle management for the knowledge agent,
+    with lazy initialization and state tracking. Unlike the general-purpose
+    AsyncClientManager (for infrastructure clients), this is specific to the
+    knowledge agent and is not a singleton.
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration object for client setup. If not provided, creates default.
 
     Examples
     --------
-    >>> manager = AsyncClientManager()
+    >>> manager = KnowledgeAgentManager()
     >>> agent = manager.agent
     >>> response = await agent.answer_async("What is quantum computing?")
     >>> print(response.text)
+    >>> manager.close()
     """
 
-    def __init__(self, config: KnowledgeAgentConfig | None = None) -> None:
+    def __init__(self, config: Configs | None = None) -> None:
         """Initialize the client manager.
 
         Parameters
         ----------
-        config : KnowledgeAgentConfig, optional
+        config : Configs, optional
             Configuration object. If not provided, creates default config.
         """
         self._config = config
@@ -385,16 +454,16 @@ class AsyncClientManager:
         self._initialized = False
 
     @property
-    def config(self) -> KnowledgeAgentConfig:
+    def config(self) -> Configs:
         """Get or create the config instance.
 
         Returns
         -------
-        KnowledgeAgentConfig
+        Configs
             The configuration settings.
         """
         if self._config is None:
-            self._config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+            self._config = Configs()  # type: ignore[call-arg]
         return self._config
 
     @property
@@ -531,7 +600,7 @@ class EnhancedKnowledgeAgent:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration settings. If not provided, creates default config.
     model : str, optional
         The model to use for answering. If not provided, uses
@@ -550,7 +619,7 @@ class EnhancedKnowledgeAgent:
 
     def __init__(
         self,
-        config: KnowledgeAgentConfig | None = None,
+        config: Configs | None = None,
         model: str | None = None,
         enable_planning: bool = True,
     ) -> None:
@@ -558,7 +627,7 @@ class EnhancedKnowledgeAgent:
 
         Parameters
         ----------
-        config : KnowledgeAgentConfig, optional
+        config : Configs, optional
             Configuration settings. If not provided, creates default config.
         model : str, optional
             The model to use. If not provided, uses config.default_worker_model.
@@ -566,7 +635,7 @@ class EnhancedKnowledgeAgent:
             Whether to use the research planner.
         """
         if config is None:
-            config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+            config = Configs()  # type: ignore[call-arg]
 
         self.config = config
         self.model = model or config.default_worker_model
@@ -722,9 +791,20 @@ class EnhancedKnowledgeAgent:
             new_message=content,
         ):
             logger.debug(f"Event: {event}")
-            _process_function_calls(event, tool_calls, search_queries)
-            _process_function_responses(event, sources)
-            _process_grounding_metadata(event, sources, search_queries)
+
+            # Extract tool calls and search queries from function calls
+            new_tool_calls = _extract_tool_calls(event)
+            tool_calls.extend(new_tool_calls)
+            search_queries.extend(_extract_search_queries_from_tool_calls(new_tool_calls))
+
+            # Extract sources from function responses
+            sources.extend(_extract_sources_from_responses(event))
+
+            # Extract sources and queries from grounding metadata
+            sources.extend(_extract_grounding_sources(event))
+            for q in _extract_grounding_queries(event):
+                if q not in search_queries:
+                    search_queries.append(q)
 
             # Track reasoning chain from intermediate responses
             if hasattr(event, "content") and event.content and hasattr(event.content, "parts") and event.content.parts:
@@ -735,9 +815,9 @@ class EnhancedKnowledgeAgent:
                         if part_text and len(part_text) < 500:  # Short enough to be reasoning
                             reasoning_chain.append(part_text)
 
-            extracted_text = _extract_final_response(event)
-            if extracted_text is not None:
-                final_response = extracted_text
+            text = _extract_final_response(event)
+            if text is not None:
+                final_response = text
 
         total_duration_ms = int((time.time() - start_time) * 1000)
 

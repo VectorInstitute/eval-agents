@@ -53,6 +53,30 @@ class TestGroundedResponse:
         assert response.sources == []
         assert response.tool_calls == []
 
+    def test_format_with_citations(self):
+        """Test format_with_citations method."""
+        response = GroundedResponse(
+            text="The answer is 42.",
+            sources=[
+                GroundingChunk(title="Wikipedia", uri="https://en.wikipedia.org/wiki/42"),
+            ],
+        )
+
+        formatted = response.format_with_citations()
+
+        assert "The answer is 42." in formatted
+        assert "**Sources:**" in formatted
+        assert "[Wikipedia](https://en.wikipedia.org/wiki/42)" in formatted
+
+    def test_format_with_citations_no_sources(self):
+        """Test format_with_citations method without sources."""
+        response = GroundedResponse(text="Simple answer.")
+
+        formatted = response.format_with_citations()
+
+        assert formatted == "Simple answer."
+        assert "Sources" not in formatted
+
 
 class TestCreateGoogleSearchTool:
     """Tests for the create_google_search_tool function."""
