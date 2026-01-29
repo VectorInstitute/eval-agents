@@ -55,3 +55,9 @@ class KnowledgeAgentConfig(BaseSettings):
     langfuse_public_key: str | None = Field(default=None, pattern=r"^pk-lf-.*$")
     langfuse_secret_key: str | None = Field(default=None, pattern=r"^sk-lf-.*$")
     langfuse_host: str = "https://us.cloud.langfuse.com"
+
+    # Vertex AI configuration for Vector Search (optional)
+    vertex_ai_project: str | None = Field(default=None, validation_alias="VERTEX_AI_PROJECT")
+    vertex_ai_location: str = Field(default="us-central1", validation_alias="VERTEX_AI_LOCATION")
+    vector_search_index_endpoint: str | None = Field(default=None, validation_alias="VECTOR_SEARCH_INDEX_ENDPOINT")
+    vector_search_index_id: str | None = Field(default=None, validation_alias="VECTOR_SEARCH_INDEX_ID")

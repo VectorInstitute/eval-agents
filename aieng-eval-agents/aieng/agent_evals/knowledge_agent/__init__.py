@@ -30,6 +30,7 @@ from .grounding_tool import (
     format_response_with_citations,
 )
 from .session import ConversationSession, Message, get_or_create_session
+from .tracing import flush_traces, init_tracing, is_tracing_enabled
 
 
 __all__ = [
@@ -52,4 +53,8 @@ __all__ = [
     "DeepSearchQAEvaluator",
     "DSQAExample",
     "EvaluationResult",
+    # Tracing
+    "init_tracing",
+    "is_tracing_enabled",
+    "flush_traces",
 ]
