@@ -112,11 +112,14 @@ async def agent_task(*, item: DatasetItemClient, **kwargs) -> str | None:
 
     # Extract the report data from the result by returning the
     # arguments to the write_report_to_file function call
-    for raw_response in result.raw_responses:
+    # Reversing the responses to get the last write_report_to_file call
+    # in case a failed call has been made first
+    for raw_response in reversed(result.raw_responses):
         for output in raw_response.output:
             if isinstance(output, ResponseFunctionToolCall) and "write_report_to_file" in output.name:
                 return output.arguments
 
+    logger.warning("No call to write_report_to_file function found in the agent's response")
     return None
 
 
@@ -187,7 +190,7 @@ async def run_agent_with_retry(agent: agents.Agent, agent_input: str) -> agents.
     agents.RunnerResult
         The result of the agent run.
     """
-    logger.info(f"Running agent {agent.name}...")
+    logger.info(f"Running agent {agent.name} with input '{agent_input[:100]}...'")
     return await agents.Runner.run(agent, input=agent_input)
 
 

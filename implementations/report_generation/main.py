@@ -31,6 +31,7 @@ If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
+Make sure the write_report_to_file tool is called so it generates the report file. \
 At the end, provide the report file as a downloadable hyperlink to the user. \
 Make sure the link can be clicked on by the user.
 """
@@ -88,7 +89,7 @@ def get_report_generation_agent(enable_trace: bool = True) -> agents.Agent:
             agents.function_tool(write_report_to_file),
         ],
         model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_worker_model,
+            model=client_manager.configs.default_planner_model,
             openai_client=client_manager.openai_client,
         ),
     )
@@ -172,9 +173,11 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
         additional_inputs=gr.State(value={}, render=False),
         examples=[
             ["Generate a monthly sales performance report."],
-            ["Generate a report of the top 5 selling products per year and the total sales for each product."],
+            ["Generate a report of the top 5 selling products per year and the total sales value for each product."],
             ["Generate a report of the average order value per invoice per month."],
-            ["Generate a report with the month-over-month trends in sales."],
+            [
+                "Generate a report with the month-over-month trends in sales. The report should include the monthly sales, the month-over-month change and the percentage change."
+            ],
             ["Generate a report on sales revenue by country per year."],
             ["Generate a report on the 5 highest-value customers per year vs. the average customer."],
             [
