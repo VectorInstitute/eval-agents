@@ -53,6 +53,24 @@ class GroundedResponse(BaseModel):
     sources: list[GroundingChunk] = Field(default_factory=list)
     tool_calls: list[dict] = Field(default_factory=list)
 
+    def format_with_citations(self) -> str:
+        """Format this response with inline citations.
+
+        Returns
+        -------
+        str
+            Formatted response text with citations appended.
+        """
+        output_parts = [self.text]
+
+        if self.sources:
+            output_parts.append("\n\n**Sources:**")
+            for i, source in enumerate(self.sources, 1):
+                if source.uri:
+                    output_parts.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
+
+        return "\n".join(output_parts)
+
 
 def create_google_search_tool() -> GoogleSearchTool:
     """Create a GoogleSearchTool configured for use with other tools.
@@ -90,13 +108,9 @@ def format_response_with_citations(response: GroundedResponse) -> str:
     -------
     str
         Formatted response text with citations appended.
+
+    Notes
+    -----
+    This is a convenience wrapper around ``response.format_with_citations()``.
     """
-    output_parts = [response.text]
-
-    if response.sources:
-        output_parts.append("\n\n**Sources:**")
-        for i, source in enumerate(response.sources, 1):
-            if source.uri:
-                output_parts.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
-
-    return "\n".join(output_parts)
+    return response.format_with_citations()

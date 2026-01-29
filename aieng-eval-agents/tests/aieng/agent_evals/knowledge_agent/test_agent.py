@@ -614,29 +614,6 @@ class TestKnowledgeGroundedAgent:
         assert response.search_queries == []
         assert response.sources == []
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
-    def test_format_answer(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test format_answer method."""
-        agent = KnowledgeGroundedAgent(config=mock_config)
-
-        response = GroundedResponse(
-            text="Test answer.",
-            sources=[],
-        )
-
-        formatted = agent.format_answer(response)
-        assert "Test answer." in formatted
-
 
 class TestKnowledgeAgentManager:
     """Tests for the KnowledgeAgentManager class."""

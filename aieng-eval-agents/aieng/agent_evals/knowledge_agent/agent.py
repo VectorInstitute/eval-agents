@@ -19,7 +19,6 @@ from .grounding_tool import (
     GroundedResponse,
     GroundingChunk,
     create_google_search_tool,
-    format_response_with_citations,
 )
 
 
@@ -331,21 +330,6 @@ class KnowledgeGroundedAgent:
         """
         logger.info(f"Answering question: {question[:100]}...")
         return asyncio.run(self.answer_async(question, session_id))
-
-    def format_answer(self, response: GroundedResponse) -> str:
-        """Format a grounded response for display.
-
-        Parameters
-        ----------
-        response : GroundedResponse
-            The grounded response to format.
-
-        Returns
-        -------
-        str
-            Formatted response with citations.
-        """
-        return format_response_with_citations(response)
 
 
 class KnowledgeAgentManager:
