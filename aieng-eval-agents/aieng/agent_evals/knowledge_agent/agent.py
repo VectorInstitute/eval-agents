@@ -25,17 +25,26 @@ from .grounding_tool import (
 logger = logging.getLogger(__name__)
 
 
-def _process_function_calls(
-    event: Any,
-    tool_calls: list[dict[str, Any]],
-    search_queries: list[str],
-) -> None:
-    """Extract tool calls and search queries from event function calls."""
+def _extract_tool_calls(event: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from event function calls.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[dict[str, Any]]
+        List of tool call dictionaries with 'name' and 'args' keys.
+    """
     if not hasattr(event, "get_function_calls"):
-        return
+        return []
     function_calls = event.get_function_calls()
     if not function_calls:
-        return
+        return []
+
+    tool_calls = []
     for fc in function_calls:
         tool_call_info = {
             "name": getattr(fc, "name", "unknown"),
@@ -43,23 +52,53 @@ def _process_function_calls(
         }
         tool_calls.append(tool_call_info)
         logger.info(f"Tool call: {tool_call_info['name']}({tool_call_info['args']})")
+    return tool_calls
 
-        # Extract search queries from google_search calls
-        tool_name = str(tool_call_info["name"])
-        tool_args = tool_call_info["args"]
+
+def _extract_search_queries_from_tool_calls(tool_calls: list[dict[str, Any]]) -> list[str]:
+    """Extract search queries from tool calls.
+
+    Parameters
+    ----------
+    tool_calls : list[dict[str, Any]]
+        List of tool call dictionaries.
+
+    Returns
+    -------
+    list[str]
+        Search queries found in the tool calls.
+    """
+    queries = []
+    for tool_call in tool_calls:
+        tool_name = str(tool_call.get("name", ""))
+        tool_args = tool_call.get("args", {})
         if "search" in tool_name.lower() and isinstance(tool_args, dict):
             query = tool_args.get("query", "")
             if query:
-                search_queries.append(query)
+                queries.append(query)
+    return queries
 
 
-def _process_function_responses(event: Any, sources: list[GroundingChunk]) -> None:
-    """Extract sources from event function responses."""
+def _extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
+    """Extract sources from event function responses.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[GroundingChunk]
+        Sources extracted from the function responses.
+    """
     if not hasattr(event, "get_function_responses"):
-        return
+        return []
     function_responses = event.get_function_responses()
     if not function_responses:
-        return
+        return []
+
+    sources = []
     for fr in function_responses:
         response_data = getattr(fr, "response", {})
         if not isinstance(response_data, dict):
@@ -82,21 +121,29 @@ def _process_function_responses(event: Any, sources: list[GroundingChunk]) -> No
                         uri=chunk["web"].get("uri", ""),
                     )
                 )
+    return sources
 
 
-def _process_grounding_metadata(
-    event: Any,
-    sources: list[GroundingChunk],
-    search_queries: list[str],
-) -> None:
-    """Extract sources and search queries from grounding metadata."""
+def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
+    """Extract sources from grounding metadata.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[GroundingChunk]
+        Sources extracted from the grounding metadata.
+    """
     gm = getattr(event, "grounding_metadata", None)
     if not gm and hasattr(event, "content") and event.content:
         gm = getattr(event.content, "grounding_metadata", None)
     if not gm:
-        return
+        return []
 
-    # Extract grounding chunks
+    sources = []
     if hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
         for chunk in gm.grounding_chunks:
             if hasattr(chunk, "web") and chunk.web:
@@ -106,11 +153,34 @@ def _process_grounding_metadata(
                         uri=getattr(chunk.web, "uri", "") or "",
                     )
                 )
-    # Extract web search queries
+    return sources
+
+
+def _extract_grounding_queries(event: Any) -> list[str]:
+    """Extract search queries from grounding metadata.
+
+    Parameters
+    ----------
+    event : Any
+        An event from the ADK runner.
+
+    Returns
+    -------
+    list[str]
+        Search queries from the grounding metadata.
+    """
+    gm = getattr(event, "grounding_metadata", None)
+    if not gm and hasattr(event, "content") and event.content:
+        gm = getattr(event.content, "grounding_metadata", None)
+    if not gm:
+        return []
+
+    queries = []
     if hasattr(gm, "web_search_queries") and gm.web_search_queries:
         for q in gm.web_search_queries:
-            if q and q not in search_queries:
-                search_queries.append(q)
+            if q:
+                queries.append(q)
+    return queries
 
 
 def _extract_final_response(event: Any) -> str | None:
@@ -290,9 +360,21 @@ class KnowledgeGroundedAgent:
             new_message=content,
         ):
             logger.debug(f"Event: {event}")
-            _process_function_calls(event, tool_calls, search_queries)
-            _process_function_responses(event, sources)
-            _process_grounding_metadata(event, sources, search_queries)
+
+            # Extract tool calls and search queries from function calls
+            new_tool_calls = _extract_tool_calls(event)
+            tool_calls.extend(new_tool_calls)
+            search_queries.extend(_extract_search_queries_from_tool_calls(new_tool_calls))
+
+            # Extract sources from function responses
+            sources.extend(_extract_sources_from_responses(event))
+
+            # Extract sources and queries from grounding metadata
+            sources.extend(_extract_grounding_sources(event))
+            for q in _extract_grounding_queries(event):
+                if q not in search_queries:
+                    search_queries.append(q)
+
             text = _extract_final_response(event)
             if text is not None:
                 final_response = text
