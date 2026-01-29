@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
+from langfuse import Langfuse
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
 
@@ -99,6 +100,8 @@ class AsyncClientManager:
         self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
+        self._langfuse_client: Langfuse | None = None
+        self._otel_instrumented: bool = False
         self._initialized: bool = False
 
     @property
@@ -146,11 +149,51 @@ class AsyncClientManager:
             self._initialized = True
         return self._sqlite_connection
 
+    @property
+    def langfuse_client(self) -> Langfuse:
+        """Get or create Langfuse client.
+
+        Returns
+        -------
+        Langfuse
+            The Langfuse client instance.
+        """
+        if self._langfuse_client is None:
+            self._langfuse_client = Langfuse(
+                public_key=self.configs.langfuse_public_key,
+                secret_key=self.configs.langfuse_secret_key,
+                host=self.configs.langfuse_host,
+            )
+            self._initialized = True
+        return self._langfuse_client
+
+    @property
+    def otel_instrumented(self) -> bool:
+        """Check if OpenTelemetry instrumentation has been set up.
+
+        Returns
+        -------
+        bool
+            True if OTEL instrumentation is active, False otherwise.
+        """
+        return self._otel_instrumented
+
+    @otel_instrumented.setter
+    def otel_instrumented(self, value: bool) -> None:
+        """Set the OpenTelemetry instrumentation state.
+
+        Parameters
+        ----------
+        value : bool
+            The new instrumentation state.
+        """
+        self._otel_instrumented = value
+
     async def close(self) -> None:
         """Close all initialized async clients.
 
-        This method closes the OpenAI client and SQLite connection if they
-        have been initialized.
+        This method closes the OpenAI client, SQLite connection, and Langfuse
+        client if they have been initialized.
         """
         if self._openai_client is not None:
             await self._openai_client.close()
@@ -159,6 +202,10 @@ class AsyncClientManager:
         if self._sqlite_connection is not None:
             self._sqlite_connection.close()
             self._sqlite_connection = None
+
+        if self._langfuse_client is not None:
+            self._langfuse_client.flush()
+            self._langfuse_client = None
 
         self._initialized = False
 

@@ -15,7 +15,7 @@ Example
 >>> print(response.text)
 """
 
-from .agent import AsyncClientManager, KnowledgeGroundedAgent
+from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .config import KnowledgeAgentConfig
 from .evaluation import (
     DeepSearchQADataset,
@@ -36,7 +36,7 @@ from .tracing import flush_traces, init_tracing, is_tracing_enabled
 __all__ = [
     # Agent
     "KnowledgeGroundedAgent",
-    "AsyncClientManager",
+    "KnowledgeAgentManager",
     # Config
     "KnowledgeAgentConfig",
     # Grounding tool

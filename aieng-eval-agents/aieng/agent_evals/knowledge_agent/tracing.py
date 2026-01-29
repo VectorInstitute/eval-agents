@@ -16,7 +16,7 @@ import base64
 import logging
 import os
 
-from langfuse import get_client
+from aieng.agent_evals.async_client_manager import AsyncClientManager
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -27,33 +27,13 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 logger = logging.getLogger(__name__)
 
-_instrumented = False
-_langfuse_client = None
 
-DEFAULT_LANGFUSE_HOST = "https://us.cloud.langfuse.com"
-
-
-def init_tracing(
-    *,
-    public_key: str | None = None,
-    secret_key: str | None = None,
-    host: str | None = None,
-) -> bool:
+def init_tracing() -> bool:
     """Initialize Langfuse tracing for Google ADK agents.
 
     This function sets up OpenTelemetry with OTLP exporter to send traces
     to Langfuse, and initializes OpenInference instrumentation for Google ADK
     to automatically capture all agent interactions, tool calls, and model responses.
-
-    Parameters
-    ----------
-    public_key : str, optional
-        Langfuse public key. If not provided, reads from LANGFUSE_PUBLIC_KEY env var.
-    secret_key : str, optional
-        Langfuse secret key. If not provided, reads from LANGFUSE_SECRET_KEY env var.
-    host : str, optional
-        Langfuse host URL. If not provided, reads from LANGFUSE_HOST env var,
-        defaulting to https://us.cloud.langfuse.com.
 
     Returns
     -------
@@ -65,7 +45,7 @@ def init_tracing(
     This function should be called once at application startup, before
     creating any agents. Subsequent calls are no-ops.
 
-    Environment variables (used when parameters are not provided):
+    Langfuse credentials are read from environment variables via Configs:
     - LANGFUSE_PUBLIC_KEY: Langfuse public key (pk-lf-...)
     - LANGFUSE_SECRET_KEY: Langfuse secret key (sk-lf-...)
     - LANGFUSE_HOST: Langfuse host URL (default: https://us.cloud.langfuse.com)
@@ -76,30 +56,24 @@ def init_tracing(
     >>> if init_tracing():
     ...     print("Tracing enabled!")
     """
-    global _instrumented, _langfuse_client  # noqa: PLW0603
+    manager = AsyncClientManager.get_instance()
 
-    if _instrumented:
+    if manager.otel_instrumented:
         logger.debug("Tracing already initialized")
         return True
 
-    # Read from environment if not explicitly provided
-    public_key = public_key or os.environ.get("LANGFUSE_PUBLIC_KEY")
-    secret_key = secret_key or os.environ.get("LANGFUSE_SECRET_KEY")
-    langfuse_host = host or os.environ.get("LANGFUSE_HOST", DEFAULT_LANGFUSE_HOST)
-
-    if not public_key or not secret_key:
-        logger.warning(
-            "Langfuse credentials not found. Set LANGFUSE_PUBLIC_KEY and "
-            "LANGFUSE_SECRET_KEY environment variables to enable tracing."
-        )
-        return False
-
     try:
         # Verify Langfuse client authentication
-        _langfuse_client = get_client()
-        if not _langfuse_client.auth_check():
+        langfuse_client = manager.langfuse_client
+        if not langfuse_client.auth_check():
             logger.warning("Langfuse authentication failed. Check your credentials.")
             return False
+
+        # Get credentials from configs
+        configs = manager.configs
+        public_key = configs.langfuse_public_key
+        secret_key = configs.langfuse_secret_key
+        langfuse_host = configs.langfuse_host
 
         # Set up OpenTelemetry OTLP exporter to send traces to Langfuse
         # Create base64 encoded auth string for OTLP headers
@@ -131,7 +105,7 @@ def init_tracing(
         # Initialize OpenInference instrumentation for Google ADK
         GoogleADKInstrumentor().instrument(tracer_provider=provider)
 
-        _instrumented = True
+        manager.otel_instrumented = True
         logger.info(f"Langfuse tracing initialized successfully (endpoint: {otel_endpoint})")
         return True
 
@@ -148,8 +122,9 @@ def flush_traces() -> None:
 
     Call this before your application exits to ensure all traces are sent.
     """
-    if _langfuse_client is not None:
-        _langfuse_client.flush()
+    manager = AsyncClientManager.get_instance()
+    if manager._langfuse_client is not None:
+        manager._langfuse_client.flush()
 
 
 def is_tracing_enabled() -> bool:
@@ -160,4 +135,4 @@ def is_tracing_enabled() -> bool:
     bool
         True if tracing has been initialized, False otherwise.
     """
-    return _instrumented
+    return AsyncClientManager.get_instance().otel_instrumented

@@ -348,11 +348,13 @@ class KnowledgeGroundedAgent:
         return format_response_with_citations(response)
 
 
-class AsyncClientManager:
-    """Manages async client lifecycle with lazy initialization and cleanup.
+class KnowledgeAgentManager:
+    """Manages KnowledgeGroundedAgent lifecycle with lazy initialization.
 
-    This class ensures clients are created only once and properly closed,
-    preventing resource warnings from unclosed event loops.
+    This class provides convenient lifecycle management for the knowledge agent,
+    with lazy initialization and state tracking. Unlike the general-purpose
+    AsyncClientManager (for infrastructure clients), this is specific to the
+    knowledge agent and is not a singleton.
 
     Parameters
     ----------
@@ -361,10 +363,11 @@ class AsyncClientManager:
 
     Examples
     --------
-    >>> manager = AsyncClientManager()
+    >>> manager = KnowledgeAgentManager()
     >>> agent = manager.agent
     >>> response = await agent.answer_async("What is quantum computing?")
     >>> print(response.text)
+    >>> manager.close()
     """
 
     def __init__(self, config: KnowledgeAgentConfig | None = None) -> None:
