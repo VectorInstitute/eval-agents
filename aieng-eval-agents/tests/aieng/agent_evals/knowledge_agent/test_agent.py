@@ -4,11 +4,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_agent.agent import (
+    ENHANCED_SYSTEM_INSTRUCTIONS,
     SYSTEM_INSTRUCTIONS,
     AsyncClientManager,
+    EnhancedGroundedResponse,
+    EnhancedKnowledgeAgent,
     KnowledgeGroundedAgent,
 )
-from aieng.agent_evals.knowledge_agent.grounding_tool import GroundedResponse
+from aieng.agent_evals.knowledge_agent.grounding_tool import GroundedResponse, GroundingChunk
+from aieng.agent_evals.knowledge_agent.planner import ResearchPlan, ResearchStep, StepExecution
 
 
 class TestKnowledgeGroundedAgent:
@@ -741,3 +745,311 @@ class TestKnowledgeGroundedAgentIntegration:
 
         assert response.text
         assert "Paris" in response.text
+
+
+class TestEnhancedGroundedResponse:
+    """Tests for the EnhancedGroundedResponse model."""
+
+    def test_enhanced_response_creation(self):
+        """Test creating an enhanced response."""
+        plan = ResearchPlan(
+            original_question="Test question",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Search web", tool_hint="web_search"),
+            ],
+            estimated_tools=["web_search"],
+            reasoning="Test plan",
+        )
+
+        response = EnhancedGroundedResponse(
+            text="Test answer",
+            plan=plan,
+            execution_trace=[
+                StepExecution(step_id=1, tool_used="web_search", input_query="test"),
+            ],
+            sources=[GroundingChunk(title="Source", uri="https://example.com")],
+            search_queries=["test query"],
+            reasoning_chain=["Step 1 reasoning"],
+            tool_calls=[{"name": "google_search", "args": {"query": "test"}}],
+            total_duration_ms=1500,
+        )
+
+        assert response.text == "Test answer"
+        assert response.plan.complexity_assessment == "moderate"
+        assert len(response.execution_trace) == 1
+        assert len(response.sources) == 1
+        assert len(response.search_queries) == 1
+        assert response.total_duration_ms == 1500
+
+    def test_enhanced_response_defaults(self):
+        """Test default values for enhanced response."""
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="simple",
+        )
+
+        response = EnhancedGroundedResponse(text="Answer", plan=plan)
+
+        assert response.execution_trace == []
+        assert response.sources == []
+        assert response.search_queries == []
+        assert response.reasoning_chain == []
+        assert response.tool_calls == []
+        assert response.total_duration_ms == 0
+
+
+class TestEnhancedKnowledgeAgent:
+    """Tests for the EnhancedKnowledgeAgent class."""
+
+    @pytest.fixture
+    def mock_config(self):
+        """Create a mock config for testing."""
+        config = MagicMock()
+        config.openai_api_key = "test-api-key"
+        config.default_worker_model = "gemini-2.5-flash"
+        config.default_planner_model = "gemini-2.5-pro"
+        return config
+
+    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    def test_agent_initialization(
+        self,
+        mock_create_search_tool,
+        mock_create_fetch_tool,
+        mock_create_pdf_tool,
+        mock_agent_class,
+        mock_session_service,
+        mock_runner_class,
+        mock_planner_class,
+        mock_config,
+    ):
+        """Test initializing the enhanced agent."""
+        mock_search_tool = MagicMock()
+        mock_fetch_tool = MagicMock()
+        mock_pdf_tool = MagicMock()
+        mock_create_search_tool.return_value = mock_search_tool
+        mock_create_fetch_tool.return_value = mock_fetch_tool
+        mock_create_pdf_tool.return_value = mock_pdf_tool
+
+        agent = EnhancedKnowledgeAgent(config=mock_config)
+
+        # Verify all tools were created
+        mock_create_search_tool.assert_called_once()
+        mock_create_fetch_tool.assert_called_once()
+        mock_create_pdf_tool.assert_called_once()
+
+        # Verify ADK Agent was created with all tools
+        mock_agent_class.assert_called_once()
+        call_kwargs = mock_agent_class.call_args[1]
+        assert call_kwargs["name"] == "enhanced_knowledge_agent"
+        assert call_kwargs["instruction"] == ENHANCED_SYSTEM_INSTRUCTIONS
+        assert mock_search_tool in call_kwargs["tools"]
+        assert mock_fetch_tool in call_kwargs["tools"]
+        assert mock_pdf_tool in call_kwargs["tools"]
+
+        # Verify planner was created
+        mock_planner_class.assert_called_once()
+        assert agent.enable_planning is True
+
+    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    def test_agent_without_planning(
+        self,
+        mock_create_search_tool,
+        mock_create_fetch_tool,
+        mock_create_pdf_tool,
+        mock_agent_class,
+        mock_session_service,
+        mock_runner_class,
+        mock_planner_class,
+        mock_config,
+    ):
+        """Test initializing the agent without planning."""
+        agent = EnhancedKnowledgeAgent(config=mock_config, enable_planning=False)
+
+        # Planner should not be created
+        mock_planner_class.assert_not_called()
+        assert agent.enable_planning is False
+        assert agent._planner is None
+
+    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    def test_create_execution_trace(
+        self,
+        mock_create_search_tool,
+        mock_create_fetch_tool,
+        mock_create_pdf_tool,
+        mock_agent_class,
+        mock_session_service,
+        mock_runner_class,
+        mock_planner_class,
+        mock_config,
+    ):
+        """Test creation of execution trace from plan and tool calls."""
+        agent = EnhancedKnowledgeAgent(config=mock_config)
+
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Search web", tool_hint="web_search"),
+                ResearchStep(step_id=2, description="Synthesize", tool_hint="synthesis"),
+            ],
+            estimated_tools=["web_search"],
+            reasoning="Test",
+        )
+
+        tool_calls = [
+            {"name": "google_search", "args": {"query": "test"}, "response": {}},
+        ]
+
+        trace = agent._create_execution_trace(plan, tool_calls, 1000)
+
+        assert len(trace) == 2
+        assert trace[0].step_id == 1
+        assert trace[0].tool_used == "google_search"
+        assert trace[1].step_id == 2
+        assert trace[1].tool_used == "synthesis"
+
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    async def test_answer_async_with_planning(
+        self,
+        mock_create_search_tool,
+        mock_create_fetch_tool,
+        mock_create_pdf_tool,
+        mock_agent_class,
+        mock_session_service_class,
+        mock_runner_class,
+        mock_planner_class,
+        mock_config,
+    ):
+        """Test async answer with planning enabled."""
+        # Mock session service
+        mock_session = MagicMock()
+        mock_session.id = "mock-session-id"
+        mock_session_service = MagicMock()
+        mock_session_service.create_session = AsyncMock(return_value=mock_session)
+        mock_session_service_class.return_value = mock_session_service
+
+        # Mock planner
+        mock_plan = ResearchPlan(
+            original_question="Test question",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Search", tool_hint="web_search"),
+            ],
+            estimated_tools=["web_search"],
+            reasoning="Test plan",
+        )
+        mock_planner = MagicMock()
+        mock_planner.create_plan_async = AsyncMock(return_value=mock_plan)
+        mock_planner_class.return_value = mock_planner
+
+        # Mock final event
+        mock_event = MagicMock()
+        mock_event.is_final_response.return_value = True
+        mock_event.get_function_calls.return_value = None
+        mock_event.get_function_responses.return_value = None
+        mock_event.grounding_metadata = None
+        mock_event.content.parts = [MagicMock(text="Test answer.")]
+
+        async def mock_run_async(*args, **kwargs):
+            yield mock_event
+
+        mock_runner = MagicMock()
+        mock_runner.run_async = mock_run_async
+        mock_runner_class.return_value = mock_runner
+
+        agent = EnhancedKnowledgeAgent(config=mock_config)
+        response = await agent.answer_async("Test question")
+
+        assert isinstance(response, EnhancedGroundedResponse)
+        assert response.text == "Test answer."
+        assert response.plan.complexity_assessment == "moderate"
+        mock_planner.create_plan_async.assert_called_once()
+
+    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    def test_format_answer(
+        self,
+        mock_create_search_tool,
+        mock_create_fetch_tool,
+        mock_create_pdf_tool,
+        mock_agent_class,
+        mock_session_service,
+        mock_runner_class,
+        mock_planner_class,
+        mock_config,
+    ):
+        """Test format_answer for enhanced response."""
+        agent = EnhancedKnowledgeAgent(config=mock_config)
+
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Search web", tool_hint="web_search"),
+            ],
+            estimated_tools=["web_search"],
+            reasoning="Test",
+        )
+
+        response = EnhancedGroundedResponse(
+            text="Test answer.",
+            plan=plan,
+            sources=[GroundingChunk(title="Web Source", uri="https://example.com")],
+        )
+
+        formatted = agent.format_answer(response)
+
+        assert "Test answer." in formatted
+        assert "Research Plan" in formatted
+        assert "moderate" in formatted
+        assert "Sources" in formatted
+
+
+@pytest.mark.integration_test
+class TestEnhancedKnowledgeAgentIntegration:
+    """Integration tests for the EnhancedKnowledgeAgent.
+
+    These tests require a valid GOOGLE_API_KEY environment variable.
+    """
+
+    def test_enhanced_agent_creation_real(self):
+        """Test creating a real enhanced agent instance."""
+        from aieng.agent_evals.knowledge_agent.agent import (  # noqa: PLC0415
+            EnhancedKnowledgeAgent,
+        )
+
+        agent = EnhancedKnowledgeAgent()
+        assert agent is not None
+        assert agent.model == "gemini-2.5-flash"
+        assert agent.enable_planning is True

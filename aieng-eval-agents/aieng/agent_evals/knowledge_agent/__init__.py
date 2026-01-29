@@ -15,7 +15,12 @@ Example
 >>> print(response.text)
 """
 
-from .agent import AsyncClientManager, KnowledgeGroundedAgent
+from .agent import (
+    AsyncClientManager,
+    EnhancedGroundedResponse,
+    EnhancedKnowledgeAgent,
+    KnowledgeGroundedAgent,
+)
 from .config import KnowledgeAgentConfig
 from .evaluation import (
     DeepSearchQADataset,
@@ -29,13 +34,44 @@ from .grounding_tool import (
     create_google_search_tool,
     format_response_with_citations,
 )
+from .judges import (
+    BaseJudge,
+    CausalChainJudge,
+    ComprehensivenessJudge,
+    DeepSearchQAJudge,
+    DeepSearchQAResult,
+    ExhaustivenessJudge,
+    JudgeResult,
+    PlanQualityJudge,
+    SourceQualityJudge,
+)
+from .metrics import (
+    EnhancedEvaluationResult,
+    EvaluationMetrics,
+    MetricsAggregator,
+)
+from .planner import (
+    ResearchPlan,
+    ResearchPlanner,
+    ResearchStep,
+    StepExecution,
+    StepStatus,
+)
 from .session import ConversationSession, Message, get_or_create_session
 from .tracing import flush_traces, init_tracing, is_tracing_enabled
+from .web_tools import (
+    create_fetch_url_tool,
+    create_read_pdf_tool,
+    fetch_url,
+    read_pdf,
+)
 
 
 __all__ = [
     # Agent
     "KnowledgeGroundedAgent",
+    "EnhancedKnowledgeAgent",
+    "EnhancedGroundedResponse",
     "AsyncClientManager",
     # Config
     "KnowledgeAgentConfig",
@@ -44,6 +80,26 @@ __all__ = [
     "format_response_with_citations",
     "GroundedResponse",
     "GroundingChunk",
+    # Planning
+    "ResearchPlanner",
+    "ResearchPlan",
+    "ResearchStep",
+    "StepExecution",
+    "StepStatus",
+    # Judges
+    "BaseJudge",
+    "JudgeResult",
+    "ComprehensivenessJudge",
+    "CausalChainJudge",
+    "ExhaustivenessJudge",
+    "SourceQualityJudge",
+    "PlanQualityJudge",
+    "DeepSearchQAJudge",
+    "DeepSearchQAResult",
+    # Metrics
+    "MetricsAggregator",
+    "EvaluationMetrics",
+    "EnhancedEvaluationResult",
     # Session management
     "ConversationSession",
     "Message",
@@ -57,4 +113,9 @@ __all__ = [
     "init_tracing",
     "is_tracing_enabled",
     "flush_traces",
+    # Web tools
+    "fetch_url",
+    "read_pdf",
+    "create_fetch_url_tool",
+    "create_read_pdf_tool",
 ]
