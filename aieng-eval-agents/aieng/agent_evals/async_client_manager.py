@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
+from langfuse import Langfuse
 from openai import AsyncOpenAI
 from weaviate.client import WeaviateAsyncClient
 
@@ -99,6 +100,7 @@ class AsyncClientManager:
         self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
+        self._langfuse_client: Langfuse | None = None
         self._initialized: bool = False
 
     @property
@@ -124,7 +126,12 @@ class AsyncClientManager:
             The OpenAI async client instance.
         """
         if self._openai_client is None:
-            self._openai_client = AsyncOpenAI()
+            api_key = self.configs.openai_api_key
+            if "googleapis" in self.configs.openai_base_url:
+                # Use Gemini API key if the base URL is for Google API requests
+                api_key = self.configs.gemini_api_key
+
+            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
             self._initialized = True
         return self._openai_client
 
@@ -145,6 +152,23 @@ class AsyncClientManager:
             self._sqlite_connection = SQLiteConnection(db_path)
             self._initialized = True
         return self._sqlite_connection
+
+    @property
+    def langfuse_client(self) -> Langfuse:
+        """Get or create Langfuse client.
+
+        Returns
+        -------
+        Langfuse
+            The Langfuse client instance.
+        """
+        if self._langfuse_client is None:
+            self._langfuse_client = Langfuse(
+                public_key=self.configs.langfuse_public_key,
+                secret_key=self.configs.langfuse_secret_key,
+            )
+            self._initialized = True
+        return self._langfuse_client
 
     async def close(self) -> None:
         """Close all initialized async clients.

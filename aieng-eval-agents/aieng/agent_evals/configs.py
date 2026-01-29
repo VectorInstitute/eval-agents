@@ -50,7 +50,7 @@ class Configs(BaseSettings):
     langfuse_secret_key : str
         Langfuse secret key (must start with sk-lf-).
     langfuse_host : str, default='https://us.cloud.langfuse.com'
-        Langfuse host URL.
+        Langfuse host's base URL.
     e2b_api_key : str or None
         Optional E2B.dev API key for code interpreter (must start with e2b_).
     default_code_interpreter_template : str or None
@@ -76,7 +76,8 @@ class Configs(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True)
 
     openai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    openai_api_key: str = Field(validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"))
+    openai_api_key: str
+    gemini_api_key: str = Field(validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"))
 
     default_planner_model: str = "gemini-2.5-pro"
     default_worker_model: str = "gemini-2.5-flash"
