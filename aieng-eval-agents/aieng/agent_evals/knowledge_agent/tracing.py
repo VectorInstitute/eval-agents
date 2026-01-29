@@ -24,16 +24,21 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from .config import KnowledgeAgentConfig
-
 
 logger = logging.getLogger(__name__)
 
 _instrumented = False
 _langfuse_client = None
 
+DEFAULT_LANGFUSE_HOST = "https://us.cloud.langfuse.com"
 
-def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
+
+def init_tracing(
+    *,
+    public_key: str | None = None,
+    secret_key: str | None = None,
+    host: str | None = None,
+) -> bool:
     """Initialize Langfuse tracing for Google ADK agents.
 
     This function sets up OpenTelemetry with OTLP exporter to send traces
@@ -42,9 +47,13 @@ def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
-        Configuration with Langfuse credentials. If not provided,
-        credentials are read from environment variables.
+    public_key : str, optional
+        Langfuse public key. If not provided, reads from LANGFUSE_PUBLIC_KEY env var.
+    secret_key : str, optional
+        Langfuse secret key. If not provided, reads from LANGFUSE_SECRET_KEY env var.
+    host : str, optional
+        Langfuse host URL. If not provided, reads from LANGFUSE_HOST env var,
+        defaulting to https://us.cloud.langfuse.com.
 
     Returns
     -------
@@ -56,7 +65,7 @@ def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
     This function should be called once at application startup, before
     creating any agents. Subsequent calls are no-ops.
 
-    Environment variables used (if config not provided):
+    Environment variables (used when parameters are not provided):
     - LANGFUSE_PUBLIC_KEY: Langfuse public key (pk-lf-...)
     - LANGFUSE_SECRET_KEY: Langfuse secret key (sk-lf-...)
     - LANGFUSE_HOST: Langfuse host URL (default: https://us.cloud.langfuse.com)
@@ -73,27 +82,10 @@ def init_tracing(config: KnowledgeAgentConfig | None = None) -> bool:
         logger.debug("Tracing already initialized")
         return True
 
-    # Load config if not provided
-    if config is None:
-        try:
-            config = KnowledgeAgentConfig()  # type: ignore[call-arg]
-        except Exception as e:
-            logger.warning(f"Could not load config: {e}")
-            config = None
-
-    # Set environment variables for Langfuse if config has them
-    if config is not None:
-        if config.langfuse_public_key:
-            os.environ.setdefault("LANGFUSE_PUBLIC_KEY", config.langfuse_public_key)
-        if config.langfuse_secret_key:
-            os.environ.setdefault("LANGFUSE_SECRET_KEY", config.langfuse_secret_key)
-        if config.langfuse_host:
-            os.environ.setdefault("LANGFUSE_HOST", config.langfuse_host)
-
-    # Check if credentials are available
-    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
-    secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
-    langfuse_host = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
+    # Read from environment if not explicitly provided
+    public_key = public_key or os.environ.get("LANGFUSE_PUBLIC_KEY")
+    secret_key = secret_key or os.environ.get("LANGFUSE_SECRET_KEY")
+    langfuse_host = host or os.environ.get("LANGFUSE_HOST", DEFAULT_LANGFUSE_HOST)
 
     if not public_key or not secret_key:
         logger.warning(
