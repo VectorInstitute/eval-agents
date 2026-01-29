@@ -9,13 +9,13 @@ Run with:
 
 import asyncio
 import logging
+import uuid
 from typing import Any, Generator
 
 import gradio as gr
 from aieng.agent_evals.knowledge_agent import (
-    AsyncClientManager,
     DeepSearchQADataset,
-    get_or_create_session,
+    KnowledgeAgentManager,
 )
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
@@ -75,9 +75,10 @@ def chat(
     list[ChatMessage]
         Updated conversation history with agent response.
     """
-    # Get or create session for multi-turn context
-    session = get_or_create_session(session_state)
-    session.add_user_message(query)
+    # Get or create session_id for multi-turn context (ADK handles the actual session)
+    if "session_id" not in session_state:
+        session_state["session_id"] = str(uuid.uuid4())
+    session_id = session_state["session_id"]
 
     # Show thinking indicator
     thinking_message = ChatMessage(
@@ -88,8 +89,8 @@ def chat(
     yield [thinking_message]
 
     try:
-        # Get response from agent (run async in sync context)
-        response = asyncio.run(client_manager.agent.answer_async(query))
+        # Get response from agent with session_id for multi-turn context
+        response = asyncio.run(client_manager.agent.answer_async(query, session_id=session_id))
 
         # Format response with sources
         formatted_response = response.text
@@ -114,7 +115,6 @@ def chat(
             metadata=metadata,  # type: ignore[arg-type]
         )
 
-        session.add_assistant_message(response.text)
         yield [final_message]
 
     except Exception as e:
@@ -146,8 +146,8 @@ def load_example_questions() -> list[list[str]]:
 if __name__ == "__main__":
     load_dotenv(verbose=True)
 
-    # Initialize client manager
-    client_manager = AsyncClientManager()
+    # Initialize agent manager
+    client_manager = KnowledgeAgentManager()
     logger.info(f"Using model: {client_manager.config.default_worker_model}")
 
     # Load example questions
