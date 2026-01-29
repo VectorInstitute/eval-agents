@@ -293,7 +293,8 @@ class DeepSearchQAEvaluator:
         agent : KnowledgeGroundedAgent
             The agent to evaluate.
         dataset : DeepSearchQADataset, optional
-            The dataset to use.
+            The dataset to use. If not provided, a new DeepSearchQADataset
+            will be created, which downloads the DSQA dataset from Kaggle.
         """
         self.agent = agent
         self.dataset = dataset or DeepSearchQADataset()
