@@ -9,12 +9,12 @@ import logging
 import uuid
 from typing import Any
 
+from aieng.agent_evals.configs import Configs
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from .config import KnowledgeAgentConfig
 from .grounding_tool import (
     GroundedResponse,
     GroundingChunk,
@@ -230,14 +230,14 @@ class KnowledgeGroundedAgent:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration settings. If not provided, creates default config.
     model : str, optional
         The model to use. If not provided, uses config.default_worker_model.
 
     Attributes
     ----------
-    config : KnowledgeAgentConfig
+    config : Configs
         The configuration settings.
 
     Examples
@@ -250,20 +250,20 @@ class KnowledgeGroundedAgent:
 
     def __init__(
         self,
-        config: KnowledgeAgentConfig | None = None,
+        config: Configs | None = None,
         model: str | None = None,
     ) -> None:
         """Initialize the knowledge-grounded agent.
 
         Parameters
         ----------
-        config : KnowledgeAgentConfig, optional
+        config : Configs, optional
             Configuration settings. If not provided, creates default config.
         model : str, optional
             The model to use. If not provided, uses config.default_worker_model.
         """
         if config is None:
-            config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+            config = Configs()  # type: ignore[call-arg]
 
         self.config = config
         self.model = model or config.default_worker_model
@@ -424,7 +424,7 @@ class KnowledgeAgentManager:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration object for client setup. If not provided, creates default.
 
     Examples
@@ -436,12 +436,12 @@ class KnowledgeAgentManager:
     >>> manager.close()
     """
 
-    def __init__(self, config: KnowledgeAgentConfig | None = None) -> None:
+    def __init__(self, config: Configs | None = None) -> None:
         """Initialize the client manager.
 
         Parameters
         ----------
-        config : KnowledgeAgentConfig, optional
+        config : Configs, optional
             Configuration object. If not provided, creates default config.
         """
         self._config = config
@@ -449,16 +449,16 @@ class KnowledgeAgentManager:
         self._initialized = False
 
     @property
-    def config(self) -> KnowledgeAgentConfig:
+    def config(self) -> Configs:
         """Get or create the config instance.
 
         Returns
         -------
-        KnowledgeAgentConfig
+        Configs
             The configuration settings.
         """
         if self._config is None:
-            self._config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+            self._config = Configs()  # type: ignore[call-arg]
         return self._config
 
     @property

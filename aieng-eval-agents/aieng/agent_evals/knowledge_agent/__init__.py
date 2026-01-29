@@ -15,8 +15,9 @@ Example
 >>> print(response.text)
 """
 
+from aieng.agent_evals.configs import Configs
+
 from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
-from .config import KnowledgeAgentConfig
 from .evaluation import (
     DeepSearchQADataset,
     DeepSearchQAEvaluator,
@@ -38,7 +39,7 @@ __all__ = [
     "KnowledgeGroundedAgent",
     "KnowledgeAgentManager",
     # Config
-    "KnowledgeAgentConfig",
+    "Configs",
     # Grounding tool
     "create_google_search_tool",
     "format_response_with_citations",

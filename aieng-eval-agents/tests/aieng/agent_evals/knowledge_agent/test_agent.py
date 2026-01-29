@@ -630,7 +630,7 @@ class TestKnowledgeAgentManager:
         mock_runner_class,
     ):
         """Test that clients are lazily initialized."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.KnowledgeAgentConfig") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
             manager = KnowledgeAgentManager()
@@ -656,7 +656,7 @@ class TestKnowledgeAgentManager:
         mock_runner_class,
     ):
         """Test closing the client manager."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.KnowledgeAgentConfig") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
             manager = KnowledgeAgentManager()
@@ -678,7 +678,7 @@ class TestKnowledgeAgentManager:
         mock_runner_class,
     ):
         """Test that agent is reused on multiple accesses."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.KnowledgeAgentConfig") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
             manager = KnowledgeAgentManager()
