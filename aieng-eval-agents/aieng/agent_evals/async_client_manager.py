@@ -12,7 +12,6 @@ from typing import Any
 from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse
 from openai import AsyncOpenAI
-from weaviate.client import WeaviateAsyncClient
 
 
 class SQLiteConnection:
@@ -65,9 +64,8 @@ class AsyncClientManager:
     --------
     >>> manager = AsyncClientManager()
     >>> # Access clients (created on first access)
-    >>> weaviate = manager.weaviate_client
-    >>> kb = manager.knowledgebase
     >>> openai = manager.openai_client
+    >>> langfuse = manager.langfuse_client
     >>> # In finally block or cleanup
     >>> await manager.close()
     """
@@ -97,7 +95,6 @@ class AsyncClientManager:
             is created.
         """
         self._configs: Configs | None = configs
-        self._weaviate_client: WeaviateAsyncClient | None = None
         self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
         self._langfuse_client: Langfuse | None = None
