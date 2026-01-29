@@ -7,22 +7,14 @@ maintaining history across multiple turns of a conversation.
 import uuid
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Message(BaseModel):
-    """A single message in a conversation.
+    """A single message in a conversation."""
 
-    Attributes
-    ----------
-    role : str
-        The role of the message sender ("user" or "assistant").
-    content : str
-        The content of the message.
-    """
-
-    role: str
-    content: str
+    role: str = Field(description="The role of the message sender ('user' or 'assistant').")
+    content: str = Field(description="The content of the message.")
 
 
 class ConversationSession:

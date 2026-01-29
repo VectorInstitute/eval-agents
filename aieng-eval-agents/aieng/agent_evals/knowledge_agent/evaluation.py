@@ -22,60 +22,26 @@ logger = logging.getLogger(__name__)
 
 
 class DSQAExample(BaseModel):
-    """A single example from the DeepSearchQA dataset.
+    """A single example from the DeepSearchQA dataset."""
 
-    Attributes
-    ----------
-    example_id : int
-        Unique identifier for the example.
-    problem : str
-        The research question/problem to solve.
-    problem_category : str
-        Category of the problem (e.g., "Politics & Government").
-    answer : str
-        The ground truth answer.
-    answer_type : str
-        Type of answer (e.g., "Single Answer", "List").
-    """
-
-    example_id: int
-    problem: str
-    problem_category: str
-    answer: str
-    answer_type: str
+    example_id: int = Field(description="Unique identifier for the example.")
+    problem: str = Field(description="The research question/problem to solve.")
+    problem_category: str = Field(description="Category of the problem (e.g., 'Politics & Government').")
+    answer: str = Field(description="The ground truth answer.")
+    answer_type: str = Field(description="Type of answer (e.g., 'Single Answer', 'List').")
 
 
 class EvaluationResult(BaseModel):
-    """Result of evaluating a single example.
+    """Result of evaluating a single example."""
 
-    Attributes
-    ----------
-    example_id : int
-        The example ID that was evaluated.
-    problem : str
-        The original problem/question.
-    ground_truth : str
-        The expected answer.
-    prediction : str
-        The model's generated answer.
-    search_queries : list[str]
-        Search queries executed by the model.
-    sources_used : int
-        Number of sources cited in the response.
-    is_correct : bool or None
-        Whether the answer is correct (None if not evaluated).
-    evaluation_notes : str
-        Additional notes about the evaluation.
-    """
-
-    example_id: int
-    problem: str
-    ground_truth: str
-    prediction: str
-    search_queries: list[str] = Field(default_factory=list)
-    sources_used: int = 0
-    is_correct: bool | None = None
-    evaluation_notes: str = ""
+    example_id: int = Field(description="The example ID that was evaluated.")
+    problem: str = Field(description="The original problem/question.")
+    ground_truth: str = Field(description="The expected answer.")
+    prediction: str = Field(description="The model's generated answer.")
+    search_queries: list[str] = Field(default_factory=list, description="Search queries executed by the model.")
+    sources_used: int = Field(default=0, description="Number of sources cited in the response.")
+    is_correct: bool | None = Field(default=None, description="Whether the answer is correct (None if not evaluated).")
+    evaluation_notes: str = Field(default="", description="Additional notes about the evaluation.")
 
 
 class DeepSearchQADataset:

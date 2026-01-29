@@ -19,39 +19,23 @@ logger = logging.getLogger(__name__)
 
 
 class GroundingChunk(BaseModel):
-    """Represents a single grounding source from search results.
+    """Represents a single grounding source from search results."""
 
-    Attributes
-    ----------
-    title : str
-        Title of the source webpage.
-    uri : str
-        URL of the source webpage.
-    """
-
-    title: str = ""
-    uri: str = ""
+    title: str = Field(default="", description="Title of the source webpage.")
+    uri: str = Field(default="", description="URL of the source webpage.")
 
 
 class GroundedResponse(BaseModel):
-    """Response from the knowledge agent with grounding information.
+    """Response from the knowledge agent with grounding information."""
 
-    Attributes
-    ----------
-    text : str
-        The generated response text.
-    search_queries : list[str]
-        The search queries that were executed.
-    sources : list[GroundingChunk]
-        The web sources used to ground the response.
-    tool_calls : list[dict]
-        List of tool calls made during the response generation.
-    """
-
-    text: str
-    search_queries: list[str] = Field(default_factory=list)
-    sources: list[GroundingChunk] = Field(default_factory=list)
-    tool_calls: list[dict] = Field(default_factory=list)
+    text: str = Field(description="The generated response text.")
+    search_queries: list[str] = Field(default_factory=list, description="The search queries that were executed.")
+    sources: list[GroundingChunk] = Field(
+        default_factory=list, description="The web sources used to ground the response."
+    )
+    tool_calls: list[dict] = Field(
+        default_factory=list, description="List of tool calls made during the response generation."
+    )
 
     def format_with_citations(self) -> str:
         """Format this response with inline citations.
