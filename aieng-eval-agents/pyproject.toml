@@ -1,6 +1,6 @@
 [project]
 name = "aieng-eval-agents"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agentic AI Evaluation reference implementation from Vector Institute AI Engineering"
 authors = [{name = "Vector AI Engineering", email = "ai_engineering@vectorinstitute.ai"}]
 requires-python = ">=3.12,<4.0"

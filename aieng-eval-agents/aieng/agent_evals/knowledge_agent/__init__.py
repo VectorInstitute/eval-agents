@@ -17,6 +17,17 @@ Example
 
 from aieng.agent_evals.configs import Configs
 
+from aieng.agent_evals.tools import (
+    create_fetch_url_tool,
+    create_grep_file_tool,
+    create_read_file_tool,
+    create_read_pdf_tool,
+    fetch_url,
+    grep_file,
+    read_file,
+    read_pdf,
+)
+
 from .agent import (
     EnhancedGroundedResponse,
     EnhancedKnowledgeAgent,
@@ -59,16 +70,6 @@ from .planner import (
     StepStatus,
 )
 from .tracing import flush_traces, init_tracing, is_tracing_enabled
-from .web_tools import (
-    create_fetch_url_tool,
-    create_grep_file_tool,
-    create_read_file_tool,
-    create_read_pdf_tool,
-    fetch_url,
-    grep_file,
-    read_file,
-    read_pdf,
-)
 
 
 __all__ = [

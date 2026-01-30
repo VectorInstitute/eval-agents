@@ -5,17 +5,9 @@ import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aieng.agent_evals.knowledge_agent.web_tools import (
-    _html_to_text,
-    create_fetch_url_tool,
-    create_grep_file_tool,
-    create_read_file_tool,
-    create_read_pdf_tool,
-    fetch_url,
-    grep_file,
-    read_file,
-    read_pdf,
-)
+from aieng.agent_evals.tools.file import create_grep_file_tool, create_read_file_tool, grep_file, read_file
+from aieng.agent_evals.tools.pdf import create_read_pdf_tool, read_pdf
+from aieng.agent_evals.tools.web import _html_to_text, create_fetch_url_tool, fetch_url
 
 
 class TestHtmlToText:
@@ -52,7 +44,7 @@ class TestHtmlToText:
 class TestFetchUrl:
     """Tests for the fetch_url function."""
 
-    @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
+    @patch("aieng.agent_evals.tools.web.httpx.Client")
     def test_fetch_success(self, mock_client_class):
         """Test successful URL fetch saves file and returns path."""
         mock_response = MagicMock()
@@ -77,7 +69,7 @@ class TestFetchUrl:
         # Cleanup
         os.remove(result["file_path"])
 
-    @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
+    @patch("aieng.agent_evals.tools.web.httpx.Client")
     def test_fetch_pdf_redirect(self, mock_client_class):
         """Test that PDF URLs are redirected to read_pdf."""
         mock_response = MagicMock()
@@ -95,7 +87,7 @@ class TestFetchUrl:
         assert "PDF" in result["error"]
         assert "read_pdf" in result["error"]
 
-    @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
+    @patch("aieng.agent_evals.tools.web.httpx.Client")
     def test_fetch_returns_length(self, mock_client_class):
         """Test that fetch returns content length."""
         long_text = "A" * 10000
@@ -223,7 +215,7 @@ class TestReadFileSection:
 class TestReadPdf:
     """Tests for the read_pdf function."""
 
-    @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
+    @patch("aieng.agent_evals.tools.pdf.httpx.Client")
     def test_read_pdf_success(self, mock_client_class):
         """Test successful PDF reading."""
         # Create a minimal valid PDF
@@ -254,7 +246,7 @@ class TestReadPdf:
         # Blank page may not have extractable text
         assert "num_pages" in result or "error" in result
 
-    @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
+    @patch("aieng.agent_evals.tools.pdf.httpx.Client")
     def test_read_pdf_html_error(self, mock_client_class):
         """Test that HTML response returns error."""
         mock_response = MagicMock()

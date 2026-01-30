@@ -12,7 +12,7 @@ from aieng.agent_evals.knowledge_agent.agent import (
     KnowledgeGroundedAgent,
 )
 from aieng.agent_evals.knowledge_agent.grounding_tool import GroundedResponse, GroundingChunk
-from aieng.agent_evals.knowledge_agent.planner import ResearchPlan, ResearchStep, StepExecution
+from aieng.agent_evals.knowledge_agent.planner import PlanReflection, ResearchPlan, ResearchStep, StepExecution
 
 
 class TestKnowledgeGroundedAgent:
@@ -42,7 +42,7 @@ class TestKnowledgeGroundedAgent:
         mock_tool = MagicMock()
         mock_create_tool.return_value = mock_tool
 
-        KnowledgeGroundedAgent(config=mock_config)
+        KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
 
         # Verify tool was created
         mock_create_tool.assert_called_once()
@@ -72,7 +72,7 @@ class TestKnowledgeGroundedAgent:
         mock_config,
     ):
         """Test initializing with a custom model."""
-        KnowledgeGroundedAgent(config=mock_config, model="gemini-2.5-pro")
+        KnowledgeGroundedAgent(config=mock_config, model="gemini-2.5-pro", enable_caching=False)
 
         call_kwargs = mock_agent_class.call_args[1]
         assert call_kwargs["model"] == "gemini-2.5-pro"
@@ -98,7 +98,7 @@ class TestKnowledgeGroundedAgent:
         mock_session_service.create_session = AsyncMock(return_value=mock_session)
         mock_session_service_class.return_value = mock_session_service
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
 
         # Create a new session
         session1 = await agent._get_or_create_session_async("test-session-1")
@@ -134,7 +134,7 @@ class TestKnowledgeGroundedAgent:
         mock_session_service.create_session = AsyncMock(return_value=mock_session)
         mock_session_service_class.return_value = mock_session_service
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
 
         session = await agent._get_or_create_session_async(None)
         assert session is not None
@@ -173,7 +173,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("What is the capital of France?")
 
         assert isinstance(response, GroundedResponse)
@@ -229,7 +229,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("What is the capital of France?")
 
         assert len(response.tool_calls) == 1
@@ -291,7 +291,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("What is the capital of France?")
 
         assert len(response.sources) == 2
@@ -354,7 +354,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("Test question")
 
         assert len(response.sources) == 2
@@ -421,7 +421,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("Test question")
 
         assert len(response.sources) == 1
@@ -490,7 +490,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("Test question")
 
         assert len(response.sources) == 1
@@ -556,7 +556,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("Test")
 
         assert len(response.tool_calls) == 3
@@ -609,7 +609,7 @@ class TestKnowledgeGroundedAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False)
         response = await agent.answer_async("Test")
 
         assert isinstance(response, GroundedResponse)
@@ -637,7 +637,7 @@ class TestKnowledgeAgentManager:
         with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
-            manager = KnowledgeAgentManager()
+            manager = KnowledgeAgentManager(enable_caching=False)
 
             # Should not be initialized yet
             assert not manager.is_initialized()
@@ -663,7 +663,7 @@ class TestKnowledgeAgentManager:
         with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
-            manager = KnowledgeAgentManager()
+            manager = KnowledgeAgentManager(enable_caching=False)
             _ = manager.agent
             assert manager.is_initialized()
 
@@ -685,7 +685,7 @@ class TestKnowledgeAgentManager:
         with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
-            manager = KnowledgeAgentManager()
+            manager = KnowledgeAgentManager(enable_caching=False)
 
             agent1 = manager.agent
             agent2 = manager.agent
@@ -814,7 +814,7 @@ class TestEnhancedKnowledgeAgent:
         mock_create_fetch_tool.return_value = mock_fetch_tool
         mock_create_pdf_tool.return_value = mock_pdf_tool
 
-        agent = EnhancedKnowledgeAgent(config=mock_config)
+        agent = EnhancedKnowledgeAgent(config=mock_config, enable_caching=False, enable_compaction=False)
 
         # Verify all tools were created
         mock_create_search_tool.assert_called_once()
@@ -853,7 +853,9 @@ class TestEnhancedKnowledgeAgent:
         mock_config,
     ):
         """Test initializing the agent without planning."""
-        agent = EnhancedKnowledgeAgent(config=mock_config, enable_planning=False)
+        agent = EnhancedKnowledgeAgent(
+            config=mock_config, enable_planning=False, enable_caching=False, enable_compaction=False
+        )
 
         # Planner should not be created
         mock_planner_class.assert_not_called()
@@ -879,7 +881,7 @@ class TestEnhancedKnowledgeAgent:
         mock_config,
     ):
         """Test creation of execution trace from plan and tool calls."""
-        agent = EnhancedKnowledgeAgent(config=mock_config)
+        agent = EnhancedKnowledgeAgent(config=mock_config, enable_caching=False, enable_compaction=False)
 
         plan = ResearchPlan(
             original_question="Test",
@@ -905,6 +907,7 @@ class TestEnhancedKnowledgeAgent:
         assert trace[1].tool_used == "synthesis"
 
     @pytest.mark.asyncio
+    @patch("google.genai.Client")
     @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
@@ -921,9 +924,17 @@ class TestEnhancedKnowledgeAgent:
         mock_session_service_class,
         mock_runner_class,
         mock_planner_class,
+        mock_genai_client_class,
         mock_config,
     ):
         """Test async answer with planning enabled."""
+        # Mock genai client for synthesis (async method)
+        mock_synthesis_response = MagicMock()
+        mock_synthesis_response.text = "Synthesized answer."
+        mock_genai_client = MagicMock()
+        mock_genai_client.aio.models.generate_content = AsyncMock(return_value=mock_synthesis_response)
+        mock_genai_client_class.return_value = mock_genai_client
+
         # Mock session service
         mock_session = MagicMock()
         mock_session.id = "mock-session-id"
@@ -943,6 +954,9 @@ class TestEnhancedKnowledgeAgent:
         )
         mock_planner = MagicMock()
         mock_planner.create_plan_async = AsyncMock(return_value=mock_plan)
+        # Mock reflection to continue execution
+        mock_reflection = PlanReflection(decision="CONTINUE", can_answer_now=True)
+        mock_planner.reflect_and_update_plan_async = AsyncMock(return_value=mock_reflection)
         mock_planner_class.return_value = mock_planner
 
         # Mock final event
@@ -960,11 +974,11 @@ class TestEnhancedKnowledgeAgent:
         mock_runner.run_async = mock_run_async
         mock_runner_class.return_value = mock_runner
 
-        agent = EnhancedKnowledgeAgent(config=mock_config)
+        agent = EnhancedKnowledgeAgent(config=mock_config, enable_caching=False, enable_compaction=False)
         response = await agent.answer_async("Test question")
 
         assert isinstance(response, EnhancedGroundedResponse)
-        assert response.text == "Test answer."
+        assert response.text == "Synthesized answer."
         assert response.plan.complexity_assessment == "moderate"
         mock_planner.create_plan_async.assert_called_once()
 
@@ -987,7 +1001,7 @@ class TestEnhancedKnowledgeAgent:
         mock_config,
     ):
         """Test format_answer for enhanced response."""
-        agent = EnhancedKnowledgeAgent(config=mock_config)
+        agent = EnhancedKnowledgeAgent(config=mock_config, enable_caching=False, enable_compaction=False)
 
         plan = ResearchPlan(
             original_question="Test",

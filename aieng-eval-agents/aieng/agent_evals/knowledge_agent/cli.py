@@ -7,6 +7,9 @@ Usage::
 
     knowledge-agent ask "What is..."
     knowledge-agent eval --samples 3
+    knowledge-agent eval --ids 123 456 789
+    knowledge-agent sample --ids 123
+    knowledge-agent sample --category "Finance & Economics" --count 5
 """
 
 import argparse
@@ -18,9 +21,11 @@ from importlib.metadata import version
 from pathlib import Path
 
 from dotenv import load_dotenv
+from rich import box
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
+from rich.status import Status
 from rich.table import Table
 from rich.text import Text
 
@@ -58,23 +63,22 @@ def display_banner() -> None:
     """Display the CLI banner with version info."""
     ver = get_version()
 
-    # Compact search/magnifying glass ASCII art
+    # Robot face with magnifying glass
+    # 🔍 emoji is 2 cells wide, so we adjust spacing to align
     line0 = Text()
-    line0.append("   ◯─◯   ", style=f"{VECTOR_CYAN} bold")
-    line0.append("   knowledge-agent ", style="white bold")
+    line0.append("  ◯─◯    ", style=f"{VECTOR_CYAN} bold")
+    line0.append("knowledge-agent ", style="white bold")
     line0.append(f"v{ver}", style="bright_black")
 
     line1 = Text()
-    line1.append("  ╱ 🔍 ╲  ", style=f"{VECTOR_CYAN} bold")
+    line1.append(" ╱ 🔍 ╲", style=f"{VECTOR_CYAN} bold")
 
     line2 = Text()
-    line2.append(" │     │ ", style=f"{VECTOR_CYAN} bold")
-    line2.append("   ", style="")
-    line2.append("search → fetch → grep → answer", style="cyan")
+    line2.append(" │    │", style=f"{VECTOR_CYAN} bold")
 
     line3 = Text()
-    line3.append("  ╲___╱  ", style=f"{VECTOR_CYAN} bold")
-    line3.append("   Vector Institute AI Engineering", style="bright_black")
+    line3.append("  ╲__╱   ", style=f"{VECTOR_CYAN} bold")
+    line3.append("Vector Institute AI Engineering", style="bright_black")
 
     console.print()
     console.print(line0)
@@ -86,33 +90,20 @@ def display_banner() -> None:
 
 def display_tools_info() -> None:
     """Display information about available tools."""
-    table = Table(
-        title="Available Tools",
-        show_header=True,
-        header_style="bold cyan",
-        box=None,
-    )
-    table.add_column("Tool", style="bold", width=24)
-    table.add_column("Description")
+    console.print("[bold]Available Tools:[/bold]")
+    console.print()
 
-    table.add_row(
-        "[blue]google_search[/blue]",
-        "Search the web for current information and sources",
-    )
-    table.add_row(
-        "[green]fetch_url[/green]",
-        "Fetch webpage content and save locally for searching",
-    )
-    table.add_row(
-        "[cyan]grep_file[/cyan]",
-        "Search any file for matching patterns (like Unix grep)",
-    )
-    table.add_row(
-        "[green]read_pdf[/green]",
-        "Read and extract text from PDF documents",
-    )
+    tools = [
+        ("google_search", "blue", "Search the web for current information and sources"),
+        ("fetch_url", "green", "Fetch webpage content and save locally for searching"),
+        ("grep_file", "cyan", "Search within fetched files for matching patterns"),
+        ("read_file", "cyan", "Read sections of fetched files"),
+        ("read_pdf", "green", "Read and extract text from PDF documents"),
+    ]
 
-    console.print(table)
+    for name, color, desc in tools:
+        console.print(f"  [{color}]{name:<16}[/{color}] {desc}")
+
     console.print()
 
 
@@ -150,58 +141,252 @@ class ToolCallHandler(logging.Handler):
         self.current_status = ""
 
 
-def create_tool_display(tool_calls: list[dict], status: str = "") -> Panel:
-    """Create a rich panel showing tool calls in progress."""
-    content: Group | Text
-    if not tool_calls:
-        content = Text("Waiting for tool calls...", style="dim")
-    else:
-        lines = []
-        display_calls = tool_calls[-8:]
-        if len(tool_calls) > 8:
-            lines.append(Text(f"  ... ({len(tool_calls) - 8} earlier calls)", style="dim"))
+def _create_plan_display(plan, tool_calls: list[dict]) -> Panel:
+    """Create a rich panel showing the research plan checklist.
 
-        for i, tc in enumerate(display_calls):
-            is_last = i == len(display_calls) - 1
-            name = tc["name"]
-            args = tc["args"]
+    Parameters
+    ----------
+    plan : ResearchPlan
+        The research plan to display. Step statuses are read directly from the plan.
+    tool_calls : list[dict]
+        Tool calls made so far (for display purposes).
 
-            # Icon and style based on tool type
-            if name == "fetch_url":
-                icon, style = "🌐", "green"
-            elif name == "read_pdf":
-                icon, style = "📄", "green"
-            elif name == "grep_file":
-                icon, style = "📑", "cyan"
-            elif "search" in name.lower():
-                icon, style = "🔍", "blue"
-            else:
-                icon, style = "🔧", "white"
+    Returns
+    -------
+    Panel
+        A rich panel with the plan checklist.
+    """
+    from .planner import StepStatus  # noqa: PLC0415
 
-            line = Text()
-            if is_last:
-                line.append("  → ", style="bold yellow")
-            else:
-                line.append("  ✓ ", style="dim green")
+    lines = []
 
-            line.append(f"{icon} ", style=style)
-            line.append(f"{name}", style=f"bold {style}")
-            line.append(f"  {args}", style="dim")
-            lines.append(line)
+    for step in plan.steps:
+        # Use the step's actual status from the plan (updated by the agent in real-time)
+        if step.status == StepStatus.COMPLETED:
+            icon, icon_style = "✓", "green"
+            desc_style = "dim"
+        elif step.status == StepStatus.FAILED:
+            icon, icon_style = "✗", "red"
+            desc_style = "red"
+        elif step.status == StepStatus.IN_PROGRESS:
+            icon, icon_style = "→", "bold yellow"
+            desc_style = "yellow"
+        elif step.status == StepStatus.SKIPPED:
+            icon, icon_style = "○", "dim"
+            desc_style = "strike dim"
+        else:
+            # PENDING - not yet started
+            icon, icon_style = "○", "dim"
+            desc_style = "dim"
 
-        content = Group(*lines) if lines else Text("No tool calls yet", style="dim")
+        line = Text()
+        line.append("  ")
+        line.append(icon, style=icon_style)
+        line.append(f" {step.step_id}. ", style="bold")
+        line.append(step.description, style=desc_style)
+        line.append(f"  ({step.tool_hint})", style="cyan dim")
+        lines.append(line)
 
-    title_parts = ["[bold cyan]🔧 Agent Working[/bold cyan]"]
-    if status:
-        title_parts.append(f" [dim]({status})[/dim]")
+    # Add complexity badge
+    complexity = plan.complexity_assessment
+    complexity_style = {"simple": "green", "moderate": "yellow", "complex": "red"}.get(complexity, "white")
+
+    content = Group(*lines) if lines else Text("No plan steps", style="dim")
 
     return Panel(
         content,
-        title="".join(title_parts),
-        subtitle=f"[dim]{len(tool_calls)} tool calls[/dim]",
+        title=f"[bold magenta]📋 Research Plan[/bold magenta] [{complexity_style}]{complexity}[/{complexity_style}]",
+        subtitle=f"[dim]{len(plan.steps)} steps[/dim]",
+        border_style="magenta",
+        padding=(0, 1),
+    )
+
+
+def _get_tool_display_info(name: str) -> tuple[str, str, str]:
+    """Get display name, icon, and style for a tool.
+
+    Returns (display_name, icon, style).
+    """
+    # Normalize tool name for display
+    display_name = "google_search" if name == "google_search_agent" else name
+
+    # Tool icon and style lookup
+    tool_styles = {
+        "fetch_url": ("🌐", "green"),
+        "read_pdf": ("📄", "green"),
+        "grep_file": ("📑", "cyan"),
+        "read_file": ("📖", "cyan"),
+        "google_search": ("🔍", "blue"),
+        "google_search_agent": ("🔍", "blue"),
+    }
+    icon, style = tool_styles.get(name, ("🔧", "white"))
+    return display_name, icon, style
+
+
+def _create_compact_question_panel(
+    question: str, example_id: int | None = None, answer_type: str | None = None
+) -> Panel:
+    """Create a compact question panel for the live display.
+
+    Parameters
+    ----------
+    question : str
+        The question text.
+    example_id : int, optional
+        The example ID if in eval mode.
+    answer_type : str, optional
+        The answer type if in eval mode.
+
+    Returns
+    -------
+    Panel
+        A compact question panel.
+    """
+    title = "[bold blue]📋 Question[/bold blue]"
+    if example_id is not None:
+        title = f"[bold blue]📋 Question (ID: {example_id})[/bold blue]"
+
+    subtitle = f"[dim]Answer Type: {answer_type}[/dim]" if answer_type else None
+
+    return Panel(
+        question,
+        title=title,
+        subtitle=subtitle,
+        border_style="blue",
+        padding=(0, 1),
+    )
+
+
+def _create_compact_ground_truth_panel(ground_truth: str) -> Panel:
+    """Create a compact ground truth panel for the live display.
+
+    Parameters
+    ----------
+    ground_truth : str
+        The ground truth answer.
+
+    Returns
+    -------
+    Panel
+        A compact ground truth panel.
+    """
+    # Truncate long ground truth for display
+    display_gt = ground_truth if len(ground_truth) <= 150 else ground_truth[:147] + "..."
+
+    return Panel(
+        f"[yellow]{display_gt}[/yellow]",
+        title="[bold yellow]🎯 Ground Truth[/bold yellow]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
+
+
+def create_tool_display(
+    tool_calls: list[dict],
+    status: str = "",
+    plan=None,
+    context_percent: float | None = None,
+    question: str | None = None,
+    ground_truth: str | None = None,
+    example_id: int | None = None,
+    answer_type: str | None = None,
+) -> Group | Panel:
+    """Create a rich display showing tool calls and optionally the plan.
+
+    Parameters
+    ----------
+    tool_calls : list[dict]
+        List of tool calls made so far.
+    status : str
+        Current status message.
+    plan : ResearchPlan, optional
+        If provided, shows the plan checklist above tool calls.
+    context_percent : float, optional
+        Percentage of context window remaining.
+    question : str, optional
+        The question being answered (for eval mode display).
+    ground_truth : str, optional
+        The ground truth answer (for eval mode display).
+    example_id : int, optional
+        The example ID (for eval mode display).
+    answer_type : str, optional
+        The answer type (for eval mode display).
+
+    Returns
+    -------
+    Group or Panel
+        The display content.
+    """
+    tool_content = _build_tool_calls_content(tool_calls, plan is not None)
+
+    # Build subtitle with tool calls and context usage
+    subtitle_parts = [f"{len(tool_calls)} tool calls"]
+    if context_percent is not None:
+        # Color code based on remaining context
+        if context_percent > 50:
+            color = "green"
+        elif context_percent > 20:
+            color = "yellow"
+        else:
+            color = "red"
+        subtitle_parts.append(f"[{color}]{context_percent:.0f}% context left[/{color}]")
+
+    tool_panel = Panel(
+        tool_content,
+        title="[bold cyan]🔧 Agent Working[/bold cyan]",
+        subtitle=f"[dim]{' | '.join(subtitle_parts)}[/dim]",
         border_style="cyan",
         padding=(0, 1),
     )
+
+    # Build the display components
+    components: list[Panel | Text] = []
+
+    # Add question and ground truth panels if in eval mode
+    if question is not None:
+        components.append(_create_compact_question_panel(question, example_id, answer_type))
+        components.append(Text(""))
+
+    if ground_truth is not None:
+        components.append(_create_compact_ground_truth_panel(ground_truth))
+        components.append(Text(""))
+
+    # Add plan if available
+    if plan and plan.steps:
+        components.append(_create_plan_display(plan, tool_calls))
+        components.append(Text(""))
+
+    # Always add the tool panel
+    components.append(tool_panel)
+
+    # Return as group if we have multiple components, otherwise just the tool panel
+    if len(components) > 1:
+        return Group(*components)
+    return tool_panel
+
+
+def _build_tool_calls_content(tool_calls: list[dict], has_plan: bool) -> Group | Text:
+    """Build the content for tool calls display."""
+    if not tool_calls:
+        return Text("Waiting for tool calls...", style="dim")
+
+    lines = []
+    display_calls = tool_calls[-6:] if has_plan else tool_calls[-8:]
+    if len(tool_calls) > len(display_calls):
+        lines.append(Text(f"  ... ({len(tool_calls) - len(display_calls)} earlier calls)", style="dim"))
+
+    for i, tc in enumerate(display_calls):
+        is_last = i == len(display_calls) - 1
+        display_name, icon, style = _get_tool_display_info(tc["name"])
+
+        line = Text()
+        line.append("  → " if is_last else "  ✓ ", style="bold yellow" if is_last else "dim green")
+        line.append(f"{icon} ", style=style)
+        line.append(display_name, style=f"bold {style}")
+        line.append(f"  {tc['args']}", style="dim")
+        lines.append(line)
+
+    return Group(*lines) if lines else Text("No tool calls yet", style="dim")
 
 
 def display_tool_usage(tool_calls: list[dict]) -> dict[str, int]:
@@ -209,6 +394,9 @@ def display_tool_usage(tool_calls: list[dict]) -> dict[str, int]:
     tool_counts: dict[str, int] = {}
     for tc in tool_calls:
         name = tc.get("name", "unknown")
+        # Normalize google_search_agent to google_search for cleaner display
+        if name == "google_search_agent":
+            name = "google_search"
         tool_counts[name] = tool_counts.get(name, 0) + 1
 
     if tool_counts:
@@ -260,37 +448,112 @@ def setup_logging() -> ToolCallHandler:
     return tool_handler
 
 
-async def run_agent_with_display(agent, question: str, tool_handler: ToolCallHandler):
-    """Run the agent with live tool call display."""
+async def run_agent_with_display(
+    agent,
+    question: str,
+    tool_handler: ToolCallHandler,
+    show_plan: bool = False,
+    ground_truth: str | None = None,
+    example_id: int | None = None,
+    answer_type: str | None = None,
+    example_num: int | None = None,
+    total_examples: int | None = None,
+):
+    """Run the agent with live tool call display.
+
+    Parameters
+    ----------
+    agent : EnhancedKnowledgeAgent
+        The agent to run.
+    question : str
+        The question to answer.
+    tool_handler : ToolCallHandler
+        Handler for capturing tool calls.
+    show_plan : bool
+        If True, display the research plan checklist during execution.
+    ground_truth : str, optional
+        The ground truth answer (for eval mode - shown in live display).
+    example_id : int, optional
+        The example ID (for eval mode - shown in live display).
+    answer_type : str, optional
+        The answer type (for eval mode - shown in live display).
+    example_num : int, optional
+        Current example number (for eval mode spinner display).
+    total_examples : int, optional
+        Total number of examples (for eval mode spinner display).
+    """
     live_console = Console(file=sys.stdout, force_terminal=True)
 
-    with Live(
-        create_tool_display([], "Starting..."),
-        console=live_console,
-        refresh_per_second=4,
-        transient=True,
-    ) as live:
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
+    # Show spinner while preparing (planning if enabled)
+    if example_num is not None and total_examples is not None:
+        spinner_text = f"[bold cyan]Example {example_num}/{total_examples}[/bold cyan]"
+        with Status(spinner_text, console=console, spinner="dots"):
+            if show_plan and hasattr(agent, "create_plan_async"):
+                await agent.create_plan_async(question)
+    elif show_plan and hasattr(agent, "create_plan_async"):
+        await agent.create_plan_async(question)
 
-        sys.stdout = io.StringIO()
-        sys.stderr = io.StringIO()
+    # Capture stdout/stderr before Live to suppress agent output
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    sys.stdout = io.StringIO()
+    sys.stderr = io.StringIO()
 
-        try:
+    try:
+        with Live(
+            create_tool_display(
+                [],
+                "Starting...",
+                plan=agent.current_plan if show_plan else None,
+                question=question if ground_truth is not None else None,
+                ground_truth=ground_truth,
+                example_id=example_id,
+                answer_type=answer_type,
+            ),
+            console=live_console,
+            screen=True,
+            refresh_per_second=10,
+        ) as live:
             task = asyncio.create_task(agent.answer_async(question))
 
             while not task.done():
-                live.update(create_tool_display(tool_handler.tool_calls, tool_handler.current_status))
-                await asyncio.sleep(0.25)
+                current_plan = agent.current_plan if show_plan else None
+                # Get context percentage from token tracker if available
+                context_pct = None
+                if hasattr(agent, "token_tracker"):
+                    context_pct = agent.token_tracker.usage.context_remaining_percent
+                live.update(
+                    create_tool_display(
+                        tool_handler.tool_calls,
+                        tool_handler.current_status,
+                        plan=current_plan,
+                        context_percent=context_pct,
+                        question=question if ground_truth is not None else None,
+                        ground_truth=ground_truth,
+                        example_id=example_id,
+                        answer_type=answer_type,
+                    )
+                )
+                await asyncio.sleep(0.1)
 
             return await task
-        finally:
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
+    finally:
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
 
-async def cmd_ask(question: str, planning: bool = False) -> int:
-    """Ask the agent a question."""
+async def cmd_ask(question: str, planning: bool = False, show_plan: bool = False) -> int:
+    """Ask the agent a question.
+
+    Parameters
+    ----------
+    question : str
+        The question to ask.
+    planning : bool
+        Enable research planning for complex questions.
+    show_plan : bool
+        Display the research plan checklist during execution.
+    """
     from .agent import EnhancedKnowledgeAgent  # noqa: PLC0415
 
     display_banner()
@@ -307,12 +570,15 @@ async def cmd_ask(question: str, planning: bool = False) -> int:
 
     tool_handler = setup_logging()
 
+    # If showing plan, enable planning
+    enable_planning = planning or show_plan
+
     console.print("[bold blue]Initializing agent...[/bold blue]")
-    agent = EnhancedKnowledgeAgent(enable_planning=planning)
+    agent = EnhancedKnowledgeAgent(enable_planning=enable_planning)
     console.print("[green]✓ Agent ready[/green]\n")
 
     tool_handler.clear()
-    response = await run_agent_with_display(agent, question, tool_handler)
+    response = await run_agent_with_display(agent, question, tool_handler, show_plan=show_plan)
 
     # Display results
     console.print()
@@ -323,7 +589,7 @@ async def cmd_ask(question: str, planning: bool = False) -> int:
         Panel(
             response.text,
             title="[bold cyan]🤖 Answer[/bold cyan]",
-            subtitle=f"[dim]Sources: {len(response.sources)} | Duration: {response.total_duration_ms}ms[/dim]",
+            subtitle=f"[dim]Sources: {len(response.sources)} | Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
             border_style="cyan",
             padding=(1, 2),
         )
@@ -348,15 +614,32 @@ OUTCOME_COLORS = {
 }
 OUTCOME_ICONS = {
     "fully_correct": "✅",
-    "correct_with_extraneous": "⚠️",
+    "correct_with_extraneous": "🟡",
     "partially_correct": "🔶",
     "fully_incorrect": "❌",
 }
 
 
-def _display_example(example, idx: int, total: int) -> None:
-    """Display question and ground truth for an example."""
-    console.print(f"\n[bold white on blue] Example {idx}/{total} [/bold white on blue]\n")
+def _display_example_result(example, response, idx: int, total: int) -> dict[str, int]:
+    """Display the full results for an evaluated example.
+
+    Parameters
+    ----------
+    example : DSQAExample
+        The example that was evaluated.
+    response : EnhancedGroundedResponse
+        The agent's response.
+    idx : int
+        Current index (1-based).
+    total : int
+        Total number of examples.
+
+    Returns
+    -------
+    dict[str, int]
+        Tool usage counts.
+    """
+    console.print(f"\n[bold cyan]━━━ Example {idx}/{total} - Results ━━━[/bold cyan]\n")
     console.print(
         Panel(
             example.problem,
@@ -375,6 +658,19 @@ def _display_example(example, idx: int, total: int) -> None:
             padding=(1, 2),
         )
     )
+    console.print()
+    tool_counts = display_tool_usage(response.tool_calls)
+    console.print()
+    console.print(
+        Panel(
+            response.text,
+            title="[bold cyan]🤖 Agent Response[/bold cyan]",
+            subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
+            border_style="cyan",
+            padding=(1, 2),
+        )
+    )
+    return tool_counts
 
 
 def _display_eval_result(result) -> None:
@@ -382,6 +678,7 @@ def _display_eval_result(result) -> None:
     color = OUTCOME_COLORS.get(result.outcome, "white")
     icon = OUTCOME_ICONS.get(result.outcome, "•")
 
+    # Main metrics table
     metrics_table = Table(show_header=False, box=None, padding=(0, 2))
     metrics_table.add_column("Metric", style="bold")
     metrics_table.add_column("Value", justify="right")
@@ -392,36 +689,202 @@ def _display_eval_result(result) -> None:
 
     console.print(Panel(metrics_table, title="[bold magenta]📊 Evaluation[/bold magenta]", border_style="magenta"))
 
+    # Display judge explanation if available
+    if result.explanation:
+        console.print()
+        console.print(
+            Panel(
+                result.explanation,
+                title="[bold blue]💭 Judge Explanation[/bold blue]",
+                border_style="blue",
+                padding=(1, 2),
+            )
+        )
+
+    # Display correctness details if available
+    if result.correctness_details:
+        console.print()
+        details_table = Table(
+            title="🎯 Correctness Details",
+            show_header=True,
+            header_style="bold cyan",
+            box=None,
+        )
+        details_table.add_column("Ground Truth Item", style="white")
+        details_table.add_column("Found", justify="center", width=8)
+
+        for item, found in result.correctness_details.items():
+            found_icon = "[green]✓[/green]" if found else "[red]✗[/red]"
+            details_table.add_row(item, found_icon)
+
+        console.print(details_table)
+
+    # Display extraneous items if any
+    if result.extraneous_items:
+        console.print()
+        extra_text = "\n".join(f"  • {item}" for item in result.extraneous_items)
+        console.print(
+            Panel(
+                f"[yellow]{extra_text}[/yellow]",
+                title="[bold yellow]⚠️ Extraneous Items[/bold yellow]",
+                subtitle=f"[dim]{len(result.extraneous_items)} item(s) not in ground truth[/dim]",
+                border_style="yellow",
+                padding=(0, 2),
+            )
+        )
+
 
 def _display_eval_summary(results: list) -> None:
-    """Display summary table for multiple evaluation results."""
-    console.print("\n[bold white on blue] Summary [/bold white on blue]\n")
+    """Display comprehensive summary table for multiple evaluation results.
 
-    summary_table = Table(title="📈 Evaluation Summary", show_header=True, header_style="bold cyan")
-    summary_table.add_column("ID", style="dim", width=6)
-    summary_table.add_column("Outcome", width=24)
-    summary_table.add_column("F1", justify="right", width=10)
+    Shows per-sample results, outcome distribution, and aggregate metrics.
+    """
+    console.print()
+
+    # Per-sample results table
+    sample_table = Table(
+        title="[bold cyan]📋 Per-Sample Results[/bold cyan]",
+        show_header=True,
+        header_style="bold",
+        box=box.ROUNDED,
+        title_justify="left",
+    )
+    sample_table.add_column("ID", style="dim", width=8)
+    sample_table.add_column("Outcome", width=26)
+    sample_table.add_column("Precision", justify="right", width=10)
+    sample_table.add_column("Recall", justify="right", width=10)
+    sample_table.add_column("F1", justify="right", width=10)
 
     for example_id, result, _ in results:
         color = OUTCOME_COLORS.get(result.outcome, "white")
-        summary_table.add_row(str(example_id), f"[{color}]{result.outcome}[/{color}]", f"{result.f1_score:.2f}")
+        icon = OUTCOME_ICONS.get(result.outcome, "•")
+        sample_table.add_row(
+            str(example_id),
+            f"[{color}]{icon} {result.outcome}[/{color}]",
+            f"{result.precision:.2f}",
+            f"{result.recall:.2f}",
+            f"{result.f1_score:.2f}",
+        )
 
-    console.print(summary_table)
+    console.print(sample_table)
+    console.print()
 
-    avg_f1 = sum(r.f1_score for _, r, _ in results) / len(results)
-    console.print(f"\n[bold]Average F1:[/bold] {avg_f1:.2f}")
+    # Count outcomes
+    outcome_counts = {
+        "fully_correct": 0,
+        "correct_with_extraneous": 0,
+        "partially_correct": 0,
+        "fully_incorrect": 0,
+    }
+    for _, result, _ in results:
+        if result.outcome in outcome_counts:
+            outcome_counts[result.outcome] += 1
+
+    total = len(results)
+
+    # Outcome distribution table
+    outcome_table = Table(
+        title="[bold magenta]📊 Outcome Distribution[/bold magenta]",
+        show_header=True,
+        header_style="bold",
+        box=box.ROUNDED,
+        title_justify="left",
+    )
+    outcome_table.add_column("Outcome", width=30)
+    outcome_table.add_column("Count", justify="right", width=8)
+    outcome_table.add_column("Percentage", justify="right", width=12)
+
+    outcome_display = [
+        ("fully_correct", "Fully Correct", "green"),
+        ("correct_with_extraneous", "Correct with Extraneous", "yellow"),
+        ("partially_correct", "Partially Correct", "orange1"),
+        ("fully_incorrect", "Fully Incorrect", "red"),
+    ]
+
+    for key, label, color in outcome_display:
+        count = outcome_counts[key]
+        pct = (count / total * 100) if total > 0 else 0
+        icon = OUTCOME_ICONS.get(key, "•")
+        outcome_table.add_row(
+            f"[{color}]{icon} {label}[/{color}]",
+            f"[{color}]{count}[/{color}]",
+            f"[{color}]{pct:.1f}%[/{color}]",
+        )
+
+    console.print(outcome_table)
+    console.print()
+
+    # Calculate aggregate metrics
+    avg_precision = sum(r.precision for _, r, _ in results) / total if total > 0 else 0
+    avg_recall = sum(r.recall for _, r, _ in results) / total if total > 0 else 0
+    avg_f1 = sum(r.f1_score for _, r, _ in results) / total if total > 0 else 0
+
+    # Aggregate metrics table
+    metrics_table = Table(
+        title="[bold green]📈 Aggregate Metrics[/bold green]",
+        show_header=True,
+        header_style="bold",
+        box=box.ROUNDED,
+        title_justify="left",
+    )
+    metrics_table.add_column("Metric", width=20)
+    metrics_table.add_column("Value", justify="right", width=12)
+
+    # Color code F1 based on performance
+    if avg_f1 >= 0.8:
+        f1_color = "green"
+    elif avg_f1 >= 0.5:
+        f1_color = "yellow"
+    else:
+        f1_color = "red"
+
+    metrics_table.add_row("Samples Evaluated", f"[bold]{total}[/bold]")
+    metrics_table.add_row("Avg Precision", f"[bold]{avg_precision:.3f}[/bold]")
+    metrics_table.add_row("Avg Recall", f"[bold]{avg_recall:.3f}[/bold]")
+    metrics_table.add_row("Avg F1 Score", f"[bold {f1_color}]{avg_f1:.3f}[/bold {f1_color}]")
+
+    console.print(metrics_table)
 
 
-async def cmd_eval(samples: int = 1, category: str = "Finance & Economics") -> int:
-    """Run evaluation on DeepSearchQA samples."""
+async def cmd_eval(
+    samples: int = 1,
+    category: str = "Finance & Economics",
+    ids: list[int] | None = None,
+    show_plan: bool = False,
+) -> int:
+    """Run evaluation on DeepSearchQA samples.
+
+    Parameters
+    ----------
+    samples : int
+        Number of samples to evaluate (used when ids not specified).
+    category : str
+        Dataset category to filter by (used when ids not specified).
+    ids : list[int], optional
+        Specific example IDs to evaluate. If provided, samples and category are ignored.
+    show_plan : bool
+        Display the research plan checklist during execution.
+    """
     from .agent import EnhancedKnowledgeAgent  # noqa: PLC0415
     from .evaluation import DeepSearchQADataset  # noqa: PLC0415
     from .judges import DeepSearchQAJudge  # noqa: PLC0415
 
     display_banner()
+
+    # Build info text based on selection mode
+    if ids:
+        info_text = f"[bold]Evaluation Mode[/bold]\n\nExample IDs: [cyan]{', '.join(map(str, ids))}[/cyan]"
+    else:
+        info_text = (
+            f"[bold]Evaluation Mode[/bold]\n\nCategory: [cyan]{category}[/cyan]\nSamples: [cyan]{samples}[/cyan]"
+        )
+
+    if show_plan:
+        info_text += "\nPlan Display: [green]enabled[/green]"
+
     console.print(
         Panel(
-            f"[bold]Evaluation Mode[/bold]\n\nCategory: [cyan]{category}[/cyan]\nSamples: [cyan]{samples}[/cyan]",
+            info_text,
             title="📊 DeepSearchQA Evaluation",
             border_style="blue",
         )
@@ -430,11 +893,26 @@ async def cmd_eval(samples: int = 1, category: str = "Finance & Economics") -> i
 
     console.print("[bold blue]Loading dataset...[/bold blue]")
     dataset = DeepSearchQADataset()
-    examples = dataset.get_by_category(category)[:samples]
+
+    # Get examples by ID or by category
+    if ids:
+        examples = dataset.get_by_ids(ids)
+        if len(examples) != len(ids):
+            found_ids = {ex.example_id for ex in examples}
+            missing_ids = [eid for eid in ids if eid not in found_ids]
+            console.print(f"[yellow]Warning: IDs not found: {missing_ids}[/yellow]")
+    else:
+        examples = dataset.get_by_category(category)[:samples]
+
+    if not examples:
+        console.print("[bold red]Error: No examples found matching the criteria.[/bold red]")
+        return 1
+
     console.print(f"[green]✓ Loaded {len(examples)} example(s)[/green]\n")
 
     console.print("[bold blue]Initializing agent and judge...[/bold blue]")
-    agent = EnhancedKnowledgeAgent(enable_planning=False)
+    # Enable planning if showing plan
+    agent = EnhancedKnowledgeAgent(enable_planning=show_plan)
     judge = DeepSearchQAJudge()
     console.print("[green]✓ Ready[/green]\n")
 
@@ -442,25 +920,23 @@ async def cmd_eval(samples: int = 1, category: str = "Finance & Economics") -> i
     results = []
 
     for i, example in enumerate(examples, 1):
-        _display_example(example, i, len(examples))
-        console.print()
         tool_handler.clear()
 
         try:
-            response = await run_agent_with_display(agent, example.problem, tool_handler)
-            console.print()
-            tool_counts = display_tool_usage(response.tool_calls)
-            console.print()
-            console.print(
-                Panel(
-                    response.text,
-                    title="[bold cyan]🤖 Agent Response[/bold cyan]",
-                    subtitle=f"[dim]Duration: {response.total_duration_ms}ms[/dim]",
-                    border_style="cyan",
-                    padding=(1, 2),
-                )
+            response = await run_agent_with_display(
+                agent,
+                example.problem,
+                tool_handler,
+                show_plan=show_plan,
+                ground_truth=example.answer,
+                example_id=example.example_id,
+                answer_type=example.answer_type,
+                example_num=i,
+                total_examples=len(examples),
             )
 
+            # Display full results after Live display ends
+            tool_counts = _display_example_result(example, response, i, len(examples))
             console.print("\n[bold blue]⏳ Evaluating...[/bold blue]\n")
             _, result = judge.evaluate_with_details(
                 question=example.problem,
@@ -474,11 +950,204 @@ async def cmd_eval(samples: int = 1, category: str = "Finance & Economics") -> i
         except Exception as e:
             console.print(f"[bold red]Error: {e}[/bold red]")
 
-    if len(results) > 1:
+    if results:
         _display_eval_summary(results)
 
     console.print("\n[bold green]✓ Evaluation complete[/bold green]")
     return 0
+
+
+def _display_sample_detailed(example, idx: int | None = None, total: int | None = None) -> None:
+    """Display a single sample with full details.
+
+    Parameters
+    ----------
+    example : DSQAExample
+        The example to display.
+    idx : int, optional
+        Current index (1-based) for display in a list.
+    total : int, optional
+        Total number of examples being displayed.
+    """
+    # Header with index if provided
+    if idx is not None and total is not None:
+        console.print(f"\n[bold cyan]━━━ Sample {idx}/{total} ━━━[/bold cyan]\n")
+    else:
+        console.print()
+
+    # Metadata table
+    meta_table = Table(show_header=False, box=None, padding=(0, 2))
+    meta_table.add_column("Field", style="bold dim")
+    meta_table.add_column("Value")
+    meta_table.add_row("ID", f"[cyan]{example.example_id}[/cyan]")
+    meta_table.add_row("Category", f"[magenta]{example.problem_category}[/magenta]")
+    meta_table.add_row("Answer Type", f"[blue]{example.answer_type}[/blue]")
+
+    console.print(Panel(meta_table, title="[bold]📋 Metadata[/bold]", border_style="dim"))
+
+    # Question
+    console.print()
+    console.print(
+        Panel(
+            example.problem,
+            title="[bold blue]❓ Question[/bold blue]",
+            border_style="blue",
+            padding=(1, 2),
+        )
+    )
+
+    # Ground truth answer
+    console.print()
+    console.print(
+        Panel(
+            f"[yellow]{example.answer}[/yellow]",
+            title="[bold yellow]🎯 Ground Truth Answer[/bold yellow]",
+            border_style="yellow",
+            padding=(1, 2),
+        )
+    )
+
+
+def cmd_sample(
+    ids: list[int] | None = None,
+    category: str | None = None,
+    count: int = 5,
+    random: bool = False,
+    list_categories: bool = False,
+) -> int:
+    """View samples from the DeepSearchQA dataset.
+
+    Parameters
+    ----------
+    ids : list[int], optional
+        Specific example IDs to view.
+    category : str, optional
+        Filter by category.
+    count : int
+        Number of samples to show (default 5).
+    random : bool
+        If True, select random samples instead of first N.
+    list_categories : bool
+        If True, list all available categories and exit.
+
+    Returns
+    -------
+    int
+        Exit code (0 for success).
+    """
+    from .evaluation import DeepSearchQADataset  # noqa: PLC0415
+
+    display_banner()
+
+    console.print("[bold blue]Loading dataset...[/bold blue]")
+    dataset = DeepSearchQADataset()
+    console.print(f"[green]✓ Loaded {len(dataset)} total examples[/green]\n")
+
+    # List categories mode
+    if list_categories:
+        categories = dataset.get_categories()
+        table = Table(title="📂 Available Categories", show_header=True, header_style="bold cyan")
+        table.add_column("#", style="dim", width=4)
+        table.add_column("Category", style="bold")
+        table.add_column("Count", justify="right")
+
+        for i, cat in enumerate(sorted(categories), 1):
+            cat_count = len(dataset.get_by_category(cat))
+            table.add_row(str(i), cat, str(cat_count))
+
+        console.print(table)
+        console.print(f"\n[dim]Total: {len(categories)} categories[/dim]")
+        return 0
+
+    # Get examples based on selection criteria
+    if ids:
+        examples = dataset.get_by_ids(ids)
+        if len(examples) != len(ids):
+            found_ids = {ex.example_id for ex in examples}
+            missing_ids = [eid for eid in ids if eid not in found_ids]
+            console.print(f"[yellow]Warning: IDs not found: {missing_ids}[/yellow]\n")
+        selection_desc = f"IDs: {', '.join(map(str, ids))}"
+    elif category:
+        all_in_category = dataset.get_by_category(category)
+        if not all_in_category:
+            console.print(f"[bold red]Error: Category '{category}' not found.[/bold red]")
+            console.print("[dim]Use --list-categories to see available categories.[/dim]")
+            return 1
+        if random:
+            import random as rand_module  # noqa: PLC0415
+
+            examples = rand_module.sample(all_in_category, min(count, len(all_in_category)))
+        else:
+            examples = all_in_category[:count]
+        selection_desc = f"Category: {category} ({len(all_in_category)} total)"
+    elif random:
+        examples = dataset.sample(n=count)
+        selection_desc = f"Random {count} samples"
+    else:
+        examples = dataset.examples[:count]
+        selection_desc = f"First {count} samples"
+
+    if not examples:
+        console.print("[bold red]No examples found matching the criteria.[/bold red]")
+        return 1
+
+    # Display selection info
+    console.print(
+        Panel(
+            f"[bold]Selection:[/bold] {selection_desc}\n[bold]Showing:[/bold] {len(examples)} example(s)",
+            title="📊 Dataset View",
+            border_style="blue",
+        )
+    )
+
+    # Display each example
+    for i, example in enumerate(examples, 1):
+        _display_sample_detailed(example, idx=i, total=len(examples))
+
+    console.print("\n[bold green]✓ Done[/bold green]")
+    return 0
+
+
+def _display_help() -> None:
+    """Display colorful help message using Rich."""
+    console.print()
+
+    # Commands table
+    commands_table = Table(
+        show_header=True,
+        header_style="bold cyan",
+        box=None,
+        padding=(0, 2),
+    )
+    commands_table.add_column("Command", style="bold green", width=12)
+    commands_table.add_column("Description")
+
+    commands_table.add_row("ask", "Ask the agent a question")
+    commands_table.add_row("eval", "Run evaluation on DeepSearchQA")
+    commands_table.add_row("sample", "View samples from the DeepSearchQA dataset")
+    commands_table.add_row("tools", "Display available tools")
+
+    console.print("[bold]Commands:[/bold]")
+    console.print(commands_table)
+    console.print()
+
+    # Options
+    console.print("[bold]Options:[/bold]")
+    console.print("  [cyan]-h, --help[/cyan]      Show this help message")
+    console.print("  [cyan]--version[/cyan]       Show version number")
+    console.print()
+
+    # Usage examples
+    console.print("[bold]Examples:[/bold]")
+    console.print('  [dim]$[/dim] knowledge-agent [green]ask[/green] [yellow]"What is quantum computing?"[/yellow]')
+    console.print("  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--samples[/cyan] 3")
+    console.print(
+        "  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--ids[/cyan] 123 456 [cyan]--show-plan[/cyan]"
+    )
+    console.print(
+        '  [dim]$[/dim] knowledge-agent [green]sample[/green] [cyan]--category[/cyan] [yellow]"Finance & Economics"[/yellow]'
+    )
+    console.print()
 
 
 def main() -> int:
@@ -487,11 +1156,17 @@ def main() -> int:
         prog="knowledge-agent",
         description="Knowledge-Grounded QA Agent CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=False,  # We'll handle help ourselves
+    )
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="store_true",
+        help="Show this help message and exit",
     )
     parser.add_argument(
         "--version",
-        action="version",
-        version=f"%(prog)s {get_version()}",
+        action="store_true",
         help="Show version number and exit",
     )
 
@@ -505,6 +1180,11 @@ def main() -> int:
         action="store_true",
         help="Enable research planning for complex questions",
     )
+    ask_parser.add_argument(
+        "--show-plan",
+        action="store_true",
+        help="Display the research plan checklist during execution (implies --planning)",
+    )
 
     # Eval command
     eval_parser = subparsers.add_parser("eval", help="Run evaluation on DeepSearchQA")
@@ -512,13 +1192,56 @@ def main() -> int:
         "--samples",
         type=int,
         default=1,
-        help="Number of samples to evaluate (default: 1)",
+        help="Number of samples to evaluate (default: 1, ignored if --ids is used)",
     )
     eval_parser.add_argument(
         "--category",
         type=str,
         default="Finance & Economics",
-        help="Dataset category (default: Finance & Economics)",
+        help="Dataset category (default: Finance & Economics, ignored if --ids is used)",
+    )
+    eval_parser.add_argument(
+        "--ids",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="Specific example ID(s) to evaluate (overrides --samples and --category)",
+    )
+    eval_parser.add_argument(
+        "--show-plan",
+        action="store_true",
+        help="Display the research plan checklist during execution",
+    )
+
+    # Sample command
+    sample_parser = subparsers.add_parser("sample", help="View samples from the DeepSearchQA dataset")
+    sample_parser.add_argument(
+        "--ids",
+        type=int,
+        nargs="+",
+        metavar="ID",
+        help="Specific example ID(s) to view",
+    )
+    sample_parser.add_argument(
+        "--category",
+        type=str,
+        help="Filter samples by category",
+    )
+    sample_parser.add_argument(
+        "--count",
+        type=int,
+        default=5,
+        help="Number of samples to show (default: 5)",
+    )
+    sample_parser.add_argument(
+        "--random",
+        action="store_true",
+        help="Select random samples instead of first N",
+    )
+    sample_parser.add_argument(
+        "--list-categories",
+        action="store_true",
+        help="List all available categories and exit",
     )
 
     # Tools command
@@ -527,15 +1250,28 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "ask":
-        return asyncio.run(cmd_ask(args.question, args.planning))
+        return asyncio.run(cmd_ask(args.question, args.planning, args.show_plan))
     if args.command == "eval":
-        return asyncio.run(cmd_eval(args.samples, args.category))
+        return asyncio.run(cmd_eval(args.samples, args.category, args.ids, args.show_plan))
+    if args.command == "sample":
+        return cmd_sample(
+            ids=args.ids,
+            category=args.category,
+            count=args.count,
+            random=args.random,
+            list_categories=args.list_categories,
+        )
     if args.command == "tools":
         display_banner()
         display_tools_info()
         return 0
+
+    # Show help for no command or explicit --help
     display_banner()
-    parser.print_help()
+    if args.version:
+        console.print(f"[bold]knowledge-agent[/bold] v{get_version()}")
+        return 0
+    _display_help()
     return 0
 
 

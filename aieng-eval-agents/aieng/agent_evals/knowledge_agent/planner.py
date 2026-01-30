@@ -277,6 +277,33 @@ class StepExecution(BaseModel):
     raw_output: str = ""
 
 
+class PlanReflection(BaseModel):
+    """Result of reflecting on a completed step.
+
+    Attributes
+    ----------
+    decision : str
+        The decision: CONTINUE, ADD_STEPS, SKIP_STEPS, or COMPLETE.
+    reasoning : str
+        Why this decision was made.
+    steps_to_skip : list[int]
+        Step IDs to skip (if decision is SKIP_STEPS).
+    new_steps : list[ResearchStep]
+        New steps to add (if decision is ADD_STEPS).
+    can_answer_now : bool
+        Whether we have enough information to synthesize the answer.
+    key_findings : str
+        Summary of what was learned in this step.
+    """
+
+    decision: str = "CONTINUE"
+    reasoning: str = ""
+    steps_to_skip: list[int] = Field(default_factory=list)
+    new_steps: list[ResearchStep] = Field(default_factory=list)
+    can_answer_now: bool = False
+    key_findings: str = ""
+
+
 PLANNER_SYSTEM_PROMPT = """\
 You are a research planning expert. Your task is to analyze questions and create
 structured research plans that can be executed by a knowledge-grounded QA agent.
@@ -289,28 +316,43 @@ The agent has access to these tools:
 3. **read_pdf**: Read and extract text from PDF documents (SEC filings, research papers, reports)
 4. **synthesis**: Combining information from multiple sources into a coherent answer
 
-## Planning Guidelines
+## CRITICAL Planning Rules
 
-1. **Assess Complexity**:
-   - "simple": Single fact lookup, straightforward question → 1-2 steps
-   - "moderate": Multiple related facts or comparison → 2-4 steps
-   - "complex": Causal reasoning, multi-part analysis → 4+ steps
+### Rule 1: Find ONE Comprehensive Source First
+For questions asking about multiple related items (e.g., "which of these 3 cities...",
+"compare X, Y, and Z..."), ALWAYS:
+- First search for a SINGLE authoritative source that contains ALL the data
+- Then use fetch_url to get that source
+- Then extract ALL data points from that ONE source
+- DO NOT search separately for each item!
 
-2. **Choose Tools Wisely**:
-   - Use web_search first to find relevant sources
-   - Use fetch_url when you need to read the full content of a webpage
-   - Use read_pdf for PDF documents (SEC filings, annual reports, research papers)
-   - Use synthesis as the final step when combining multiple sources
+BAD plan (wasteful):
+1. Search for "data about city A"
+2. Search for "data about city B"
+3. Search for "data about city C"
 
-3. **Create Dependencies**:
-   - Steps should have clear dependencies (depends_on lists)
-   - Later steps can build on earlier findings
-   - Synthesis typically depends on all information-gathering steps
+GOOD plan (efficient):
+1. Search for comprehensive dataset/source that covers all cities
+2. Fetch that authoritative source
+3. Extract all relevant data from that source
+4. Synthesize the answer
 
-4. **Be Efficient**:
-   - Don't create unnecessary steps
-   - Combine related searches when possible
-   - Simple questions don't need complex plans
+### Rule 2: Reuse Fetched Files
+Once a URL is fetched, use grep_file and read_file to extract multiple data points
+from that same file. DO NOT re-fetch or re-search for related data.
+
+### Rule 3: Minimize Searches
+- Aim for 1-2 well-crafted searches, not many narrow searches
+- Search for authoritative/official sources (government data, official statistics)
+- One good source beats many partial sources
+
+## Complexity Assessment
+
+- "simple": Single fact lookup → 1-2 steps
+- "moderate": Multiple related facts from one source → 2-3 steps
+- "complex": Multi-part analysis requiring synthesis → 3-5 steps
+
+Even "complex" questions should use efficient patterns. More steps ≠ better.
 
 ## Output Format
 
@@ -663,6 +705,235 @@ class ResearchPlanner:
             logger.error(f"Error suggesting new steps: {e}")
             return []
 
+    async def reflect_and_update_plan_async(
+        self,
+        plan: ResearchPlan,
+        completed_step: ResearchStep,
+        step_result: str,
+        all_findings: list[str],
+        fetch_url_succeeded: bool = False,
+    ) -> PlanReflection:
+        """Reflect on a completed step and decide how to update the plan.
+
+        This is the core of dynamic planning - after each step, the agent
+        reflects on what was found and decides whether to continue as planned,
+        add new steps, skip steps, or finish early.
+
+        Parameters
+        ----------
+        plan : ResearchPlan
+            The current research plan.
+        completed_step : ResearchStep
+            The step that was just completed.
+        step_result : str
+            The result/output from the completed step.
+        all_findings : list[str]
+            All findings accumulated so far from previous steps.
+        fetch_url_succeeded : bool
+            Whether any fetch_url step has succeeded. Used to prevent
+            premature skipping of fetch_url steps.
+
+        Returns
+        -------
+        PlanReflection
+            The reflection with decision and any plan modifications.
+        """
+        prompt = self._build_reflection_prompt(plan, completed_step, step_result, all_findings)
+
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=types.Content(
+                    role="user",
+                    parts=[types.Part(text=prompt)],
+                ),
+                config=types.GenerateContentConfig(
+                    system_instruction=REFLECTION_SYSTEM_PROMPT,
+                    temperature=0.2,  # Low temperature for consistent decisions
+                ),
+            )
+
+            response_text = response.text or ""
+            reflection = self._parse_reflection_response(response_text, plan.get_next_step_id())
+
+            # Apply reflection (fetch_url_succeeded prevents premature skipping)
+            self._apply_reflection_to_plan(plan, reflection, fetch_url_succeeded)
+
+            logger.info(f"Reflection decision: {reflection.decision} - {reflection.reasoning[:100]}")
+            return reflection
+
+        except Exception as e:
+            logger.error(f"Error during reflection: {e}")
+            # Default to continuing
+            return PlanReflection(
+                decision="CONTINUE",
+                reasoning=f"Continuing due to reflection error: {e}",
+            )
+
+    def _build_reflection_prompt(
+        self,
+        plan: ResearchPlan,
+        completed_step: ResearchStep,
+        step_result: str,
+        all_findings: list[str],
+    ) -> str:
+        """Build the prompt for reflection.
+
+        Parameters
+        ----------
+        plan : ResearchPlan
+            The current research plan.
+        completed_step : ResearchStep
+            The step that was just completed.
+        step_result : str
+            The result from the completed step.
+        all_findings : list[str]
+            All findings so far.
+
+        Returns
+        -------
+        str
+            The reflection prompt.
+        """
+        # Build step status summary
+        status_lines = []
+        for step in plan.steps:
+            status_icon = {
+                StepStatus.COMPLETED: "✓",
+                StepStatus.FAILED: "✗",
+                StepStatus.SKIPPED: "⊘",
+                StepStatus.IN_PROGRESS: "→",
+                StepStatus.PENDING: "○",
+            }.get(step.status, "?")
+
+            line = f"  {status_icon} Step {step.step_id}: {step.description} [{step.tool_hint}]"
+            if step.actual_output:
+                line += f"\n      → {step.actual_output[:150]}..."
+            status_lines.append(line)
+
+        findings_summary = "\n".join(f"  - {f[:200]}" for f in all_findings) if all_findings else "  (none yet)"
+
+        return f"""Original Question: {plan.original_question}
+
+Current Plan Status:
+{chr(10).join(status_lines)}
+
+Just Completed Step {completed_step.step_id}: {completed_step.description}
+Result: {step_result[:500]}
+
+All Findings So Far:
+{findings_summary}
+
+Remaining Pending Steps: {[s.step_id for s in plan.get_steps_by_status(StepStatus.PENDING)]}
+
+Based on this, decide how to proceed. Can we answer the question now? Do we need more research? Should we skip any remaining steps?
+"""
+
+    def _parse_reflection_response(self, response_text: str, next_step_id: int) -> PlanReflection:
+        """Parse the reflection response.
+
+        Parameters
+        ----------
+        response_text : str
+            Raw response from the reflection LLM.
+        next_step_id : int
+            Starting ID for any new steps.
+
+        Returns
+        -------
+        PlanReflection
+            Parsed reflection.
+        """
+        try:
+            text = response_text.strip()
+
+            # Handle markdown code blocks
+            if "```json" in text:
+                start = text.find("```json") + 7
+                end = text.find("```", start)
+                text = text[start:end].strip()
+            elif "```" in text:
+                start = text.find("```") + 3
+                end = text.find("```", start)
+                text = text[start:end].strip()
+
+            data = json.loads(text)
+
+            # Parse new steps if present
+            new_steps = []
+            for i, s in enumerate(data.get("new_steps", [])):
+                step = ResearchStep(
+                    step_id=next_step_id + i,
+                    description=s.get("description", ""),
+                    tool_hint=s.get("tool_hint", "web_search"),
+                    depends_on=s.get("depends_on", []),
+                    expected_output=s.get("expected_output", ""),
+                )
+                new_steps.append(step)
+
+            return PlanReflection(
+                decision=data.get("decision", "CONTINUE"),
+                reasoning=data.get("reasoning", ""),
+                steps_to_skip=data.get("steps_to_skip", []),
+                new_steps=new_steps,
+                can_answer_now=data.get("can_answer_now", False),
+                key_findings=data.get("key_findings", ""),
+            )
+
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.warning(f"Failed to parse reflection response: {e}")
+            return PlanReflection(
+                decision="CONTINUE",
+                reasoning=f"Continuing due to parse error: {e}",
+            )
+
+    def _apply_reflection_to_plan(
+        self,
+        plan: ResearchPlan,
+        reflection: PlanReflection,
+        fetch_url_succeeded: bool = False,
+    ) -> None:
+        """Apply reflection decisions to the plan.
+
+        Parameters
+        ----------
+        plan : ResearchPlan
+            The plan to modify.
+        reflection : PlanReflection
+            The reflection with decisions.
+        fetch_url_succeeded : bool
+            Whether any fetch_url step has successfully completed. If False,
+            fetch_url steps will NOT be skipped even if can_answer_now is True.
+        """
+        # Skip steps if requested (but protect fetch_url if nothing fetched yet)
+        for step_id in reflection.steps_to_skip:
+            step = plan.get_step(step_id)
+            if step and step.tool_hint == "fetch_url" and not fetch_url_succeeded:
+                logger.warning(f"Refusing to skip fetch_url step {step_id} - no URLs have been fetched yet")
+                continue
+            plan.update_step(step_id, status=StepStatus.SKIPPED)
+            logger.info(f"Skipping step {step_id} based on reflection")
+
+        # Add new steps if requested
+        for new_step in reflection.new_steps:
+            plan.add_step(new_step)
+            logger.info(f"Added step {new_step.step_id}: {new_step.description}")
+
+        # If can_answer_now, skip remaining steps (except fetch_url if none fetched)
+        if reflection.can_answer_now:
+            for step in plan.get_steps_by_status(StepStatus.PENDING):
+                if step.tool_hint == "synthesis":
+                    # Never skip synthesis
+                    continue
+                if step.tool_hint == "fetch_url" and not fetch_url_succeeded:
+                    # Don't skip fetch_url steps until we've actually fetched something
+                    logger.warning(
+                        f"NOT skipping fetch_url step {step.step_id} - need to fetch at least one URL before completing"
+                    )
+                    continue
+                plan.update_step(step.step_id, status=StepStatus.SKIPPED)
+                logger.info(f"Skipping step {step.step_id} - can answer now")
+
     def _build_replanning_prompt(
         self,
         plan: ResearchPlan,
@@ -731,21 +1002,30 @@ REPLANNING_SYSTEM_PROMPT = """\
 You are a research planning expert helping to dynamically adjust research plans.
 
 Given the current state of a research plan and recent execution results, suggest
-new steps if needed. Consider:
+new steps if needed.
 
-1. **Failed Steps**: If a step failed, suggest an alternative approach
-   - Try different search terms
-   - Try different sources (web vs PDF)
-   - Try a different angle to find the same information
+## CRITICAL: Avoid Redundant Searches
+- If we already fetched a useful source, extract MORE from that source instead of searching again
+- DO NOT suggest "search for X" if a similar search was already done
+- Each new search should have SIGNIFICANTLY different keywords
 
-2. **Incomplete Information**: If results are partial, add steps to fill gaps
+## When to Add Steps
 
-3. **New Leads**: If new information suggests additional research, add steps
+1. **Better Source Exists**: If current source lacks data, search for a MORE authoritative source
+   - Government statistics portals (ONS, Census Bureau, etc.)
+   - Official databases and datasets
+   - Academic or institutional sources
 
-4. **When NOT to add steps**:
-   - If the question can be answered with current findings
-   - If we've already tried multiple alternatives for the same information
-   - If the failed step was optional
+2. **Extract from Existing**: If we have a good source but need more data from it:
+   - Use grep_file with different patterns
+   - Use read_file for different sections
+   - DO NOT re-search or re-fetch!
+
+## When NOT to Add Steps
+
+- If we already searched 3+ times for similar information
+- If the question can be answered with current findings (even if incomplete)
+- If adding more searches is unlikely to find better data
 
 ## Output Format
 
@@ -759,7 +1039,60 @@ Return a JSON array of new steps (empty array if no new steps needed):
     }
 ]
 
-Keep suggestions focused and avoid redundant steps.
+PREFER empty array [] over adding low-value search steps.
+"""
+
+
+REFLECTION_SYSTEM_PROMPT = """\
+You are a research assistant reflecting on your progress after completing a research step.
+Your job is to analyze what was found and decide how to adjust the research plan.
+
+## Your Decision Options
+
+1. **CONTINUE**: The current plan is good, proceed to the next step
+2. **ADD_STEPS**: Add new steps based on what was discovered
+3. **SKIP_STEPS**: Mark remaining steps as unnecessary if we already have the answer
+4. **COMPLETE**: We have enough information to answer the question now
+
+## CRITICAL Guidelines
+
+### Prefer COMPLETE or SKIP_STEPS over ADD_STEPS
+- If we found PARTIAL information, that's often good enough - mark COMPLETE
+- Don't add more searches hoping for "better" data
+- After 3+ searches, it's better to answer with what we have than keep searching
+
+### When we found a good source
+- If we fetched a useful document, we can extract MORE from it (grep_file, read_file)
+- DO NOT add more web_search steps if we have a relevant source
+- One comprehensive source > many partial searches
+
+### When to ADD_STEPS (rarely)
+- ONLY if we found NO relevant information at all
+- ONLY if there's a clearly better source we should try (official government data, etc.)
+- New steps should use DIFFERENT tools or SIGNIFICANTLY different queries
+
+### Bias Toward Completion
+- An imperfect answer is better than endless searching
+- If we have some relevant data, lean toward COMPLETE
+- Users prefer fast approximate answers over slow exhaustive searches
+
+## Output Format
+
+Return a JSON object:
+{
+    "decision": "CONTINUE|ADD_STEPS|SKIP_STEPS|COMPLETE",
+    "reasoning": "Why this decision makes sense",
+    "steps_to_skip": [2, 3],  // Only if decision is SKIP_STEPS - step IDs to skip
+    "new_steps": [  // Only if decision is ADD_STEPS - keep this short!
+        {
+            "description": "What this step does",
+            "tool_hint": "web_search|fetch_url|read_pdf|synthesis",
+            "expected_output": "What we expect to learn"
+        }
+    ],
+    "can_answer_now": false,  // True if we have enough info - PREFER true!
+    "key_findings": "Brief summary of what was learned in this step"
+}
 """
 
 

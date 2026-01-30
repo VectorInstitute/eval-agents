@@ -111,7 +111,7 @@ class AsyncClientManager:
             The configuration instance.
         """
         if self._configs is None:
-            self._configs = Configs()  # pyright: ignore[reportCallIssue]
+            self._configs = Configs()  # type: ignore[call-arg]
         return self._configs
 
     @property
