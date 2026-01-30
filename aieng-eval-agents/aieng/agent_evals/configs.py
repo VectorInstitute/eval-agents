@@ -59,9 +59,6 @@ class Configs(BaseSettings):
     and a .env file. Service-specific fields are optional - agents validate
     required fields at initialization.
 
-    and a .env file, and provides type-safe access to all settings. It validates
-    environment variables on instantiation.
-
     Examples
     --------
     >>> from aieng.agent_evals.configs import Configs
@@ -178,9 +175,9 @@ class Configs(BaseSettings):
     # Validators for the SecretStr fields
     @field_validator("langfuse_secret_key")
     @classmethod
-    def validate_langfuse_secret(cls, v: SecretStr) -> SecretStr:
+    def validate_langfuse_secret(cls, v: SecretStr | None) -> SecretStr | None:
         """Validate that the Langfuse secret key starts with 'sk-lf-'."""
-        if not v.get_secret_value().startswith("sk-lf-"):
+        if v is not None and not v.get_secret_value().startswith("sk-lf-"):
             raise ValueError("Langfuse secret key must start with 'sk-lf-'")
         return v
 

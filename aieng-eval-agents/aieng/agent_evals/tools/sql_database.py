@@ -287,7 +287,7 @@ class ReadOnlySqlDatabase:
 
                 # Formatting for LLM (String Table)
                 output = [f"| {' | '.join(keys)} |"]
-                output.append(f"| {'---' * len(keys)} |")
+                output.append("| " + " | ".join(["---"] * len(keys)) + " |")
                 for row in rows:
                     output.append(f"| {' | '.join(map(str, row))} |")
 

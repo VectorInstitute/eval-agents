@@ -1,33 +1,105 @@
-# [Implementation Name] Overview
+# Anti-Money Laundering Investigation Agent
 
-## Introduction
-Welcome to the [Implementation Name] of the [Bootcamp/Workshop/Lab/Project Name]. This folder contains a collection of notebooks and a README.md file to enhance your understanding of [specific aspect of the topic]. Here, we will explore [brief description of what will be covered].
+This folder contains a teaching-focused implementation of an AML (Anti‑Money Laundering) investigation workflow:
 
-## Prerequisites
-Before you dive into the materials, ensure you have the following prerequisites:
-- [Software/Tool/Library] version x.x or higher
-- Basic knowledge of [relevant technology or field]
-- [Any other requirement]
+- a small SQLite database built from a transactions dataset,
+- a case generator that produces investigation “case files” (JSONL),
+- an ADK agent that uses a **read-only SQL tool** to investigate each case and write an analysis.
 
-## Notebooks
-Here you will find the following Jupyter notebooks:
-1. **[Subtopic 1]** - This notebook covers [brief description].
-2. **[Subtopic 2] Application** - This notebook covers [brief description].
+The goal is to mirror a real analyst workflow: start from an alert/seed, pull relevant activity in a time window, and decide whether the evidence supports laundering or a benign explanation.
 
-## Package dependencies
-This section describes the packages developed for this specific implementation.
-- **package_a**: [Description of what the package offers and how it is used]
-- **package_b**: [Description of what the package offers and how it is used]
+## Setup
 
-## Resources
-For further reading and additional studies, consider the following resources:
-- [Online course, book, or tutorial 1] - [brief description] ([link])
-- [Online course, book, or tutorial 2] - [brief description] ([link])
+1. If not already present, create a `.env` file (copy from `.env.example`):
 
-## Getting Started
-To get started with the materials in this topic:
-1. Ensure you have followed the [reference to the installation guide, environment creation, etc.] in `docs/`.
-2. Complete any other steps that are required before moving to the notebooks or code.
-3. Move to notebook [notebook name] to [a brief objective of the notebook].
-4. Run code [code name] with the command [command] to [a brief objective of the code].
-5. Add any extra steps if needed.
+```bash
+cp .env.example .env
+```
+
+1. Set the required API key (Gemini via OpenAI-compatible endpoint is used in this repo):
+
+```bash
+GOOGLE_API_KEY="your-api-key"
+```
+
+1. Configure the AML database connection (SQLite by default):
+
+```bash
+AML_DB__DRIVER="sqlite"
+AML_DB__DATABASE="implementations/aml_investigation/data/aml_transactions.db"
+AML_DB__QUERY__MODE="ro"
+```
+
+1. Install dependencies:
+
+```bash
+uv sync
+```
+
+## Create the Database
+
+The CLI downloads a dataset and builds a local SQLite database using the schema in `implementations/aml_investigation/data/schema.ddl`.
+
+```bash
+uv run --env-file .env python -m implementations.aml_investigation.data.cli create-db \
+  --illicit-ratio HI \
+  --transactions-size Small
+```
+
+This writes the SQLite DB at `implementations/aml_investigation/data/aml_transactions.db` by default.
+
+## Generate Case Files (JSONL)
+
+Cases are generated as `CaseRecord` objects (case metadata + ground truth, and later optional model analysis).
+
+```bash
+uv run --env-file .env python -m implementations.aml_investigation.data.cli create-cases \
+  --illicit-ratio HI \
+  --transactions-size Small \
+  --output-dir implementations/aml_investigation/data
+```
+
+Output:
+
+- `implementations/aml_investigation/data/aml_cases.jsonl`
+
+Each case contains:
+
+- `seed_transaction_id`: where the investigation starts,
+- `window_start` and `seed_timestamp`: the time window the analyst must stay within,
+- `trigger_label`: a free-form label describing why the case exists (rule alert, review sample, retrospective review, etc.).
+
+## Run the Agent (Batch)
+
+This reads `aml_cases.jsonl`, runs the agent over any cases missing `analysis`, and writes:
+
+- `implementations/aml_investigation/data/aml_cases_with_analysis.jsonl`
+
+```bash
+uv run --env-file .env implementations/aml_investigation/agent.py
+```
+
+The script prints a simple confusion matrix for `is_laundering` based on the cases that have `analysis`.
+
+## Run with ADK Web UI
+
+If you want to inspect the agent interactively, the module exposes a top-level `root_agent` for ADK discovery.
+
+From `implementations/aml_investigation/`:
+
+```bash
+uv run adk web --port 8000 --reload --reload_agents implementations/
+```
+
+The DB tool is initialized lazily when a tool call happens (so importing the module doesn’t keep a DB connection open).
+
+## Safety Notes (Why Read‑Only SQL?)
+
+Agents should not be allowed to write to operational databases. This repo’s SQL tool is designed to be read-only and defensive:
+
+- it allows only a small set of statement roots (e.g., `SELECT`),
+- it blocks write/DDL nodes anywhere in the parsed SQL AST,
+- it limits rows returned and applies a timeout,
+- it formats results as a small markdown table for LLM consumption.
+
+See `aieng-eval-agents/aieng/agent_evals/tools/sql_database.py`.

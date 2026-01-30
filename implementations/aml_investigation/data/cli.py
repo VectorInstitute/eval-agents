@@ -267,7 +267,7 @@ def create_cases(
         if value < 0:
             raise ValueError(f"{name} must be >= 0")
     if lookback_days == 0:
-        logger.warning("lookback_days=0 creates very narrow windows (can be seed-timestamp-only); consider >= 1.")
+        logger.warning("lookback_days=0 creates very narrow windows (can be seed timestamp only); consider >= 1.")
 
     path_to_transc_csv = download_dataset_file(illicit_ratio, transactions_size, "Trans.csv")
     path_to_patterns_txt = download_dataset_file(illicit_ratio, transactions_size, "Patterns.txt")
