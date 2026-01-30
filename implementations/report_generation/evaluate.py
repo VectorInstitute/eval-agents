@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 import agents
 import click
@@ -10,11 +11,20 @@ from dotenv import load_dotenv
 from langfuse._client.datasets import DatasetItemClient
 from langfuse.experiment import Evaluation
 from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
+from openai.types.responses.response_output_message import ResponseOutputMessage
+from openai.types.responses.response_output_refusal import ResponseOutputRefusal
+from openai.types.responses.response_output_text import ResponseOutputText
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from implementations.report_generation.data.langfuse_upload import DEFAULT_EVALUATION_DATASET_NAME
 from implementations.report_generation.main import get_report_generation_agent
+from implementations.report_generation.prompts import (
+    RESULT_EVALUATOR_INSTRUCTIONS,
+    RESULT_EVALUATOR_TEMPLATE,
+    TRAJECTORY_EVALUATOR_INSTRUCTIONS,
+    TRAJECTORY_EVALUATOR_TEMPLATE,
+)
 
 
 load_dotenv(verbose=True)
@@ -22,32 +32,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger(__name__)
 
 
-EVALUATOR_INSTRUCTIONS = """\
-Evaluate whether the "Proposed Answer" to the given "Question" matches the "Ground Truth"."""
-
-ADDITONAL_EVALUATOR_INSTRUCTIONS = """\
-Disregard the following aspects when comparing the "Proposed Answer" to the "Ground Truth":
-- The order of the items should not matter, unless explicitly specified in the "Question".
-- The formatting of the values should not matter, unless explicitly specified in the "Question".
-- The column and row names have to be similar but not necessarily exact, unless explicitly specified in the "Question".
-- The filename has to be similar by name but not necessarily exact, unless explicitly specified in the "Question".
-- The numerical values should be equal to the second decimal place.
-"""
-
-EVALUATOR_TEMPLATE = """\
-# Question
-
-{question}
-
-# Ground Truth
-
-{ground_truth}
-
-# Proposed Answer
-
-{proposed_response}
-
-"""
+# Will have the structure:
+# {
+#     "final_report": dict[str, Any] | None,
+#     "trajectory": {
+#         "actions": list[str],
+#         "parameters": list[str],
+#     },
+# }
+EvaluationOutput = dict[str, None | Any]
 
 
 class EvaluatorResponse(BaseModel):
@@ -78,7 +71,7 @@ async def evaluate(dataset_name: str):
         name="Evaluate Report Generation Agent",
         description="Evaluate the Report Generation Agent with data from Langfuse",
         task=agent_task,
-        evaluators=[llm_evaluator],
+        evaluators=[final_result_evaluator, trajectory_evaluator],
         max_concurrency=1,
     )
 
@@ -92,7 +85,7 @@ async def evaluate(dataset_name: str):
         logger.warning(f"Client manager services not closed successfully: {e}")
 
 
-async def agent_task(*, item: DatasetItemClient, **kwargs) -> str | None:
+async def agent_task(*, item: DatasetItemClient, **kwargs) -> EvaluationOutput:
     """Run the report generation agent against an item from a Langfuse dataset.
 
     Parameters
@@ -102,30 +95,63 @@ async def agent_task(*, item: DatasetItemClient, **kwargs) -> str | None:
 
     Returns
     -------
-    str | None
-        The arguments sent by the report generation agent to the write_report_to_file
-        function. Returns None if the agent did not call the function.
+    EvaluationOutput
+        The output of the report generation agent with the values it should
+        be evaluated against.
     """
     # Define and run the report generation agent
     report_generation_agent = get_report_generation_agent(enable_trace=True)
     result = await run_agent_with_retry(report_generation_agent, item.input)
 
-    # Extract the report data from the result by returning the
-    # arguments to the write_report_to_file function call
-    # Reversing the responses to get the last write_report_to_file call
-    # in case a failed call has been made first
-    for raw_response in reversed(result.raw_responses):
+    # Extract the report data and trajectory from the agent's response
+    actions = []
+    parameters = []
+    final_report = None
+    for raw_response in result.raw_responses:
         for output in raw_response.output:
-            if isinstance(output, ResponseFunctionToolCall) and "write_report_to_file" in output.name:
-                return output.arguments
+            # The trajectory will be the list of actions and the
+            # parameters passed to each one of them
+            if isinstance(output, ResponseFunctionToolCall):
+                actions.append(output.name)
+                parameters.append(output.arguments)
 
-    logger.warning("No call to write_report_to_file function found in the agent's response")
-    return None
+                # The final report will be the arguments sent by the
+                # write_report_to_file function call
+                # If there is more than one call to the write_report_to_file function,
+                # the last one will be used because the previous calls were likely
+                # failed calls
+                if isinstance(output, ResponseFunctionToolCall) and "write_report_to_file" in output.name:
+                    final_report = output.arguments
+
+            if isinstance(output, ResponseOutputMessage):
+                for content in output.content:
+                    actions.append(content.type)
+                    if isinstance(content, ResponseOutputText):
+                        parameters.append(content.text)
+                    elif isinstance(content, ResponseOutputRefusal):
+                        parameters.append(content.refusal)
+
+    if final_report is None:
+        logger.warning("No call to write_report_to_file function found in the agent's response")
+
+    return {
+        "final_report": final_report,
+        "trajectory": {
+            "actions": actions,
+            "parameters": parameters,
+        },
+    }
 
 
-async def llm_evaluator(*, input: str, output: str, expected_output: str, **kwargs) -> Evaluation:
+async def final_result_evaluator(
+    *,
+    input: str,
+    output: EvaluationOutput,
+    expected_output: EvaluationOutput,
+    **kwargs,
+) -> Evaluation:
     # ruff: noqa: A002
-    """Evaluate the proposed answer against the ground truth.
+    """Evaluate the proposed final answer against the ground truth.
 
     Uses LLM-as-a-judge and returns the reasoning behind the answer.
 
@@ -133,10 +159,11 @@ async def llm_evaluator(*, input: str, output: str, expected_output: str, **kwar
     ----------
     input : str
         The input to the report generation agent.
-    output : str
-        The output of the report generation agent.
-    expected_output : str
-        The expected output of the report generation agent.
+    output : EvaluationOutput
+        The output of the report generation agent with the values it should be
+        evaluated against.
+    expected_output : EvaluationOutput
+        The evaluation output the report generation agent should have.
     kwargs : dict
         Additional keyword arguments.
 
@@ -148,8 +175,8 @@ async def llm_evaluator(*, input: str, output: str, expected_output: str, **kwar
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
     evaluator_agent = agents.Agent(
-        name="Evaluator Agent",
-        instructions=EVALUATOR_INSTRUCTIONS + ADDITONAL_EVALUATOR_INSTRUCTIONS,
+        name="Final Result Evaluator Agent",
+        instructions=RESULT_EVALUATOR_INSTRUCTIONS,
         output_type=EvaluatorResponse,
         model=agents.OpenAIChatCompletionsModel(
             model=client_manager.configs.default_planner_model,
@@ -157,10 +184,10 @@ async def llm_evaluator(*, input: str, output: str, expected_output: str, **kwar
         ),
     )
     # Format the input for the evaluator agent
-    evaluator_input = EVALUATOR_TEMPLATE.format(
+    evaluator_input = RESULT_EVALUATOR_TEMPLATE.format(
         question=input,
-        ground_truth=expected_output,
-        proposed_response=output,
+        ground_truth=expected_output["final_report"],
+        proposed_response=output["final_report"],
     )
     # Run the evaluator agent with retry
     result = await run_agent_with_retry(evaluator_agent, evaluator_input)
@@ -168,7 +195,71 @@ async def llm_evaluator(*, input: str, output: str, expected_output: str, **kwar
 
     # Return the evaluation result
     return Evaluation(
-        name="LLM-as-a-judge",
+        name="Final Result",
+        value=evaluation_response.is_answer_correct,
+        comment=evaluation_response.explanation,
+    )
+
+
+async def trajectory_evaluator(
+    *,
+    input: str,
+    output: EvaluationOutput,
+    expected_output: EvaluationOutput,
+    **kwargs,
+) -> Evaluation:
+    # ruff: noqa: A002
+    """Evaluate the agent's trajectory against the ground truth.
+
+    Uses LLM-as-a-judge and returns the reasoning behind the answer.
+
+    Parameters
+    ----------
+    input : str
+        The input to the report generation agent.
+    output : EvaluationOutput
+        The output of the report generation agent with the values it should be
+        evaluated against.
+    expected_output : EvaluationOutput
+        The evaluation output the report generation agent should have.
+    kwargs : dict
+        Additional keyword arguments.
+
+    Returns
+    -------
+    Evaluation
+        The evaluation result, including the reasoning behind the answer.
+    """
+    # Define the evaluator agent
+    client_manager = AsyncClientManager.get_instance()
+    evaluator_agent = agents.Agent(
+        name="Trajectory Evaluator Agent",
+        instructions=TRAJECTORY_EVALUATOR_INSTRUCTIONS,
+        output_type=EvaluatorResponse,
+        model=agents.OpenAIChatCompletionsModel(
+            model=client_manager.configs.default_planner_model,
+            openai_client=client_manager.openai_client,
+        ),
+    )
+
+    assert isinstance(expected_output["trajectory"], dict), "Expected trajectory must be a dictionary"
+    assert isinstance(output["trajectory"], dict), "Actual trajectory must be a dictionary"
+
+    # Format the input for the evaluator agent
+    evaluator_input = TRAJECTORY_EVALUATOR_TEMPLATE.format(
+        question=input,
+        expected_actions=expected_output["trajectory"]["actions"],
+        expected_descriptions=expected_output["trajectory"]["description"],
+        actual_actions=output["trajectory"]["actions"],
+        actual_parameters=output["trajectory"]["parameters"],
+    )
+    # Run the evaluator agent with retry
+    result = await run_agent_with_retry(evaluator_agent, evaluator_input)
+    evaluation_response = result.final_output_as(EvaluatorResponse)
+
+    # Return the evaluation result
+    return Evaluation(
+        name="Trajectory",
         value=evaluation_response.is_answer_correct,
         comment=evaluation_response.explanation,
     )

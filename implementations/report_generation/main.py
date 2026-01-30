@@ -17,24 +17,13 @@ from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
 
 from implementations.report_generation.file_writer import get_reports_output_path, write_report_to_file
+from implementations.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 
 
 load_dotenv(verbose=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-
-REACT_INSTRUCTIONS = """\
-Perform the task using the SQLite database tool. \
-EACH TIME before invoking the function, you must explain your reasons for doing so. \
-If the SQL query did not return intended results, try again. \
-For best performance, divide complex queries into simpler sub-queries. \
-Do not make up information. \
-When the report is done, use the report file writer tool to write it to a file. \
-Make sure the write_report_to_file tool is called so it generates the report file. \
-At the end, provide the report file as a downloadable hyperlink to the user. \
-Make sure the link can be clicked on by the user.
-"""
 
 LANGFUSE_PROJECT_NAME = "Report Generation"
 
@@ -79,17 +68,24 @@ def get_report_generation_agent(enable_trace: bool = True) -> agents.Agent:
     # Define an agent using the OpenAI Agent SDK
     return agents.Agent(
         name="Report Generation Agent",  # Agent name for logging and debugging purposes
-        instructions=REACT_INSTRUCTIONS,  # System instructions for the agent
+        instructions=MAIN_AGENT_INSTRUCTIONS,  # System instructions for the agent
         # Tools available to the agent
         # We wrap the `search_knowledgebase` method with `function_tool`, which
         # will construct the tool definition JSON schema by extracting the necessary
         # information from the method signature and docstring.
         tools=[
-            agents.function_tool(client_manager.sqlite_connection(get_sqlite_db_path()).execute),
-            agents.function_tool(write_report_to_file),
+            agents.function_tool(
+                client_manager.sqlite_connection(get_sqlite_db_path()).execute,
+                name_override="execute_sql_query",
+                description_override="Execute a SQL query against the SQLite database.",
+            ),
+            agents.function_tool(
+                write_report_to_file,
+                description_override="Write the report data to a file.",
+            ),
         ],
         model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_planner_model,
+            model=client_manager.configs.default_worker_model,
             openai_client=client_manager.openai_client,
         ),
     )
