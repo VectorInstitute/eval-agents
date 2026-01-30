@@ -297,8 +297,7 @@
             "final_report": {
                 "report_data": [
                     ["2010", 196.46396396396398, 789.2065542676543],
-                    ["2011", 342.7430707154745, 2119.856516843317],
-                    ["Overall", 330.3767486671746, 2229.075676652107]
+                    ["2011", 342.7430707154745, 2119.856516843317]
                 ],
                 "report_columns": ["Year", "Average Spent by One-Time Buyers", "Average Spent by All Customers"],
                 "filename": "average_spending_report.xlsx"
@@ -315,7 +314,7 @@
                 "description": [
                     "Check what are the tables that are available in the database",
                     "Check what are the columns that are available in the sales table",
-                    "Query to found out the number of invoices and the total spent by customer",
+                    "Query to find out the number of invoices and the total spent by customer",
                     "Query to retrieve the average spent for one time buyers only, grouped by year",
                     "Send the report data to the function that writes the report to disk",
                     "Output text to the user with the report file as a Gradio hyperlink"
