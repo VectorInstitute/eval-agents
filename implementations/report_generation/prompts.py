@@ -25,7 +25,7 @@ You will be presented with the "Question" that has been asked to the agent along
     - A list of parameters that has been passed to each one of the actions\
 It's OK if the agent makes mistakes and performs additional steps, or if the queries do not exactly match\
 the description, as long as the queries performed end up satisfying the "Question".\
-It is important that the last "output_text" produces a link to the report file.
+It is important that the last action to be of type "output_text" and that itproduces a link to the report file.
 """
 
 TRAJECTORY_EVALUATOR_TEMPLATE = """\

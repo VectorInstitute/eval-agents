@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # Will have the structure:
 # {
-#     "final_report": dict[str, Any] | None,
+#     "final_report": str | None,
 #     "trajectory": {
 #         "actions": list[str],
 #         "parameters": list[str],
