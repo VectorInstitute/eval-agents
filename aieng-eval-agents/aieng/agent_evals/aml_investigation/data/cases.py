@@ -28,14 +28,7 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-__all__ = [
-    "LaunderingPattern",
-    "GroundTruth",
-    "CaseFile",
-    "CaseRecord",
-    "parse_patterns_file",
-    "build_cases",
-]
+__all__ = ["LaunderingPattern", "GroundTruth", "CaseFile", "CaseRecord", "parse_patterns_file", "build_cases"]
 
 _TRANSACTION_ID_COLUMNS = [
     "timestamp",
@@ -192,6 +185,14 @@ def parse_patterns_file(path: str | Path, lookback_days: int = 0, min_timestamp:
                     window_start = apply_lookback_window(
                         txns_sorted[0]["timestamp"], lookback_days, min_timestamp=min_timestamp
                     )
+                    if lookback_days == 0 and window_start == seed_txn["timestamp"]:
+                        candidate_start = _date_window_start(seed_txn["timestamp"])
+                        if min_timestamp:
+                            candidate_dt = _parse_timestamp(candidate_start)
+                            min_dt = _parse_timestamp(min_timestamp)
+                            if candidate_dt < min_dt:
+                                candidate_start = min_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                        window_start = candidate_start
                     attempt_ids = _serialize_attempt_ids([txn["transaction_id"] for txn in txns_sorted])
                     case_file = CaseFile(
                         case_id=_create_id(json.dumps(txns_sorted)),
@@ -334,7 +335,9 @@ def _build_false_negative_cases(
             case_id=_create_id(f"fn:{case.case.case_id}"),
             seed_transaction_id=case.case.seed_transaction_id,
             seed_timestamp=case.case.seed_timestamp,
-            window_start=case.case.window_start,
+            window_start=_date_window_start(case.case.seed_timestamp)
+            if case.case.window_start == case.case.seed_timestamp
+            else case.case.window_start,
             trigger_label=random.choice(_LOW_SIGNAL_REVIEW_LABELS),
         )
         groundtruth = GroundTruth(
@@ -418,6 +421,8 @@ def _build_normal_cases(
     normal_txns = normal_pool.sample(n=sample_count, random_state=42)
     for _, row in normal_txns.iterrows():
         window_start = apply_lookback_window(row["timestamp"], lookback_days, min_timestamp=min_timestamp)
+        if lookback_days == 0 and window_start == row["timestamp"]:
+            window_start = _date_window_start(row["timestamp"])
         case_file = CaseFile(
             case_id=_create_id(row.drop(labels=["transaction_id", "is_laundering"]).to_json()),
             seed_transaction_id=row["transaction_id"],
