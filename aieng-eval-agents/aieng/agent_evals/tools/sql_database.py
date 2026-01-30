@@ -313,7 +313,7 @@ class ReadOnlySqlDatabase:
                 "duration_sec": duration,
                 "error": error_msg,
             }
-            logger.info("AUDIT: %s", log_entry)
+            logger.debug("AUDIT: %s", log_entry)
 
     def close(self) -> None:
         """Dispose of the connection pool."""
