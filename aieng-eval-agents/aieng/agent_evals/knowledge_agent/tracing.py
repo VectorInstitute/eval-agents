@@ -71,8 +71,8 @@ def init_tracing() -> bool:
 
         # Get credentials from configs
         configs = manager.configs
-        public_key = configs.langfuse_public_key
-        secret_key = configs.langfuse_secret_key
+        public_key = configs.langfuse_public_key or ""
+        secret_key = configs.langfuse_secret_key.get_secret_value() if configs.langfuse_secret_key else ""
         langfuse_host = configs.langfuse_host
 
         # Set up OpenTelemetry OTLP exporter to send traces to Langfuse

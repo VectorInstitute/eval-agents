@@ -158,7 +158,9 @@ class AsyncClientManager:
         if self._langfuse_client is None:
             self._langfuse_client = Langfuse(
                 public_key=self.configs.langfuse_public_key,
-                secret_key=self.configs.langfuse_secret_key,
+                secret_key=self.configs.langfuse_secret_key.get_secret_value()
+                if self.configs.langfuse_secret_key
+                else None,
                 host=self.configs.langfuse_host,
             )
             self._initialized = True
