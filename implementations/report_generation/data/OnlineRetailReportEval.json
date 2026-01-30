@@ -110,7 +110,7 @@
                 "description": [
                     "Check what are the tables that are available in the database",
                     "Check what are the columns that are available in the sales table",
-                    "Query to retrieve the average total order value grouped by year-month",
+                    "Query to retrieve the average total order value per invoice grouped by year-month. This can only be properly achieved by using a subselect query to first get the amount per invoice.",
                     "Send the report data to the function that writes the report to disk",
                     "Output text to the user with the report file as a Gradio hyperlink"
                 ]
@@ -158,6 +158,165 @@
                     "Check what are the columns that are available in the sales table",
                     "Query to retrieve the monthly sales grouped by year-month",
                     "Calculate the month-over-month change and the percentage change with the previous query result",
+                    "Send the report data to the function that writes the report to disk",
+                    "Output text to the user with the report file as a Gradio hyperlink"
+                ]
+            }
+        }
+    }, {
+        "id": "5",
+        "input": "Generate a report on sales revenue by country per year.",
+        "expected_output": {
+            "final_report": {
+                "report_data": [
+                    ["2010", "Australia", 1005.1],
+                    ["2010", "Austria", 257.04],
+                    ["2010", "Bahrain", 205.74],
+                    ["2010", "Belgium", 1809.91],
+                    ["2010", "Channel Islands", 363.53],
+                    ["2010", "Cyprus", 1590.82],
+                    ["2010", "Denmark", 1281.5],
+                    ["2010", "EIRE", 9029.95],
+                    ["2010", "Finland", 892.8],
+                    ["2010", "France", 9575.36],
+                    ["2010", "Germany", 14562.84],
+                    ["2010", "Iceland", 711.79],
+                    ["2010", "Israel", -227.44],
+                    ["2010", "Italy", 794.5],
+                    ["2010", "Japan", 7705.07],
+                    ["2010", "Lithuania", 1661.06],
+                    ["2010", "Netherlands", 8784.48],
+                    ["2010", "Norway", 3787.12],
+                    ["2010", "Poland", 248.16],
+                    ["2010", "Portugal", 2380.12],
+                    ["2010", "Spain", 1843.73],
+                    ["2010", "Sweden", 2646.3],
+                    ["2010", "Switzerland", 1304.92],
+                    ["2010", "United Kingdom", 676742.62],
+                    ["2011", "Australia", 136072.17],
+                    ["2011", "Austria", 9897.28],
+                    ["2011", "Bahrain", 342.66],
+                    ["2011", "Belgium", 39101.05],
+                    ["2011", "Brazil", 1143.6],
+                    ["2011", "Canada", 3666.38],
+                    ["2011", "Channel Islands", 19722.76],
+                    ["2011", "Cyprus", 11355.47],
+                    ["2011", "Czech Republic", 707.72],
+                    ["2011", "Denmark", 17486.64],
+                    ["2011", "EIRE", 254246.87],
+                    ["2011", "European Community", 1291.75],
+                    ["2011", "Finland", 21433.94],
+                    ["2011", "France", 187828.54],
+                    ["2011", "Germany", 207135.37],
+                    ["2011", "Greece", 4710.52],
+                    ["2011", "Hong Kong", 10117.04],
+                    ["2011", "Iceland", 3598.21],
+                    ["2011", "Israel", 8135.26],
+                    ["2011", "Italy", 16096.01],
+                    ["2011", "Japan", 27635.55],
+                    ["2011", "Lebanon", 1693.88],
+                    ["2011", "Malta", 2505.47],
+                    ["2011", "Netherlands", 275877.06],
+                    ["2011", "Norway", 31376.34],
+                    ["2011", "Poland", 6964.98],
+                    ["2011", "Portugal", 26986.9],
+                    ["2011", "RSA", 1002.31],
+                    ["2011", "Saudi Arabia", 131.17],
+                    ["2011", "Singapore", 9120.39],
+                    ["2011", "Spain", 52930.85],
+                    ["2011", "Sweden", 33949.61],
+                    ["2011", "Switzerland", 55080.43],
+                    ["2011", "USA", 1730.92],
+                    ["2011", "United Arab Emirates", 1902.28],
+                    ["2011", "United Kingdom", 7511063.74],
+                    ["2011", "Unspecified", 4749.79]
+                ],
+                "report_columns": ["SaleYear", "Country", "Revenue"],
+                "filename": "sales_revenue_by_country_per_year.xlsx"
+            },
+            "trajectory": {
+                "actions": [
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "write_report_to_file",
+                    "output_text"
+                ],
+                "description": [
+                    "Check what are the tables that are available in the database",
+                    "Check what are the columns that are available in the sales table",
+                    "Query to retrtieve the total amount of sales grouped by country and year",
+                    "Send the report data to the function that writes the report to disk",
+                    "Output text to the user with the report file as a Gradio hyperlink"
+                ]
+            }
+        }
+    }, {
+        "id": "6",
+        "input": "Generate a report on the 5 highest-value customers per year vs. the average customer.",
+        "expected_output": {
+            "final_report": {
+                "report_data": [
+                    [2010, 18102, 27834.61, 585.0253375527616],
+                    [2010, 15061, 19950.660000000007, 585.0253375527616],
+                    [2010, 16029, 13112.52, 585.0253375527616],
+                    [2010, 14646, 8591.879999999997, 585.0253375527616],
+                    [2010, 16210, 7000.639999999999, 585.0253375527616],
+                    [2011, 14646, 270897.13999999984, 1825.03812299787],
+                    [2011, 18102, 228603.88000000006, 1825.03812299787],
+                    [2011, 17450, 185453.33000000013, 1825.03812299787],
+                    [2011, 14911, 125815.48999999973, 1825.03812299787],
+                    [2011, 12415, 123725.44999999987, 1825.03812299787]
+                ],
+                "report_columns": ["SaleYear", "CustomerID", "TopCustomerValue", "AverageValue"],
+                "filename": "highest_value_customers_report.xlsx"
+            },
+            "trajectory": {
+                "actions": [
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "write_report_to_file",
+                    "output_text"
+                ],
+                "description": [
+                    "Check what are the tables that are available in the database",
+                    "Check what are the columns that are available in the sales table",
+                    "Query to retrtieve or create a view that containsthe total amount of sales grouped by customer and year",
+                    "Query to retrieve the total amount of sales of the top 5 customers per year, and the average value of all customers",
+                    "Send the report data to the function that writes the report to disk",
+                    "Output text to the user with the report file as a Gradio hyperlink"
+                ]
+            }
+        }
+    }, {
+        "id": "7",
+        "input": "Generate a report on the average amount spent by one time buyers for each year vs. the average customer.",
+        "expected_output": {
+            "final_report": {
+                "report_data": [
+                    ["2010", 196.46396396396398, 789.2065542676543],
+                    ["2011", 342.7430707154745, 2119.856516843317],
+                    ["Overall", 330.3767486671746, 2229.075676652107]
+                ],
+                "report_columns": ["Year", "Average Spent by One-Time Buyers", "Average Spent by All Customers"],
+                "filename": "average_spending_report.xlsx"
+            },
+            "trajectory": {
+                "actions": [
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "execute_sql_query",
+                    "write_report_to_file",
+                    "output_text"
+                ],
+                "description": [
+                    "Check what are the tables that are available in the database",
+                    "Check what are the columns that are available in the sales table",
+                    "Query to found out the number of invoices and the total spent by customer",
+                    "Query to retrieve the average spent for one time buyers only, grouped by year",
                     "Send the report data to the function that writes the report to disk",
                     "Output text to the user with the report file as a Gradio hyperlink"
                 ]
