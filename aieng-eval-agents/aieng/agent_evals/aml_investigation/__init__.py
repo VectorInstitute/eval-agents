@@ -1,4 +1,4 @@
-"""Utilities for the Fraud Investigation agent."""
+"""Utilities for the AML Investigation agent."""
 
 from .policy import RuleBasedTriage, TriageOutcome, TriagePolicyConfig, TriageStrategy
 from .types import AnalystResult, AnalystVerdict, SuspiciousActivityType

@@ -146,6 +146,13 @@ markers = [
     "integration_test: marks tests as integration tests",
 ]
 
+filterwarnings = [
+    # Ignore deprecation warnings from google-adk/google-genai internal code
+    "ignore:deprecated:DeprecationWarning:google.adk.runners",
+    "ignore:Inheritance class AiohttpClientSession:DeprecationWarning:google.genai",
+    "ignore:[EXPERIMENTAL] BaseAgentState:UserWarning:aieng.agent_evals.aml_investigation.workflow",
+]
+
 [tool.coverage]
     [tool.coverage.run]
     source=["aieng-eval-agents/aieng"]

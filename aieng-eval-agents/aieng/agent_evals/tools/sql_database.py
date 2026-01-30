@@ -26,7 +26,7 @@ class ReadOnlySqlDatabase:
     connection_uri : str
         SQLAlchemy connection string (e.g., 'sqlite:///data/prod.db?mode=ro'
         or 'postgresql://reader:pass@host/db').
-    max_rows : int, default=100_000
+    max_rows : int, default=100
         Hard limit on number of rows returned to the agent.
     query_timeout_sec : int, default=60
         Maximum execution time for queries in seconds.
@@ -39,7 +39,7 @@ class ReadOnlySqlDatabase:
     def __init__(
         self,
         connection_uri: str,
-        max_rows: int = 100_000,
+        max_rows: int = 100,
         query_timeout_sec: int = 60,
         agent_name: str = "UnknownAgent",
         **kwargs,
@@ -84,13 +84,13 @@ class ReadOnlySqlDatabase:
             return False
 
     def get_schema_info(self, table_names: Optional[list[str]] = None) -> str:
-        """Return schema for specific tables or all if None.
+        """Return schema for specific tables/views or all if None.
 
         Parameters
         ----------
         table_names : Optional[list[str]], default=None
-            List of table names to retrieve schema for. If ``None``, retrieves all
-            tables.
+            List of table or view names to retrieve schema for. If ``None``,
+            retrieves all tables and views.
 
         Returns
         -------
@@ -99,24 +99,45 @@ class ReadOnlySqlDatabase:
         """
         inspector = inspect(self.engine)
         all_tables = inspector.get_table_names()
+        try:
+            all_views = inspector.get_view_names()
+        except Exception:
+            all_views = []
 
-        # Filter logic
+        # Normalize (name, kind) so we can report both tables and views.
+        all_relations: list[tuple[str, str]] = [(t, "table") for t in all_tables] + [(v, "view") for v in all_views]
+
+        # Filter logic (case-insensitive)
         if table_names:
-            # Case-insensitive matching
-            targets = [table.lower() for table in table_names]
-            tables_to_scan = [table for table in all_tables if table.lower() in targets]
+            targets = {name.lower() for name in table_names}
+            relations_to_scan = [(name, kind) for name, kind in all_relations if name.lower() in targets]
         else:
-            tables_to_scan = all_tables
+            relations_to_scan = all_relations
 
         schema_text = []
-        for table_name in tables_to_scan:
+        for relation_name, relation_kind in relations_to_scan:
+            label = "View" if relation_kind == "view" else "Table"
             try:
-                columns = inspector.get_columns(table_name)
+                columns = inspector.get_columns(relation_name)
                 # Compact Format for LLM: "TableName (col1: type, col2: type)"
                 col_strs = [f"{c['name']}: {str(c['type'])}" for c in columns]
-                schema_text.append(f"Table: {table_name}\n  Columns: {', '.join(col_strs)}")
+                schema_text.append(f"{label}: {relation_name}\n  Columns: {', '.join(col_strs)}")
             except Exception:
-                schema_text.append(f"Table: {table_name} (Error reading schema)")
+                if self.engine.dialect.name == "sqlite":
+                    try:
+                        # SQLite supports PRAGMA table_info for both tables and views.
+                        safe_relation_name = relation_name.replace('"', '""')
+                        with self.engine.connect() as conn:
+                            pragma = conn.execute(text(f'PRAGMA table_info("{safe_relation_name}")'))
+                            pragma_rows = pragma.fetchall()
+                        col_names = [row[1] for row in pragma_rows]
+                        if col_names:
+                            schema_text.append(f"{label}: {relation_name}\n  Columns: {', '.join(col_names)}")
+                            continue
+                    except Exception:
+                        pass
+
+                schema_text.append(f"{label}: {relation_name} (Error reading schema)")
 
         return "\n".join(schema_text)
 
@@ -139,6 +160,11 @@ class ReadOnlySqlDatabase:
             If the query attempts to perform a write operation.
         Exception
             For any database execution errors.
+
+        Notes
+        -----
+        This method enforces a limit on the number of rows returned and logs
+        all query attempts for compliance auditing.
 
         """
         start_time = datetime.now()

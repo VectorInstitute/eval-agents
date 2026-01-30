@@ -7,8 +7,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional
 
 import google.genai.types
-from aieng.agent_evals.fraud_investigation.policy import TriageOutcome, TriageStrategy
-from aieng.agent_evals.fraud_investigation.types import AnalystResult, AnalystVerdict
+from aieng.agent_evals.aml_investigation.policy import TriageOutcome, TriageStrategy
+from aieng.agent_evals.aml_investigation.types import AnalystResult, AnalystVerdict
 from google.adk.agents.base_agent import BaseAgent, BaseAgentState
 from google.adk.events.event import Event
 from pydantic import Field
