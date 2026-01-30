@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+MAX_CONCURRENT_CASES = 5  # Limit for concurrent case analyses
 
 ANALYST_PROMPT = """\
 You are an Anti‑Money Laundering (AML) Investigation Analyst at a financial institution.
@@ -259,7 +260,9 @@ async def _main() -> None:
             session_service=InMemorySessionService(),
             auto_create_session=True,
         )
-        analyzed_by_id = await _analyze_cases_to_jsonl(runner, to_run, asyncio.Semaphore(5), output_path)
+        analyzed_by_id = await _analyze_cases_to_jsonl(
+            runner, to_run, asyncio.Semaphore(MAX_CONCURRENT_CASES), output_path
+        )
         existing_results.update(analyzed_by_id)
         analyzed_count = _write_results(output_path, input_records, existing_results)
         logger.info("Wrote %d analyzed cases to %s", analyzed_count, output_path)
