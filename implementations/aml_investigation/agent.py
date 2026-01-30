@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import uuid
+from functools import lru_cache
 from pathlib import Path
 
 import google.genai.types
@@ -20,92 +21,106 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.tools import FunctionTool
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
 
 logger = logging.getLogger(__name__)
 
+load_dotenv()
+
+
 ANALYST_PROMPT = """\
-You are a newly hired Anti‑Money Laundering (AML) Investigation Analyst at a financial institution.
-Your job is to investigate a single AML case by reviewing transaction activity in our database and documenting
-whether the activity is consistent with money laundering or a benign explanation.
+You are an Anti‑Money Laundering (AML) Investigation Analyst at a financial institution.
+Your job is to investigate one case by reviewing activity in the available database and explaining whether the
+observed behavior within the case window is consistent with money laundering or a benign explanation.
 
 You have access to database query tools. Use them. Do not guess or invent transactions.
 
-## Core Principle: Falsification (Default to Benign)
-Start with the hypothesis that the case is benign (a false positive). Your primary goal is to find positive,
-transaction-level evidence that supports a legitimate explanation. Only conclude laundering when the transaction
-pattern supports it.
+## Core Principle: Falsification
+Start with the hypothesis that the case is benign. Prefer legitimate explanations unless the transaction-level evidence
+supports laundering.
 
-## Your Input (CaseFile JSON)
+## Input
 You will be given a JSON object with these fields:
 - `case_id`: unique case identifier.
-- `seed_transaction_id`: the primary transaction that triggered the case.
+- `seed_transaction_id`: identifier for the primary transaction that triggered the case.
 - `seed_timestamp`: timestamp of the seed transaction (end of the investigation window).
 - `window_start`: timestamp of the beginning of the investigation window.
-- `suspected_pattern_type`: a preliminary label/hint (may be wrong or intentionally misleading).
+- `trigger_label`: upstream alert/review label or heuristic hint (may be wrong).
 
 ### Time Scope Rule (Strict)
-Only analyze transactions with `timestamp` between `window_start` and `seed_timestamp` (inclusive).
-Do not use transactions after `seed_timestamp`.
+Only analyze events with `timestamp` between `window_start` and `seed_timestamp` (inclusive).
+Do not use events after `seed_timestamp`.
 
-## What to Investigate (Standard Workflow)
-1) **Seed review**
-   - Pull the seed transaction details and identify parties (from/to accounts and banks), currencies, amounts, and format.
-2) **Account history within the window**
-   - Pull inbound/outbound activity for the involved accounts within the window.
-3) **Pattern detection**
-   Look for transaction patterns consistent with laundering typologies, such as:
-   - **FAN-IN**: many sources → one account (aggregation).
-   - **FAN-OUT**: one account → many destinations (dispersion).
-   - **GATHER-SCATTER / SCATTER-GATHER**: aggregation then dispersion (or vice‑versa), often over short time windows.
-   - **STACK / LAYERING**: sequential hops meant to obscure origin.
-   - **RANDOM / CYCLE**: complex paths or circular movement.
-   - **BIPARTITE**: two groups of accounts with structured flows between them.
-4) **Legitimate explanations**
-   - If activity is consistent with normal behavior (e.g., payroll, vendor payments, routine transfers),
-     state what makes it consistent and what would have been suspicious but is not present.
+## Investigation Workflow
+1) **Orient**
+   - Treat `trigger_label` as context only. Do not assume it is correct.
+2) **Seed review**
+   - Query the seed event/transaction using `seed_transaction_id`.
+   - Extract key attributes available in this database (e.g., involved parties, amounts, payment channel/instrument).
+3) **Scope and collect**
+   - Pull related activity for involved entities between `window_start` and `seed_timestamp` (inclusive).
+4) **Assess benign explanations (default)**
+   - Try to explain the observed activity as legitimate first.
+   - State what evidence supports the benign hypothesis and what data would be needed to strengthen it.
+5) **Test laundering hypotheses (only if needed)**
+   - Only if benign explanations are insufficient, test whether the evidence supports laundering typologies or other
+     suspicious behavior.
+   - Cite the concrete indicators that rule out benign explanations.
 
-## Your Output (AnalystOutput JSON)
-Return a single JSON object that matches the `AnalystOutput` schema exactly. Fill every field.
+## Typologies / Heuristics
+Look for transaction patterns consistent with laundering typologies, such as:
+- FAN-IN (aggregation): many sources to one destination
+- FAN-OUT (dispersion): one source to many destinations
+- GATHER-SCATTER / SCATTER-GATHER: aggregation then dispersion (or vice‑versa), often over short time windows.
+- STACK / LAYERING: multiple hops meant to obscure origin
+- CYCLE: circular movement
+- RANDOM: complext pattern
+- BIPARTITE: structured flows between two groups
 
-- `summary_narrative` (str):
-  2–3 paragraphs in plain text summarizing what you checked and what you found.
-  Cite specific evidence (transaction IDs, dates/times, amounts, counterparties) and explain your reasoning.
-- `is_laundering` (bool):
-  `true` only when the observed pattern within the window supports laundering; otherwise `false`.
-- `pattern_type` (LaunderingPattern):
-  Your best classification of the dominant pattern observed. Use:
-  - `NONE` if you find no laundering pattern,
-  - `UNKNOWN` if you believe laundering is present but does not match a known pattern well.
-- `pattern_description` (str):
-  A short, human-readable description of the observed pattern (or `"N/A"` when `pattern_type` is `NONE`).
-- `flagged_transaction_ids` (list[str]):
-  The transaction IDs you consider most relevant/suspicious for this case.
-  If `is_laundering` is `false`, this can be an empty list.
+## Output Format
+Return a single JSON object that matches the configured output schema exactly. Fill every field.
+Use `pattern_type = "NONE"` when no laundering pattern is supported by evidence in the investigation window.
 """
 
-client_manager = AsyncClientManager().get_instance()
 
-if client_manager.configs.aml_db is None:
-    raise ValueError("AML database configuration is missing.")
+@lru_cache(maxsize=1)
+def _get_db() -> ReadOnlySqlDatabase:
+    """Lazily construct the read-only database tool from environment configuration."""
+    client_manager = AsyncClientManager().get_instance()
+    if client_manager.configs.aml_db is None:
+        raise ValueError("AML database configuration is missing.")
 
-db = ReadOnlySqlDatabase(
-    connection_uri=client_manager.configs.aml_db.build_uri(),
-    agent_name="FraudInvestigationAnalyst",
-)
+    return ReadOnlySqlDatabase(
+        connection_uri=client_manager.configs.aml_db.build_uri(),
+        agent_name="FraudInvestigationAnalyst",
+    )
 
+
+def _try_close_db() -> None:
+    """Close the lazily initialized database tool if it was created."""
+    if _get_db.cache_info().currsize:
+        _get_db().close()
+        _get_db.cache_clear()
+
+
+# ADK discovery expects a module-level `root_agent`
 root_agent = Agent(
     name="AmlInvestigationAnalyst",
-    description="Conducts detailed multi-step AML investigations with database queries.",
-    tools=[db.execute, db.get_schema_info],
+    description="Conducts multi-step financial crime investigations using database queries.",
+    tools=[FunctionTool(_get_db().get_schema_info), FunctionTool(_get_db().execute)],
     model="gemini-3-flash-preview",
     instruction=ANALYST_PROMPT,
     output_schema=AnalystOutput,
+    generate_content_config=google.genai.types.GenerateContentConfig(
+        thinking_config=google.genai.types.ThinkingConfig(include_thoughts=True)
+    ),
 )
 
 
 def _load_records(path: Path) -> list[CaseRecord]:
+    """Load CaseRecord rows from a JSONL file, skipping invalid lines."""
     if not path.exists():
         return []
 
@@ -123,6 +138,7 @@ def _load_records(path: Path) -> list[CaseRecord]:
 
 
 def _extract_json(text: str) -> dict:
+    """Parse JSON from model output, falling back to the first JSON object substring."""
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -134,6 +150,7 @@ def _extract_json(text: str) -> dict:
 
 
 def _write_results(output_path: Path, input_records: list[CaseRecord], results_by_id: dict[str, CaseRecord]) -> int:
+    """Rewrite the output JSONL with updated analyses, preserving input order."""
     tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     written: set[str] = set()
     analyzed = 0
@@ -153,6 +170,7 @@ def _write_results(output_path: Path, input_records: list[CaseRecord], results_b
 
 
 async def _analyze_case(runner: Runner, record: CaseRecord) -> CaseRecord:
+    """Run the agent on one case and attach the validated AnalystOutput."""
     message = google.genai.types.Content(
         role="user", parts=[google.genai.types.Part(text=record.case.model_dump_json())]
     )
@@ -172,6 +190,7 @@ async def _analyze_case(runner: Runner, record: CaseRecord) -> CaseRecord:
 
 
 async def _safe_analyze_case(runner: Runner, record: CaseRecord) -> CaseRecord:
+    """Analyze a case and swallow exceptions so batch runs continue."""
     try:
         return await _analyze_case(runner, record)
     except Exception as exc:
@@ -185,6 +204,7 @@ async def _analyze_cases_to_jsonl(
     semaphore: asyncio.Semaphore,
     output_path: Path,
 ) -> dict[str, CaseRecord]:
+    """Analyze cases concurrently and append each result to a JSONL output file."""
     if not cases:
         return {}
 
@@ -217,7 +237,7 @@ async def _analyze_cases_to_jsonl(
     return analyzed_by_id
 
 
-async def main() -> None:
+async def _main() -> None:
     """Run the AML investigation agent on cases from JSONL."""
     input_path = Path("implementations/aml_investigation/data/aml_cases.jsonl")
     if not input_path.exists():
@@ -232,14 +252,13 @@ async def main() -> None:
 
     logger.info("Resume: %d/%d done; %d remaining.", len(input_records) - len(to_run), len(input_records), len(to_run))
 
-    runner = Runner(
-        app_name="aml_investigation",
-        agent=root_agent,
-        session_service=InMemorySessionService(),
-        auto_create_session=True,
-    )
-
     try:
+        runner = Runner(
+            app_name="aml_investigation",
+            agent=root_agent,
+            session_service=InMemorySessionService(),
+            auto_create_session=True,
+        )
         analyzed_by_id = await _analyze_cases_to_jsonl(runner, to_run, asyncio.Semaphore(5), output_path)
         existing_results.update(analyzed_by_id)
         analyzed_count = _write_results(output_path, input_records, existing_results)
@@ -266,11 +285,9 @@ async def main() -> None:
             logger.info("  TP=%d  FP=%d", tp, fp)
             logger.info("  FN=%d  TN=%d", fn, tn)
     finally:
-        db.close()
+        _try_close_db()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    load_dotenv()
-
-    asyncio.run(main())
+    asyncio.run(_main())
