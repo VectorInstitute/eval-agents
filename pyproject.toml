@@ -21,6 +21,7 @@ dependencies = [
     "openai-agents>=0.6.1",
     "plotly>=6.5.0",
     "pydantic>=2.12.4",
+    "pydantic-settings>=2.7.0",
     "pydantic-ai-slim[logfire]>=1.26.0",
     "scikit-learn>=1.7.0",
     "weaviate-client>=4.18.3",
@@ -124,8 +125,10 @@ ignore = [
 
 # Ignore import violations in all `__init__.py` files.
 # Ignore missing docstring in `__init__.py` files
+# Ignore E402 in notebooks (imports not at top) as this is expected
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401", "F403", "F811", "D104"]
+"*.ipynb" = ["E402", "D100", "D103"]
 
 
 
@@ -144,6 +147,12 @@ max-doc-length = 88
 [tool.pytest.ini_options]
 markers = [
     "integration_test: marks tests as integration tests",
+]
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    # Ignore deprecation warnings from google-adk/google-genai internal code
+    "ignore:deprecated:DeprecationWarning:google.adk.runners",
+    "ignore:Inheritance class AiohttpClientSession:DeprecationWarning:google.genai",
 ]
 
 [tool.coverage]
