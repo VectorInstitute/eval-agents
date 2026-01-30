@@ -18,24 +18,28 @@ class DatabaseConfig(BaseModel):
         ...,
         description="SQLAlchemy dialect (e.g., 'sqlite', 'postgresql', 'mysql+pymysql').",
     )
-    """SQLAlchemy dialect (e.g., 'sqlite', 'postgresql', 'mysql+pymysql')."""
-    username: str | None = None
-    """Database username. For SQLite or integrated authentication, this can be None."""
-    host: str | None = None
-    """Database host address or file path for SQLite."""
-    password: SecretStr | None = None
-    """Database password. For SQLite or integrated authentication, this can be None."""
-    port: int | None = None
-    """Database port number."""
-    database: str | None = Field(None, description="Database name or file path for SQLite.")
-    """Database name or file path for SQLite."""
-    query: dict[str, Any] = Field(default_factory=dict, description="URL query parameters (e.g. {'mode': 'ro'})")
-    """URL query parameters (e.g. {'mode': 'ro'} for read-only SQLite)."""
+    username: str | None = Field(
+        default=None, description="Database username. For SQLite or integrated authentication, this can be None."
+    )
+    host: str | None = Field(default=None, description="Database host address or file path for SQLite.")
+    password: SecretStr | None = Field(
+        default=None, description="Database password. For SQLite or integrated authentication, this can be None."
+    )
+    port: int | None = Field(default=None, description="Database port number.")
+    database: str | None = Field(default=None, description="Database name or file path for SQLite.")
+    query: dict[str, Any] = Field(
+        default_factory=dict, description="URL query parameters (e.g. {'mode': 'ro'} for read-only SQLite)."
+    )
 
     def build_uri(self) -> str:
         """Construct the SQLAlchemy connection URI safely using the official URL object.
 
         This handles special character escaping in passwords automatically.
+
+        Returns
+        -------
+        str
+            The full database connection URI.
         """
         return URL.create(
             drivername=self.driver,
@@ -73,10 +77,10 @@ class Configs(BaseSettings):
         env_nested_delimiter="__",
     )
 
-    aml_db: DatabaseConfig | None = None
-    """Anti-Money Laundering database configuration. Used by the Fraud Investigation \
-    Agent.
-    """
+    aml_db: DatabaseConfig | None = Field(
+        default=None,
+        description="Anti-Money Laundering database configuration. Used by the Fraud Investigation Agent.",
+    )
 
     # === Core LLM Settings ===
     openai_base_url: str = Field(
@@ -106,7 +110,9 @@ class Configs(BaseSettings):
         default=None,
         description="Langfuse secret key for tracing (must start with 'sk-lf-').",
     )
-    langfuse_host: str = Field(default="https://us.cloud.langfuse.com", description="Langfuse host URL.")
+    langfuse_host: str = Field(
+        default="https://us.cloud.langfuse.com", validation_alias="LANGFUSE_BASE_URL", description="Langfuse base URL."
+    )
 
     # === Embedding Service ===
     embedding_base_url: str | None = Field(default=None, description="Base URL for embedding API service.")
