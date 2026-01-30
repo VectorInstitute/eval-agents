@@ -1,6 +1,7 @@
 """SQL Database Tool with Read-Only Enforcement for Agents."""
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -10,6 +11,31 @@ from sqlglot import exp
 
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["ReadOnlySqlDatabase", "ReadOnlySqlPolicy"]
+
+
+@dataclass(frozen=True)
+class ReadOnlySqlPolicy:
+    """Policy controlling which SQL statements can execute."""
+
+    allowed_roots: tuple[str, ...] = ("select", "union", "paren")
+    forbidden_nodes: tuple[str, ...] = (
+        "create",
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "alter",
+        "truncate_table",
+        "merge",
+        "command",
+        "pragma",
+        "attach",
+        "detach",
+        "set",
+    )
+    allow_multiple_statements: bool = False
 
 
 class ReadOnlySqlDatabase:
@@ -32,8 +58,20 @@ class ReadOnlySqlDatabase:
         Maximum execution time for queries in seconds.
     agent_name : str, default="UnknownAgent"
         Name of the agent using this tool (for audit logs).
+    policy : Optional[ReadOnlySqlPolicy], default=None
+        AST policy controlling what statements are permitted. If ``None``,
+        uses ``ReadOnlySqlPolicy()`` defaults.
     **kwargs : Any
         Additional keyword arguments passed to SQLAlchemy's ``create_engine`` function.
+
+    Raises
+    ------
+    ValueError
+        If any of the parameters are invalid.
+    PermissionError
+        If a query attempts to perform a write operation.
+    Exception
+        For any database execution errors.
     """
 
     def __init__(
@@ -42,42 +80,91 @@ class ReadOnlySqlDatabase:
         max_rows: int = 100,
         query_timeout_sec: int = 60,
         agent_name: str = "UnknownAgent",
+        policy: ReadOnlySqlPolicy | None = None,
         **kwargs,
     ) -> None:
-        """Initialize the database tool."""
+        """Initialize the database tool.
+
+        Note
+        ----
+        ``policy`` is validated at runtime (to fail fast on misconfiguration),
+        even though the public type signature constrains it.
+        """
+        if not connection_uri or not connection_uri.strip():
+            raise ValueError("connection_uri must be a non-empty string.")
+        if max_rows <= 0:
+            raise ValueError("max_rows must be a positive integer.")
+        if query_timeout_sec <= 0:
+            raise ValueError("query_timeout_sec must be a positive integer.")
+        if not agent_name or not agent_name.strip():
+            raise ValueError("agent_name must be a non-empty string.")
+        if policy is not None and not isinstance(policy, ReadOnlySqlPolicy):
+            raise TypeError("policy must be a ReadOnlySqlPolicy or None.")
+
         self.engine = create_engine(connection_uri, **kwargs)
         self.agent_name = agent_name
         self.max_rows = max_rows
         self.timeout = query_timeout_sec
+        self.policy = policy or ReadOnlySqlPolicy()
+        if not self.policy.allowed_roots:
+            raise ValueError("policy.allowed_roots must not be empty.")
+        self._allowed_root_types = _resolve_sqlglot_expression_types(self.policy.allowed_roots)
+        self._forbidden_node_types = _resolve_sqlglot_expression_types(self.policy.forbidden_nodes)
 
     def _is_safe_readonly_query(self, query: str) -> bool:
         """Verify that query is semantically read-only using a SQL Parser (SQLGlot).
 
-        Blocks: DELETE, UPDATE, INSERT, DROP, ALTER, etc.
-        Allows: SELECT, WITH (if read-only), EXPLAIN.
+        Blocks: Based on ``self.policy.forbidden_nodes``.
+        Allows: Based on ``self.policy.allowed_roots``.
+
+        Notes
+        -----
+        - SQLGlot may parse ``WITH ... SELECT ...`` as a ``Select`` root expression,
+          so CTE usage is gated by scanning for CTE/With nodes unless ``"with"`` is
+          present in ``allowed_roots``.
+        - If parsing fails, this method fails closed and returns ``False``.
         """
         try:
             # Parse the query into an AST (Abstract Syntax Tree)
             expressions = sqlglot.parse(query)
+            is_safe = True
 
             if not expressions:
                 # Assume unsafe if we can't parse anything
                 logger.warning("Empty parse result - blocking query")
-                return False
+                is_safe = False
+
+            if is_safe and not self.policy.allow_multiple_statements and len(expressions) > 1:
+                logger.warning("Multiple statements blocked by policy")
+                is_safe = False
+
+            allowed_root_names = {name.lower() for name in self.policy.allowed_roots}
 
             for expression in expressions:
+                if not is_safe:
+                    break
+
                 # Check Root Expression Type
-                if not isinstance(expression, (exp.Select, exp.Union, exp.Paren)):
+                if not isinstance(expression, self._allowed_root_types):
                     logger.warning("Blocked Unsafe Query Type: %s", type(expression))
-                    return False
+                    is_safe = False
+                    break
+
+                # SQLGlot may parse CTEs as part of a SELECT/UNION tree, so we
+                # explicitly gate CTE usage on the presence of "with" in the policy.
+                if "with" not in allowed_root_names and expression.find(exp.With, exp.CTE):
+                    logger.warning("CTE usage blocked by policy")
+                    is_safe = False
+                    break
 
                 # Deep Search for Forbidden Nodes anywhere in the AST
                 # Catches hidden writes inside CTEs or Subqueries
-                if expression.find(exp.Delete, exp.Update, exp.Insert, exp.Drop, exp.Alter, exp.TruncateTable):
+                if self._forbidden_node_types and expression.find(*self._forbidden_node_types):
                     logger.warning("Blocked Query containing Write operation in AST")
-                    return False
+                    is_safe = False
+                    break
 
-            return True
+            return is_safe
         except Exception as e:
             logger.error("SQL Parsing Error: %s", e)
             # If we can't parse it, we don't run it.
@@ -151,8 +238,9 @@ class ReadOnlySqlDatabase:
 
         Returns
         -------
-        list[Any]
-            List of result rows (as tuples or dicts depending on config).
+        str
+            A markdown-formatted table with a header and up to ``max_rows`` rows,
+            or a ``"Query Error: ..."`` string on failure.
 
         Raises
         ------
@@ -165,7 +253,6 @@ class ReadOnlySqlDatabase:
         -----
         This method enforces a limit on the number of rows returned and logs
         all query attempts for compliance auditing.
-
         """
         start_time = datetime.now()
         status = "FAILED"
@@ -231,3 +318,45 @@ class ReadOnlySqlDatabase:
     def close(self) -> None:
         """Dispose of the connection pool."""
         self.engine.dispose(close=True)
+
+
+def _resolve_sqlglot_expression_type(name: str) -> type[exp.Expression]:
+    """Resolve a sqlglot expression name (e.g. ``"select"``) to an Expression class.
+
+    Accepts a few common spellings:
+    - ``"Select"`` or ``"select"`` (camel-cased automatically)
+    - ``"truncate_table"`` or ``"TruncateTable"``
+    - ``"exp.Select"`` (module prefix is ignored)
+
+    Raises ``ValueError`` if the name cannot be resolved to a subclass of
+    ``sqlglot.exp.Expression``.
+    """
+    cleaned = name.strip()
+    if not cleaned:
+        raise ValueError("Expression type name cannot be empty.")
+
+    if cleaned.startswith("exp."):
+        cleaned = cleaned[4:]
+
+    candidate = cleaned.replace("-", "_")
+    camel = "".join(part.capitalize() for part in candidate.split("_"))
+
+    found_non_expression = False
+    for attr in dict.fromkeys((cleaned, candidate, camel)):  # preserve order + de-dupe
+        if not attr:
+            continue
+        resolved = getattr(exp, attr, None)
+        if resolved is None:
+            continue
+        if isinstance(resolved, type) and issubclass(resolved, exp.Expression):
+            return resolved
+        found_non_expression = True
+
+    if found_non_expression:
+        raise ValueError(f"sqlglot expression name {name!r} did not resolve to an Expression type.")
+    raise ValueError(f"Unknown sqlglot expression type: {name!r}")
+
+
+def _resolve_sqlglot_expression_types(names: tuple[str, ...]) -> tuple[type[exp.Expression], ...]:
+    """Resolve many sqlglot expression names into Expression classes."""
+    return tuple(_resolve_sqlglot_expression_type(name) for name in names)

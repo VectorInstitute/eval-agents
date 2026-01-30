@@ -1,6 +1,6 @@
 """Tools."""
 
-from .sql_database import ReadOnlySqlDatabase
+from .sql_database import ReadOnlySqlDatabase, ReadOnlySqlPolicy
 
 
-__all__ = ["ReadOnlySqlDatabase"]
+__all__ = ["ReadOnlySqlDatabase", "ReadOnlySqlPolicy"]
