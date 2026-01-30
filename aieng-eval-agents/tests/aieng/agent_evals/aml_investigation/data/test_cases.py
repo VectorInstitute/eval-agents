@@ -186,9 +186,7 @@ def test_build_cases_builds_each_case_type(patterns_file: Path, transactions_df:
         if (not case.groundtruth.is_laundering) and case.case.trigger_label not in low_signal_labels
     ]
     normals = [
-        case
-        for case in cases
-        if (not case.groundtruth.is_laundering) and case.case.trigger_label in low_signal_labels
+        case for case in cases if (not case.groundtruth.is_laundering) and case.case.trigger_label in low_signal_labels
     ]
 
     assert len(laundering) == 1
@@ -229,15 +227,15 @@ def test_build_cases_validates_inputs(
     patterns_file: Path, transactions: object, kwargs: dict, expected_error: type[Exception]
 ) -> None:
     """Validate input types/values and required transaction columns."""
-    base_kwargs = dict(
-        patterns_filepath=patterns_file,
-        transactions=transactions,
-        num_laundering_cases=0,
-        num_false_positive_cases=0,
-        num_false_negative_cases=0,
-        num_normal_cases=0,
-        lookback_days=0,
-    )
+    base_kwargs = {
+        "patterns_filepath": patterns_file,
+        "transactions": transactions,
+        "num_laundering_cases": 0,
+        "num_false_positive_cases": 0,
+        "num_false_negative_cases": 0,
+        "num_normal_cases": 0,
+        "lookback_days": 0,
+    }
     base_kwargs.update(kwargs)
     with pytest.raises(expected_error):
         build_cases(**base_kwargs)
