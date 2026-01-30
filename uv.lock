@@ -151,6 +151,7 @@ source = { editable = "aieng-eval-agents" }
 dependencies = [
     { name = "google-adk" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "kagglehub" },
     { name = "langfuse" },
     { name = "openinference-instrumentation-google-adk" },
@@ -160,7 +161,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pypdf" },
+    { name = "python-dotenv" },
     { name = "rich" },
+    { name = "tenacity" },
 ]
 
 [package.dev-dependencies]
@@ -172,6 +175,7 @@ dev = [
 requires-dist = [
     { name = "google-adk", specifier = ">=1.23.0" },
     { name = "google-genai", specifier = ">=1.52.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "kagglehub", specifier = ">=0.4.1" },
     { name = "langfuse", specifier = ">=3.10.3" },
     { name = "openinference-instrumentation-google-adk", specifier = ">=0.1.0" },
@@ -181,7 +185,9 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pypdf" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.9.0" },
+    { name = "tenacity", specifier = ">=8.2.0" },
 ]
 
 [package.metadata.requires-dev]

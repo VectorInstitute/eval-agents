@@ -1,19 +1,58 @@
 """Web tools for URL fetching and PDF reading.
 
 Simple function-based tools for ADK agents to fetch web content
-and read PDF documents.
+and read PDF documents. Designed for efficient context management -
+fetch once, search multiple times.
 """
 
+import hashlib
 import logging
+import os
 import re
+import tempfile
+from functools import lru_cache
 from io import BytesIO
 from typing import Any
 
 import httpx
 from google.adk.tools.function_tool import FunctionTool
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
+
+
+# Retry decorator for transient network errors
+_http_retry = retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+    reraise=True,
+)
+
+
+@lru_cache(maxsize=1)
+def _get_cache_dir() -> str:
+    """Get or create the cache directory for fetched content."""
+    cache_dir = os.path.join(tempfile.gettempdir(), "agent_web_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    return cache_dir
+
+
+def _url_to_filename(url: str) -> str:
+    """Convert URL to a safe filename."""
+    url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
+    # Extract domain and path for readability
+    safe_name = re.sub(r"[^\w\-.]", "_", url.split("//")[-1][:50])
+    return f"{safe_name}_{url_hash}.txt"
+
+
+@_http_retry
+def _fetch_with_retry(client: httpx.Client, url: str) -> httpx.Response:
+    """Fetch URL with automatic retry on transient failures."""
+    response = client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
+    response.raise_for_status()
+    return response
 
 
 def _html_to_text(html: str) -> str:
@@ -46,32 +85,30 @@ def _html_to_text(html: str) -> str:
     return text.strip()
 
 
-def fetch_url(url: str, max_length: int = 50000) -> dict[str, Any]:
-    """Fetch content from a URL and return as text.
+def fetch_url(url: str) -> dict[str, Any]:
+    """Fetch content from a URL and save it locally for searching.
 
-    Use this tool to read the content of a webpage. Returns the text
-    content extracted from the HTML, suitable for analysis.
+    This tool fetches a webpage, extracts text, and saves it to a local file.
+    Use the returned 'file_path' with grep_file or read_file to find specific
+    information without loading the entire content into context.
 
     Parameters
     ----------
     url : str
         The URL to fetch. Must be a valid HTTP or HTTPS URL.
-    max_length : int, optional
-        Maximum characters to return (default 50000).
 
     Returns
     -------
     dict
-        Contains 'content' (the text), 'url', 'status', and 'content_type'.
-        On error, contains 'error' message instead of 'content'.
+        On success: 'status', 'file_path' (IMPORTANT: use this exact path with
+        grep_file/read_file), 'url', 'length', 'preview'.
+        On error: 'status', 'error', 'url'.
     """
     logger.info(f"Fetching URL: {url}")
 
     try:
         with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-            response = client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
-            response.raise_for_status()
-
+            response = _fetch_with_retry(client, url)
             content_type = response.headers.get("content-type", "")
 
             # Handle different content types
@@ -86,16 +123,24 @@ def fetch_url(url: str, max_length: int = 50000) -> dict[str, Any]:
             # For HTML, extract text; for plain text or other types, use directly
             text = _html_to_text(response.text) if "text/html" in content_type or not content_type else response.text
 
-            # Truncate if too long
-            if len(text) > max_length:
-                text = text[:max_length] + f"\n\n[Content truncated at {max_length} characters]"
+            # Save to local file
+            cache_dir = _get_cache_dir()
+            filename = _url_to_filename(url)
+            file_path = os.path.join(cache_dir, filename)
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(text)
+
+            # Return metadata with preview (not full content)
+            preview = text[:500] + "..." if len(text) > 500 else text
 
             return {
                 "status": "success",
-                "content": text,
-                "url": str(response.url),  # Final URL after redirects
-                "content_type": content_type,
+                "file_path": file_path,
+                "url": str(response.url),
                 "length": len(text),
+                "preview": preview,
+                "next_step": f"Use grep_file(file_path='{file_path}', pattern='your search terms') to search this file.",
             }
 
     except httpx.HTTPStatusError as e:
@@ -118,6 +163,175 @@ def fetch_url(url: str, max_length: int = 50000) -> dict[str, Any]:
             "status": "error",
             "error": f"Unexpected error: {str(e)}",
             "url": url,
+        }
+
+
+def grep_file(
+    file_path: str,
+    pattern: str,
+    context_lines: int = 5,
+    max_results: int = 10,
+) -> dict[str, Any]:
+    """Search a file for lines matching a pattern.
+
+    A general-purpose grep tool that searches any text file for matching lines
+    and returns the matches with surrounding context. Works with any file path.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the file to search.
+    pattern : str
+        Search pattern. Can be comma-separated terms for OR matching.
+        Example: "operating expenses, total costs" matches lines with either term.
+    context_lines : int, optional
+        Number of lines of context around each match (default 5).
+    max_results : int, optional
+        Maximum number of matching sections to return (default 10).
+
+    Returns
+    -------
+    dict
+        Contains 'matches' (list of matching sections with line numbers and context),
+        'total_matches', and 'patterns'. On error, contains 'error' message.
+    """
+    logger.info(f"Grep {file_path} for: {pattern}")
+
+    try:
+        if not os.path.exists(file_path):
+            return {
+                "status": "error",
+                "error": f"File not found: {file_path}",
+            }
+
+        with open(file_path, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # Parse patterns (comma-separated for OR matching)
+        patterns = [p.strip().lower() for p in pattern.split(",") if p.strip()]
+        if not patterns:
+            return {
+                "status": "error",
+                "error": "No valid pattern provided.",
+            }
+
+        # Find matching lines
+        matches: list[dict[str, Any]] = []
+        used_ranges: set[int] = set()
+
+        for line_num, line in enumerate(lines):
+            line_lower = line.lower()
+
+            # Check if any pattern matches
+            matched_patterns = [p for p in patterns if p in line_lower]
+            if not matched_patterns:
+                continue
+
+            # Skip if this line is already covered by a previous match
+            if line_num in used_ranges:
+                continue
+
+            # Extract context around match
+            start = max(0, line_num - context_lines)
+            end = min(len(lines), line_num + context_lines + 1)
+
+            # Mark these lines as used
+            used_ranges.update(range(start, end))
+
+            context_text = "".join(lines[start:end]).strip()
+            matches.append(
+                {
+                    "line_number": line_num + 1,
+                    "matched_patterns": matched_patterns,
+                    "context": context_text,
+                }
+            )
+
+            if len(matches) >= max_results:
+                break
+
+        if not matches:
+            return {
+                "status": "success",
+                "matches": [],
+                "total_matches": 0,
+                "patterns": patterns,
+                "message": f"No matches found for: {', '.join(patterns)}",
+            }
+
+        return {
+            "status": "success",
+            "matches": matches,
+            "total_matches": len(matches),
+            "patterns": patterns,
+        }
+
+    except Exception as e:
+        logger.exception(f"Error in grep_file {file_path}")
+        return {
+            "status": "error",
+            "error": f"Grep failed: {str(e)}",
+        }
+
+
+def read_file(
+    file_path: str,
+    start_line: int = 1,
+    num_lines: int = 100,
+) -> dict[str, Any]:
+    """Read a specific section of a fetched file.
+
+    Use this tool to read a specific portion of a large document,
+    useful after using search_fetched_content to identify relevant sections.
+
+    Parameters
+    ----------
+    file_path : str
+        Path to the fetched content file (from fetch_url result).
+    start_line : int, optional
+        Line number to start reading from (1-indexed, default 1).
+    num_lines : int, optional
+        Number of lines to read (default 100).
+
+    Returns
+    -------
+    dict
+        Contains 'content' (the text section), 'start_line', 'end_line',
+        and 'total_lines'. On error, contains 'error' message.
+    """
+    logger.info(f"Reading {file_path} from line {start_line}")
+
+    try:
+        if not os.path.exists(file_path):
+            return {
+                "status": "error",
+                "error": f"File not found: {file_path}. Use fetch_url first.",
+            }
+
+        with open(file_path, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        total_lines = len(lines)
+
+        # Convert to 0-indexed
+        start_idx = max(0, start_line - 1)
+        end_idx = min(total_lines, start_idx + num_lines)
+
+        content = "".join(lines[start_idx:end_idx])
+
+        return {
+            "status": "success",
+            "content": content,
+            "start_line": start_idx + 1,
+            "end_line": end_idx,
+            "total_lines": total_lines,
+        }
+
+    except Exception as e:
+        logger.exception(f"Error reading {file_path}")
+        return {
+            "status": "error",
+            "error": f"Read failed: {str(e)}",
         }
 
 
@@ -227,9 +441,31 @@ def create_fetch_url_tool() -> FunctionTool:
     Returns
     -------
     FunctionTool
-        Tool that fetches and extracts text from web pages.
+        Tool that fetches web pages and saves them locally.
     """
     return FunctionTool(func=fetch_url)
+
+
+def create_grep_file_tool() -> FunctionTool:
+    """Create an ADK FunctionTool for grep-style file searching.
+
+    Returns
+    -------
+    FunctionTool
+        Tool that searches files for matching patterns.
+    """
+    return FunctionTool(func=grep_file)
+
+
+def create_read_file_tool() -> FunctionTool:
+    """Create an ADK FunctionTool for reading file sections.
+
+    Returns
+    -------
+    FunctionTool
+        Tool that reads specific sections of saved content.
+    """
+    return FunctionTool(func=read_file)
 
 
 def create_read_pdf_tool() -> FunctionTool:

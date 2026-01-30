@@ -24,7 +24,12 @@ from .grounding_tool import (
     create_google_search_tool,
 )
 from .planner import ResearchPlan, ResearchPlanner, StepExecution
-from .web_tools import create_fetch_url_tool, create_read_pdf_tool
+from .web_tools import (
+    create_fetch_url_tool,
+    create_grep_file_tool,
+    create_read_file_tool,
+    create_read_pdf_tool,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -538,57 +543,56 @@ questions accurately by using multiple tools strategically.
 
 ## CRITICAL RULES
 
-1. **Factual Grounding**: Only include facts/numbers you actually read in fetched content.
-   Never guess or fabricate data.
+1. **ALWAYS VERIFY with fetch_url**: Search snippets are NOT sufficient for factual answers.
+   You MUST use fetch_url to get the actual webpage content before citing any facts.
 
-2. **Persistence**: Be thorough before giving up. If one approach fails, try alternatives.
-   For comparison questions, you MUST attempt to gather data on ALL items being compared.
+2. **Factual Grounding**: Only include facts/numbers you actually read in fetched content.
+   Never guess or fabricate data. Never trust search snippets alone.
+
+3. **Persistence**: Be thorough before giving up. If one approach fails, try alternatives.
 
 ## Available Tools
 
-1. **google_search**: Search the web for current information and find relevant sources.
+1. **google_search**: Search the web to find relevant URLs. Returns search snippets.
+   NOTE: Snippets are for finding URLs only - ALWAYS fetch the actual page to verify facts!
 
-2. **fetch_url**: Fetch and read the full content of a webpage URL.
-   Use this to read pages from search results - don't rely only on snippets!
+2. **fetch_url**: Fetch a webpage and save it locally. Returns file_path and preview.
+   ALWAYS use this to get actual content before answering.
 
-3. **read_pdf**: Read and extract text from PDF documents at a URL.
+3. **grep_file**: Search within a fetched file for specific patterns.
+   Parameters: file_path, pattern (comma-separated terms)
+   Returns matching lines with line numbers. Use to locate relevant sections.
 
-## Research Strategy
+4. **read_file**: Read a section of a fetched file.
+   Parameters: file_path, start_line (default 1), num_lines (default 100)
+   Use AFTER grep_file to read more context around matches.
 
-1. **Search First**: Start with google_search to find relevant sources.
+5. **read_pdf**: Read PDF documents from a URL.
 
-2. **Fetch Actual Content**: Use fetch_url to read pages you find. Search snippets
-   alone are not sufficient for detailed questions.
+## MANDATORY Research Workflow
 
-3. **Handle Failures**: When a URL fails (404, timeout, etc.):
-   - Try searching for alternative URLs to the same content
-   - Look for the same information from different sources
-   - Try different file formats (HTML vs PDF)
-   - Do NOT give up after one or two failures
+For EVERY question, you MUST follow this workflow:
 
-4. **Handle Truncated Content**: If content is truncated, look for:
-   - Smaller, more focused documents on the same topic
-   - Summary pages or data tables
-   - Alternative sources with the same information
+1. **Search** → google_search to find relevant URLs
+2. **Fetch** → fetch_url on promising URLs to get actual content
+3. **Grep** → grep_file to find specific data (returns line numbers)
+4. **Read** → read_file to get more context around grep matches
+5. **Answer** → Only after reading actual content
 
-5. **Self-Reflect Before Giving Up**: Before concluding you cannot answer, ask yourself:
-   - Have I tried all the items/entities in the question?
-   - Have I tried alternative sources for each?
-   - Have I tried different search queries?
-   - What else could I try?
+NEVER answer based only on search snippets. ALWAYS fetch and read the actual source.
 
-6. **For Comparison Questions**: If comparing multiple items (companies, products, etc.):
-   - You MUST attempt to find data for EACH item
-   - Don't stop after failing on the first item
-   - Only conclude "cannot answer" after trying ALL items
+Example workflow:
+1. google_search("Apple Q4 2023 revenue") → finds investor.apple.com URL
+2. fetch_url("https://investor.apple.com/...") → saves to file_path
+3. grep_file(file_path, "revenue, Q4, 2023") → finds matches at line 150
+4. read_file(file_path, start_line=140, num_lines=50) → reads context
+5. Answer with the verified data
 
 ## Response Format
 
-- Provide a clear, direct answer backed by sources
+- Provide a clear, direct answer backed by fetched sources
 - Cite the source URL for key facts
-- If you couldn't find specific information after exhaustive searching, state what
-  you tried and what you couldn't find
-- Do NOT include data you didn't actually find in your sources
+- If you couldn't find information, state what URLs you tried to fetch
 """
 
 
@@ -644,6 +648,8 @@ class EnhancedKnowledgeAgent:
         # Create tools
         self._search_tool = create_google_search_tool()
         self._fetch_url_tool = create_fetch_url_tool()
+        self._grep_file_tool = create_grep_file_tool()
+        self._read_file_tool = create_read_file_tool()
         self._read_pdf_tool = create_read_pdf_tool()
 
         # Create ADK agent with multiple tools
@@ -651,7 +657,13 @@ class EnhancedKnowledgeAgent:
             name="enhanced_knowledge_agent",
             model=self.model,
             instruction=ENHANCED_SYSTEM_INSTRUCTIONS,
-            tools=[self._search_tool, self._fetch_url_tool, self._read_pdf_tool],
+            tools=[
+                self._search_tool,
+                self._fetch_url_tool,
+                self._grep_file_tool,
+                self._read_file_tool,
+                self._read_pdf_tool,
+            ],
         )
 
         # Create planner if enabled

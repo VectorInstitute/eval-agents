@@ -1,13 +1,19 @@
 """Tests for the web tools module."""
 
+import os
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_agent.web_tools import (
     _html_to_text,
     create_fetch_url_tool,
+    create_grep_file_tool,
+    create_read_file_tool,
     create_read_pdf_tool,
     fetch_url,
+    grep_file,
+    read_file,
     read_pdf,
 )
 
@@ -48,7 +54,7 @@ class TestFetchUrl:
 
     @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
     def test_fetch_success(self, mock_client_class):
-        """Test successful URL fetch."""
+        """Test successful URL fetch saves file and returns path."""
         mock_response = MagicMock()
         mock_response.text = "<html><body><p>Hello World</p></body></html>"
         mock_response.headers = {"content-type": "text/html"}
@@ -63,7 +69,13 @@ class TestFetchUrl:
         result = fetch_url("https://example.com")
 
         assert result["status"] == "success"
-        assert "Hello World" in result["content"]
+        assert "file_path" in result
+        assert "preview" in result
+        assert "Hello World" in result["preview"]
+        assert os.path.exists(result["file_path"])
+
+        # Cleanup
+        os.remove(result["file_path"])
 
     @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
     def test_fetch_pdf_redirect(self, mock_client_class):
@@ -84,9 +96,9 @@ class TestFetchUrl:
         assert "read_pdf" in result["error"]
 
     @patch("aieng.agent_evals.knowledge_agent.web_tools.httpx.Client")
-    def test_fetch_truncates_long_content(self, mock_client_class):
-        """Test that long content is truncated."""
-        long_text = "A" * 100000
+    def test_fetch_returns_length(self, mock_client_class):
+        """Test that fetch returns content length."""
+        long_text = "A" * 10000
         mock_response = MagicMock()
         mock_response.text = f"<html><body>{long_text}</body></html>"
         mock_response.headers = {"content-type": "text/html"}
@@ -98,11 +110,114 @@ class TestFetchUrl:
         mock_client.__exit__ = MagicMock(return_value=False)
         mock_client_class.return_value = mock_client
 
-        result = fetch_url("https://example.com", max_length=1000)
+        result = fetch_url("https://example.com")
 
         assert result["status"] == "success"
-        assert len(result["content"]) < 1100  # 1000 + truncation message
-        assert "truncated" in result["content"]
+        assert result["length"] == 10000  # Just the As, no HTML tags
+        assert os.path.exists(result["file_path"])
+
+        # Cleanup
+        os.remove(result["file_path"])
+
+
+class TestGrepFile:
+    """Tests for the grep_file function (general-purpose file search)."""
+
+    def test_search_finds_matches(self):
+        """Test that search finds matching lines."""
+        # Create a temp file with test content - spread out so matches don't overlap
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            for i in range(50):
+                if i == 10:
+                    f.write(f"Line {i}: operating expenses were $100\n")
+                elif i == 40:
+                    f.write(f"Line {i}: total costs increased by 10%\n")
+                else:
+                    f.write(f"Line {i}: Regular content\n")
+            temp_path = f.name
+
+        try:
+            result = grep_file(temp_path, "operating expenses, total costs", context_lines=5)
+
+            assert result["status"] == "success"
+            assert result["total_matches"] == 2
+            assert len(result["matches"]) == 2
+            assert "operating expenses" in result["patterns"]
+        finally:
+            os.remove(temp_path)
+
+    def test_search_no_matches(self):
+        """Test search with no matching terms."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("Line 1: Hello world\n")
+            f.write("Line 2: Goodbye world\n")
+            temp_path = f.name
+
+        try:
+            result = grep_file(temp_path, "foobar, nonexistent")
+
+            assert result["status"] == "success"
+            assert result["total_matches"] == 0
+            assert "No matches found" in result["message"]
+        finally:
+            os.remove(temp_path)
+
+    def test_search_file_not_found(self):
+        """Test search with non-existent file."""
+        result = grep_file("/nonexistent/path.txt", "test")
+
+        assert result["status"] == "error"
+        assert "File not found" in result["error"]
+
+    def test_search_returns_context(self):
+        """Test that search returns context around matches."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            for i in range(20):
+                if i == 10:
+                    f.write(f"Line {i}: operating expenses data here\n")
+                else:
+                    f.write(f"Line {i}: Regular content\n")
+            temp_path = f.name
+
+        try:
+            result = grep_file(temp_path, "operating expenses", context_lines=3)
+
+            assert result["status"] == "success"
+            assert len(result["matches"]) == 1
+            # Context should include surrounding lines
+            context = result["matches"][0]["context"]
+            assert "operating expenses" in context
+        finally:
+            os.remove(temp_path)
+
+
+class TestReadFileSection:
+    """Tests for the read_file function."""
+
+    def test_read_section(self):
+        """Test reading a section of a file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            for i in range(100):
+                f.write(f"Line {i + 1}: Content\n")
+            temp_path = f.name
+
+        try:
+            result = read_file(temp_path, start_line=10, num_lines=5)
+
+            assert result["status"] == "success"
+            assert result["start_line"] == 10
+            assert result["end_line"] == 14  # 5 lines from 10 = lines 10-14 (indices 9-13)
+            assert "Line 10" in result["content"]
+            assert "Line 14" in result["content"]
+        finally:
+            os.remove(temp_path)
+
+    def test_read_section_file_not_found(self):
+        """Test reading from non-existent file."""
+        result = read_file("/nonexistent/path.txt")
+
+        assert result["status"] == "error"
+        assert "File not found" in result["error"]
 
 
 class TestReadPdf:
@@ -167,6 +282,18 @@ class TestToolCreation:
         assert tool is not None
         assert tool.func == fetch_url
 
+    def test_create_grep_file_tool(self):
+        """Test that grep file tool is created correctly."""
+        tool = create_grep_file_tool()
+        assert tool is not None
+        assert tool.func == grep_file
+
+    def test_create_read_file_tool(self):
+        """Test that read file section tool is created correctly."""
+        tool = create_read_file_tool()
+        assert tool is not None
+        assert tool.func == read_file
+
     def test_create_read_pdf_tool(self):
         """Test that read PDF tool is created correctly."""
         tool = create_read_pdf_tool()
@@ -179,10 +306,29 @@ class TestWebToolsIntegration:
     """Integration tests for web tools (requires network)."""
 
     def test_fetch_url_real(self):
-        """Test fetching a real URL."""
-        result = fetch_url("https://httpbin.org/html")
+        """Test fetching a real URL saves file."""
+        result = fetch_url("https://www.iana.org/help/example-domains")
         assert result["status"] == "success"
-        assert "Herman Melville" in result["content"]  # httpbin returns Moby Dick excerpt
+        assert "file_path" in result
+        assert os.path.exists(result["file_path"])
+        # Check preview contains expected content (IANA page about example domains)
+        assert "example" in result["preview"].lower()
+        # Cleanup
+        os.remove(result["file_path"])
+
+    def test_fetch_and_search_real(self):
+        """Test fetch then search workflow."""
+        # Fetch
+        fetch_result = fetch_url("https://www.iana.org/help/example-domains")
+        assert fetch_result["status"] == "success"
+
+        # Search
+        search_result = grep_file(fetch_result["file_path"], "example, domain")
+        assert search_result["status"] == "success"
+        assert search_result["total_matches"] >= 1
+
+        # Cleanup
+        os.remove(fetch_result["file_path"])
 
     def test_read_pdf_real(self):
         """Test reading a real PDF."""

@@ -61,8 +61,12 @@ from .planner import (
 from .tracing import flush_traces, init_tracing, is_tracing_enabled
 from .web_tools import (
     create_fetch_url_tool,
+    create_grep_file_tool,
+    create_read_file_tool,
     create_read_pdf_tool,
     fetch_url,
+    grep_file,
+    read_file,
     read_pdf,
 )
 
@@ -111,7 +115,11 @@ __all__ = [
     "flush_traces",
     # Web tools
     "fetch_url",
+    "grep_file",
+    "read_file",
     "read_pdf",
     "create_fetch_url_tool",
+    "create_grep_file_tool",
+    "create_read_file_tool",
     "create_read_pdf_tool",
 ]
