@@ -67,6 +67,8 @@ class LaunderingPattern(str, Enum):
 
 
 _RANDOM_PATTERN_TYPES = [pattern.value for pattern in LaunderingPattern if pattern not in {LaunderingPattern.NONE}]
+_LOW_SIGNAL_REVIEW_LABELS = ["QA_SAMPLE", "RANDOM_REVIEW", "RETROSPECTIVE_REVIEW", "MODEL_MONITORING_SAMPLE"]
+_FALSE_POSITIVE_TRIGGER_LABELS = ["ANOMALOUS_BEHAVIOR_ALERT", "LAW_ENFORCEMENT_REFERRAL", "EXTERNAL_TIP"]
 
 
 class CaseFile(BaseModel):
@@ -81,8 +83,8 @@ class CaseFile(BaseModel):
     """The timestamp of the seed transaction."""
     window_start: str
     """The start timestamp of the case window."""
-    suspected_pattern_type: str
-    """The type of laundering pattern suspected in the case."""
+    trigger_label: str
+    """Upstream alert/review trigger label or heuristic hint for this case."""
 
 
 class GroundTruth(BaseModel):
@@ -196,7 +198,7 @@ def parse_patterns_file(path: str | Path, lookback_days: int = 0, min_timestamp:
                         seed_transaction_id=seed_txn["transaction_id"],
                         seed_timestamp=seed_txn["timestamp"],
                         window_start=window_start,
-                        suspected_pattern_type=current["pattern_type"],
+                        trigger_label=current["pattern_type"],
                     )
                     groundtruth = GroundTruth(
                         is_laundering=True,
@@ -333,7 +335,7 @@ def _build_false_negative_cases(
             seed_transaction_id=case.case.seed_transaction_id,
             seed_timestamp=case.case.seed_timestamp,
             window_start=case.case.window_start,
-            suspected_pattern_type="UNKNOWN",
+            trigger_label=random.choice(_LOW_SIGNAL_REVIEW_LABELS),
         )
         groundtruth = GroundTruth(
             is_laundering=case.groundtruth.is_laundering,
@@ -383,7 +385,7 @@ def _build_false_positive_cases(transc_df: pd.DataFrame, num_false_positive_case
             seed_transaction_id=seed_row["transaction_id"],
             seed_timestamp=seed_row["timestamp"],
             window_start=_date_window_start(window["date"]),
-            suspected_pattern_type=random.choice(_RANDOM_PATTERN_TYPES),
+            trigger_label=random.choice(_FALSE_POSITIVE_TRIGGER_LABELS + _RANDOM_PATTERN_TYPES),
         )
         groundtruth = GroundTruth(
             is_laundering=False,
@@ -421,7 +423,7 @@ def _build_normal_cases(
             seed_transaction_id=row["transaction_id"],
             seed_timestamp=row["timestamp"],
             window_start=window_start,
-            suspected_pattern_type=LaunderingPattern.NONE.value,
+            trigger_label=random.choice(_LOW_SIGNAL_REVIEW_LABELS),
         )
         groundtruth = GroundTruth(
             is_laundering=False,
