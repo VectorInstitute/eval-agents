@@ -204,7 +204,7 @@ def create_db(illicit_ratio: str, transactions_size: str, ddl_file_path: Path, d
 @click.option(
     "--lookback-days",
     type=int,
-    default=0,
+    default=30,
     show_default=True,
     help="Number of days to look back for the case window start (clamped to available data).",
 )
@@ -266,6 +266,8 @@ def create_cases(
     ]:
         if value < 0:
             raise ValueError(f"{name} must be >= 0")
+    if lookback_days == 0:
+        logger.warning("lookback_days=0 creates very narrow windows (can be seed-timestamp-only); consider >= 1.")
 
     path_to_transc_csv = download_dataset_file(illicit_ratio, transactions_size, "Trans.csv")
     path_to_patterns_txt = download_dataset_file(illicit_ratio, transactions_size, "Patterns.txt")
