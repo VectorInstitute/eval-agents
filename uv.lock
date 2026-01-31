@@ -41,7 +41,6 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "urllib3" },
     { name = "virtualenv" },
-    { name = "weaviate-client" },
 ]
 
 [package.dev-dependencies]
@@ -106,7 +105,6 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.7.0" },
     { name = "urllib3", specifier = ">=2.6.3" },
     { name = "virtualenv", specifier = ">=20.36.1" },
-    { name = "weaviate-client", specifier = ">=4.18.3" },
 ]
 
 [package.metadata.requires-dev]

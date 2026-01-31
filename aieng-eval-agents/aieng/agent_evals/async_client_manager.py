@@ -1,8 +1,7 @@
 """Async client lifecycle manager for Gradio applications.
 
 Provides idempotent initialization and proper cleanup of async clients
-like Weaviate and OpenAI to prevent event loop conflicts during Gradio's
-hot-reload process.
+like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
 import sqlite3
