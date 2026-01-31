@@ -42,6 +42,10 @@ class Configs(BaseSettings):
         default="gemini-2.5-flash",
         description="Model name for worker/simple tasks.",
     )
+    default_evaluator_model: str = Field(
+        default="gemini-2.5-pro",
+        description="Model name for LLM-as-judge evaluation tasks.",
+    )
 
     # === Tracing (Langfuse) ===
     langfuse_public_key: str | None = Field(

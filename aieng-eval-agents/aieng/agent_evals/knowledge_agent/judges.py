@@ -9,11 +9,10 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from aieng.agent_evals.configs import Configs
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
-
-from .config import KnowledgeAgentConfig
 
 
 if TYPE_CHECKING:
@@ -96,7 +95,7 @@ class BaseJudge:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration settings.
     model : str, optional
         Model to use for judging. Defaults to planner model.
@@ -107,19 +106,19 @@ class BaseJudge:
 
     def __init__(
         self,
-        config: "KnowledgeAgentConfig | None" = None,
+        config: "Configs | None" = None,
         model: str | None = None,
     ) -> None:
         """Initialize the judge."""
         # Load config from environment if not provided
         if config is None:
-            config = KnowledgeAgentConfig()  # type: ignore[call-arg]
+            config = Configs()  # type: ignore[call-arg]
         self._config = config
 
         if model is not None:
             self._model = model
         else:
-            self._model = config.default_planner_model  # Uses gemini-2.5-pro from .env
+            self._model = config.default_evaluator_model
 
         self._client = genai.Client()
 

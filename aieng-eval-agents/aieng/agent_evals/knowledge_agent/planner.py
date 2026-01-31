@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 if TYPE_CHECKING:
-    from .config import KnowledgeAgentConfig
+    from aieng.agent_evals.configs import Configs
 
 
 logger = logging.getLogger(__name__)
@@ -462,7 +462,7 @@ class ResearchPlanner:
 
     Parameters
     ----------
-    config : KnowledgeAgentConfig, optional
+    config : Configs, optional
         Configuration settings. If not provided, uses defaults.
     model : str, optional
         Model to use for planning. Defaults to planner model from config.
@@ -479,14 +479,14 @@ class ResearchPlanner:
 
     def __init__(
         self,
-        config: "KnowledgeAgentConfig | None" = None,
+        config: "Configs | None" = None,
         model: str | None = None,
     ) -> None:
         """Initialize the research planner.
 
         Parameters
         ----------
-        config : KnowledgeAgentConfig, optional
+        config : Configs, optional
             Configuration settings.
         model : str, optional
             Model to use for planning.
@@ -1050,31 +1050,51 @@ Your job is to analyze what was found and decide how to adjust the research plan
 ## Your Decision Options
 
 1. **CONTINUE**: The current plan is good, proceed to the next step
-2. **ADD_STEPS**: Add new steps based on what was discovered
-3. **SKIP_STEPS**: Mark remaining steps as unnecessary if we already have the answer
-4. **COMPLETE**: We have enough information to answer the question now
+2. **ADD_STEPS**: Add new steps based on what was discovered (especially for terminology refinement)
+3. **SKIP_STEPS**: Mark remaining steps as unnecessary if we have VERIFIED the exact answer
+4. **COMPLETE**: We have VERIFIED information to answer the question precisely
 
-## CRITICAL Guidelines
+## CRITICAL: Terminology Discovery Triggers Follow-up
 
-### Prefer COMPLETE or SKIP_STEPS over ADD_STEPS
-- If we found PARTIAL information, that's often good enough - mark COMPLETE
-- Don't add more searches hoping for "better" data
-- After 3+ searches, it's better to answer with what we have than keep searching
+When analyzing step results, look for NEW SPECIFIC TERMS that name what you're researching:
+- If the question asks about "buffs" and you learned they're called "Sigils" -> ADD a search for "Sigils"
+- If the question asks about "types" and you learned they're called "Classes" -> ADD a search for "Classes"
+- If a general page mentions a subsystem has "its own page" -> ADD a fetch for that specific page
 
-### When we found a good source
-- If we fetched a useful document, we can extract MORE from it (grep_file, read_file)
-- DO NOT add more web_search steps if we have a relevant source
-- One comprehensive source > many partial searches
+This is the most important pattern: GENERAL TERM in question -> SPECIFIC TERM in source -> SEARCH for specific term
 
-### When to ADD_STEPS (rarely)
-- ONLY if we found NO relevant information at all
-- ONLY if there's a clearly better source we should try (official government data, etc.)
-- New steps should use DIFFERENT tools or SIGNIFICANTLY different queries
+## Verification Before Completion
 
-### Bias Toward Completion
-- An imperfect answer is better than endless searching
-- If we have some relevant data, lean toward COMPLETE
-- Users prefer fast approximate answers over slow exhaustive searches
+Before marking COMPLETE or can_answer_now=true, verify:
+
+1. **Do we have the EXACT answer?**
+   - If asked for "3 categories", do we have exactly 3 named items from fetched content?
+   - If asked for a specific name, do we have that name (not a description)?
+
+2. **Is it from actual page content (not just search snippets)?**
+   - Search snippets are often incomplete or outdated
+   - The answer must be in fetched document content
+
+3. **Did we follow up on discovered terminology?**
+   - If we found a specific term for what we're researching, did we search for it?
+   - A general overview page is NOT enough if it mentions a dedicated page exists
+
+If ANY answer is "no" -> ADD_STEPS or CONTINUE, not COMPLETE.
+
+## When to ADD_STEPS
+
+ADD follow-up steps when:
+- You discovered a SPECIFIC TERM for what you're researching (most important!)
+- The fetched page references a more detailed page or subsection
+- You have related information but not the EXACT answer to the question
+- The current source is a general overview and specialized pages likely exist
+
+## When NOT to ADD_STEPS
+
+- If we already searched for the specific terminology
+- If we've already fetched the most specific page available
+- If we have the exact answer verified in fetched content
+- If 5+ searches have been done with diminishing returns
 
 ## Output Format
 
@@ -1082,15 +1102,17 @@ Return a JSON object:
 {
     "decision": "CONTINUE|ADD_STEPS|SKIP_STEPS|COMPLETE",
     "reasoning": "Why this decision makes sense",
-    "steps_to_skip": [2, 3],  // Only if decision is SKIP_STEPS - step IDs to skip
-    "new_steps": [  // Only if decision is ADD_STEPS - keep this short!
+    "terminology_discovered": "Any specific terms found (e.g., 'buffs are called Sigils')",
+    "needs_followup_search": true/false,
+    "steps_to_skip": [2, 3],
+    "new_steps": [
         {
-            "description": "What this step does",
+            "description": "Search for [specific term] to find detailed information",
             "tool_hint": "web_search|fetch_url|read_pdf|synthesis",
             "expected_output": "What we expect to learn"
         }
     ],
-    "can_answer_now": false,  // True if we have enough info - PREFER true!
+    "can_answer_now": false,
     "key_findings": "Brief summary of what was learned in this step"
 }
 """

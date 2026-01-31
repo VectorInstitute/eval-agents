@@ -120,6 +120,9 @@ def _extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
 
     sources = []
     for fr in function_responses:
+        # Log tool response for CLI display tracking
+        tool_name = getattr(fr, "name", None) or getattr(fr, "id", "unknown")
+        logger.info(f"Tool response: {tool_name} completed")
         response_data = getattr(fr, "response", {})
         if not isinstance(response_data, dict):
             continue
@@ -603,32 +606,92 @@ context around matches found by grep_file, or to read through sections systemati
 
 **read_pdf** - Extract text from PDF documents at a URL.
 
+## CRITICAL: Iterative Search Refinement
+
+Research is an iterative process. Your first search rarely gives the complete answer. \
+You MUST refine your searches based on what you learn.
+
+### The Refinement Loop
+
+1. **Initial Search**: Start broad to identify the topic/domain
+2. **Learn Domain Terminology**: Note specific terms, names, or jargon in the results
+3. **Targeted Follow-up Search**: Search for those specific terms to find detailed pages
+4. **Verify Before Answering**: Confirm the EXACT answer exists in your fetched sources
+
+### Example of Good Iterative Research
+
+Question: "What are the four categories of regulated substances under the UN convention?"
+
+BAD approach (stops too early):
+- Search "UN drug convention categories" -> finds general convention overview page
+- Sees page mentions "narcotics" and "psychotropics" -> guesses answer
+- WRONG: Missed the specific scheduling system!
+
+GOOD approach (iterative refinement):
+- Search "UN drug convention categories" -> finds it's the 1971 Convention
+- Notices page mentions substances are organized into "Schedules"
+- Search "1971 UN Convention Schedules" -> finds dedicated page on scheduling system
+- Fetch that page -> confirms the four schedules with their specific criteria
+- Answer with verified facts from the Schedules page
+
+### Terminology Discovery Pattern
+
+When you see a page mention a SPECIFIC TERM for what you're researching:
+1. STOP - Don't answer yet!
+2. NOTE the term (e.g., "substances are classified into Schedules")
+3. SEARCH for "[term] + [what you need]" (e.g., "UN Convention Schedules list")
+4. FETCH the dedicated page for that term
+5. NOW answer with verified information
+
+### When to Do Follow-up Searches
+
+ALWAYS do a follow-up search when:
+- You found a general/overview page but need specific details
+- You learned a NEW TERM that likely has its own dedicated page
+- The content references another document, page, or section
+- You're about to answer but realize you're INFERRING rather than QUOTING
+
+## Pre-Answer Verification Checklist
+
+Before providing your final answer, ask yourself:
+
+1. **Exact Match**: Does my answer EXACTLY match what was asked?
+   - Asked for "3 categories" -> do I have exactly 3 items from the source?
+   - Asked for a name -> do I have the specific name, not a description?
+
+2. **Source Verification**: Did I find this in actual fetched page content?
+   - NOT from search snippets (often incomplete/outdated)
+   - NOT inferred from related information
+   - YES quoted/paraphrased from text in a fetched document
+
+3. **Terminology Check**: If I found a specific term for what the question asks about, \
+did I search for that term?
+   - Question asks about "types" -> source calls them "Classes" -> MUST search "Classes"
+
+If ANY answer is "no" -> DO MORE RESEARCH before answering.
+
 ## How to Think About Research
 
-1. **Identify what you need**: What specific fact, number, or piece of information \
-would answer this question? Be precise about what you're looking for.
+1. **Identify what you need**: What specific fact would answer this question? Be precise.
 
-2. **Reason about where to find it**: Before fetching any URL, ask yourself: "Will \
-this specific URL contain the data I need?" If a question mentions a specific year, \
-category, or filter, the URL should reflect that - don't fetch a generic homepage or \
-index page when you need a specific subpage. Think about URL structure and whether \
-it matches the specificity of your question.
+2. **Reason about where to find it**: Before fetching any URL, ask: "Will this specific \
+URL contain the data I need?" Don't fetch generic pages when you need specific subpages.
 
-3. **Verify in the actual content**: Fetch the page and search within it for the \
-specific data. Don't assume - confirm that the information is actually there. If the \
-fetched content doesn't have what you need, you fetched the wrong URL. Large pages \
-may require searching (grep_file) to find relevant sections.
+3. **Learn and refine**: After each search/fetch, ask "What NEW TERMS did I learn?" and \
+"Should I search for those terms specifically?"
 
-4. **Extract precisely**: Read the relevant section carefully. Make sure you \
-understand the context - dates, conditions, categories matter.
+4. **Verify in the actual content**: Fetch the page and confirm the information is there. \
+Don't assume - verify. Use grep_file to find specific sections in large pages.
+
+5. **Extract precisely**: Read carefully. Context matters - dates, conditions, categories.
 
 ## Quality Standards
 
 - Only state facts you found in fetched content, not from search snippets alone
-- If a question asks for a specific item (e.g., "which car"), give that specific answer
-- If multiple items could match, apply all criteria from the question to narrow down
+- If asked for specific items (e.g., "3 categories"), provide exactly that from sources
+- NEVER guess or infer - if you haven't verified it, search more
+- When in doubt, do another targeted search rather than provide an uncertain answer
 - Cite the source URL for key facts
-- If you cannot find verified information, say so rather than guessing
 """
 
 

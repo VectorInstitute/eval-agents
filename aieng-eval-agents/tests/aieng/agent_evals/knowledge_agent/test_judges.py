@@ -119,16 +119,16 @@ class TestParseJudgeResponse:
 
 
 def _create_mock_config():
-    """Create a mock KnowledgeAgentConfig for testing."""
+    """Create a mock Configs for testing."""
     mock_config = MagicMock()
-    mock_config.default_planner_model = "gemini-2.5-flash"
+    mock_config.default_evaluator_model = "gemini-2.5-flash"
     return mock_config
 
 
 class TestBaseJudge:
     """Tests for the BaseJudge class."""
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_initialization_without_config(self, mock_client_class, mock_config_class):
         """Test judge initialization without config."""
@@ -136,7 +136,7 @@ class TestBaseJudge:
         judge = BaseJudge()
         assert judge._model == "gemini-2.5-flash"
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_initialization_with_model(self, mock_client_class, mock_config_class):
         """Test judge initialization with explicit model."""
@@ -148,7 +148,7 @@ class TestBaseJudge:
     def test_initialization_with_config(self, mock_client_class):
         """Test judge initialization with config."""
         mock_config = MagicMock()
-        mock_config.default_planner_model = "gemini-2.5-pro"
+        mock_config.default_evaluator_model = "gemini-2.5-pro"
 
         judge = BaseJudge(config=mock_config)
         assert judge._model == "gemini-2.5-pro"
@@ -157,7 +157,7 @@ class TestBaseJudge:
 class TestComprehensivenessJudge:
     """Tests for the ComprehensivenessJudge."""
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate(self, mock_client_class, mock_config_class):
         """Test comprehensiveness evaluation."""
@@ -185,7 +185,7 @@ class TestComprehensivenessJudge:
         assert result.score == 4.0
         mock_client.models.generate_content.assert_called_once()
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_without_ground_truth(self, mock_client_class, mock_config_class):
         """Test evaluation without ground truth."""
@@ -208,7 +208,7 @@ class TestComprehensivenessJudge:
 class TestCausalChainJudge:
     """Tests for the CausalChainJudge."""
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate(self, mock_client_class, mock_config_class):
         """Test causal chain evaluation."""
@@ -238,7 +238,7 @@ class TestCausalChainJudge:
         assert result.dimension == "causal_chain"
         assert result.score == 5.0
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_empty_chain(self, mock_client_class, mock_config_class):
         """Test evaluation with empty reasoning chain."""
@@ -258,7 +258,7 @@ class TestCausalChainJudge:
 class TestExhaustivenessJudge:
     """Tests for the ExhaustivenessJudge."""
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate(self, mock_client_class, mock_config_class):
         """Test exhaustiveness evaluation."""
@@ -289,7 +289,7 @@ class TestExhaustivenessJudge:
 class TestSourceQualityJudge:
     """Tests for the SourceQualityJudge."""
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate(self, mock_client_class, mock_config_class):
         """Test source quality evaluation."""
@@ -315,7 +315,7 @@ class TestSourceQualityJudge:
 
         assert result.dimension == "source_quality"
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_empty_sources(self, mock_client_class, mock_config_class):
         """Test evaluation with no sources."""
@@ -335,7 +335,7 @@ class TestSourceQualityJudge:
 class TestPlanQualityJudge:
     """Tests for the PlanQualityJudge."""
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate(self, mock_client_class, mock_config_class):
         """Test plan quality evaluation."""
@@ -376,7 +376,7 @@ class TestDeepSearchQAJudge:
         """Test metrics calculation with perfect match (fully_correct)."""
         with (
             patch("aieng.agent_evals.knowledge_agent.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig") as mock_config,
+            patch("aieng.agent_evals.knowledge_agent.judges.Configs") as mock_config,
         ):
             mock_config.return_value = _create_mock_config()
             judge = DeepSearchQAJudge()
@@ -399,7 +399,7 @@ class TestDeepSearchQAJudge:
         """Test metrics calculation with extraneous items (correct_with_extraneous)."""
         with (
             patch("aieng.agent_evals.knowledge_agent.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig") as mock_config,
+            patch("aieng.agent_evals.knowledge_agent.judges.Configs") as mock_config,
         ):
             mock_config.return_value = _create_mock_config()
             judge = DeepSearchQAJudge()
@@ -422,7 +422,7 @@ class TestDeepSearchQAJudge:
         """Test metrics calculation with missed items (partially_correct)."""
         with (
             patch("aieng.agent_evals.knowledge_agent.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig") as mock_config,
+            patch("aieng.agent_evals.knowledge_agent.judges.Configs") as mock_config,
         ):
             mock_config.return_value = _create_mock_config()
             judge = DeepSearchQAJudge()
@@ -445,7 +445,7 @@ class TestDeepSearchQAJudge:
         """Test metrics calculation with no matches (fully_incorrect)."""
         with (
             patch("aieng.agent_evals.knowledge_agent.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig") as mock_config,
+            patch("aieng.agent_evals.knowledge_agent.judges.Configs") as mock_config,
         ):
             mock_config.return_value = _create_mock_config()
             judge = DeepSearchQAJudge()
@@ -468,7 +468,7 @@ class TestDeepSearchQAJudge:
         """Test metrics calculation with empty ground truth."""
         with (
             patch("aieng.agent_evals.knowledge_agent.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig") as mock_config,
+            patch("aieng.agent_evals.knowledge_agent.judges.Configs") as mock_config,
         ):
             mock_config.return_value = _create_mock_config()
             judge = DeepSearchQAJudge()
@@ -485,7 +485,7 @@ class TestDeepSearchQAJudge:
         assert result.recall == 1.0  # Edge case handling
         assert result.outcome == "fully_correct"
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_call_grader(self, mock_client_class, mock_config_class):
         """Test that _call_grader properly calls the LLM."""
@@ -517,7 +517,7 @@ class TestDeepSearchQAJudge:
         assert "Italy" in result["Excessive Answers"]
         mock_client.models.generate_content.assert_called_once()
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_call_grader_handles_error(self, mock_client_class, mock_config_class):
         """Test that _call_grader handles errors gracefully."""
@@ -537,7 +537,7 @@ class TestDeepSearchQAJudge:
         assert "Grader error" in result["Explanation"]
         assert result["Correctness Details"] == {}
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_full(self, mock_client_class, mock_config_class):
         """Test full evaluation flow with official grader prompt."""
@@ -570,7 +570,7 @@ class TestDeepSearchQAJudge:
         assert "Recall: 1.00" in result.evidence[1]
         assert "fully_correct" in result.evidence[3]
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_partial_match(self, mock_client_class, mock_config_class):
         """Test evaluation with partial match."""
@@ -606,7 +606,7 @@ class TestDeepSearchQAJudge:
         assert "partially_correct" in result.evidence[3]
         assert result.score < 5.0  # Not perfect
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_with_details(self, mock_client_class, mock_config_class):
         """Test evaluation with detailed results."""
@@ -638,7 +638,7 @@ class TestDeepSearchQAJudge:
         assert detailed_result.f1_score == 1.0
         assert detailed_result.outcome == "fully_correct"
 
-    @patch("aieng.agent_evals.knowledge_agent.judges.KnowledgeAgentConfig")
+    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
     @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
     def test_evaluate_single_answer_type(self, mock_client_class, mock_config_class):
         """Test evaluation with Single Answer type."""

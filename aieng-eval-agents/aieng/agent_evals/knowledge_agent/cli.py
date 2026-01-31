@@ -59,9 +59,27 @@ def get_version() -> str:
         return "dev"
 
 
+def _get_model_config() -> tuple[str, str]:
+    """Get model names from config.
+
+    Returns
+    -------
+    tuple[str, str]
+        (worker_model, planner_model) names from config.
+    """
+    from aieng.agent_evals.configs import Configs  # noqa: PLC0415
+
+    try:
+        config = Configs()  # type: ignore[call-arg]
+        return config.default_worker_model, config.default_planner_model
+    except Exception:
+        return "gemini-2.5-flash", "gemini-2.5-pro"
+
+
 def display_banner() -> None:
-    """Display the CLI banner with version info."""
+    """Display the CLI banner with version and model info."""
     ver = get_version()
+    worker_model, planner_model = _get_model_config()
 
     # Robot face with magnifying glass
     # 🔍 emoji is 2 cells wide, so we adjust spacing to align
@@ -71,10 +89,14 @@ def display_banner() -> None:
     line0.append(f"v{ver}", style="bright_black")
 
     line1 = Text()
-    line1.append(" ╱ 🔍 ╲", style=f"{VECTOR_CYAN} bold")
+    line1.append(" ╱ 🔍 ╲   ", style=f"{VECTOR_CYAN} bold")
+    line1.append("Worker:  ", style="dim")
+    line1.append(worker_model, style="cyan")
 
     line2 = Text()
-    line2.append(" │    │", style=f"{VECTOR_CYAN} bold")
+    line2.append(" │    │   ", style=f"{VECTOR_CYAN} bold")
+    line2.append("Planner: ", style="dim")
+    line2.append(planner_model, style="magenta")
 
     line3 = Text()
     line3.append("  ╲__╱   ", style=f"{VECTOR_CYAN} bold")
@@ -113,7 +135,6 @@ class ToolCallHandler(logging.Handler):
     def __init__(self):
         super().__init__()
         self.tool_calls: list[dict] = []
-        self.current_status: str = ""
 
     def emit(self, record):
         """Process a log record, capturing tool calls for display."""
@@ -127,29 +148,34 @@ class ToolCallHandler(logging.Handler):
                     args_str = parts[paren_idx + 1 : -1]
                     if len(args_str) > 80:
                         args_str = args_str[:77] + "..."
-                    self.tool_calls.append({"name": tool_name, "args": args_str})
+                    self.tool_calls.append({"name": tool_name, "args": args_str, "completed": False})
             except Exception:
                 pass
-        elif "Answering question" in msg:
-            self.current_status = "Thinking..."
-        elif "Created plan" in msg:
-            self.current_status = "Plan created"
+        elif "Tool response:" in msg:
+            # Mark the most recent incomplete tool call as completed
+            try:
+                parts = msg.split("Tool response: ", 1)[1]
+                tool_name = parts.split(" ")[0]
+                # Find the most recent matching incomplete tool call
+                for tc in reversed(self.tool_calls):
+                    if tc["name"] == tool_name and not tc["completed"]:
+                        tc["completed"] = True
+                        break
+            except Exception:
+                pass
 
     def clear(self):
-        """Reset captured tool calls and status."""
+        """Reset captured tool calls."""
         self.tool_calls = []
-        self.current_status = ""
 
 
-def _create_plan_display(plan, tool_calls: list[dict]) -> Panel:
+def _create_plan_display(plan) -> Panel:
     """Create a rich panel showing the research plan checklist.
 
     Parameters
     ----------
     plan : ResearchPlan
         The research plan to display. Step statuses are read directly from the plan.
-    tool_calls : list[dict]
-        Tool calls made so far (for display purposes).
 
     Returns
     -------
@@ -283,7 +309,6 @@ def _create_compact_ground_truth_panel(ground_truth: str) -> Panel:
 
 def create_tool_display(
     tool_calls: list[dict],
-    status: str = "",
     plan=None,
     context_percent: float | None = None,
     question: str | None = None,
@@ -297,8 +322,6 @@ def create_tool_display(
     ----------
     tool_calls : list[dict]
         List of tool calls made so far.
-    status : str
-        Current status message.
     plan : ResearchPlan, optional
         If provided, shows the plan checklist above tool calls.
     context_percent : float, optional
@@ -353,7 +376,7 @@ def create_tool_display(
 
     # Add plan if available
     if plan and plan.steps:
-        components.append(_create_plan_display(plan, tool_calls))
+        components.append(_create_plan_display(plan))
         components.append(Text(""))
 
     # Always add the tool panel
@@ -375,12 +398,12 @@ def _build_tool_calls_content(tool_calls: list[dict], has_plan: bool) -> Group |
     if len(tool_calls) > len(display_calls):
         lines.append(Text(f"  ... ({len(tool_calls) - len(display_calls)} earlier calls)", style="dim"))
 
-    for i, tc in enumerate(display_calls):
-        is_last = i == len(display_calls) - 1
+    for tc in display_calls:
+        is_completed = tc.get("completed", False)
         display_name, icon, style = _get_tool_display_info(tc["name"])
 
         line = Text()
-        line.append("  → " if is_last else "  ✓ ", style="bold yellow" if is_last else "dim green")
+        line.append("  ✓ " if is_completed else "  → ", style="dim green" if is_completed else "bold yellow")
         line.append(f"{icon} ", style=style)
         line.append(display_name, style=f"bold {style}")
         line.append(f"  {tc['args']}", style="dim")
@@ -503,7 +526,6 @@ async def run_agent_with_display(
         with Live(
             create_tool_display(
                 [],
-                "Starting...",
                 plan=agent.current_plan if show_plan else None,
                 question=question if ground_truth is not None else None,
                 ground_truth=ground_truth,
@@ -525,7 +547,6 @@ async def run_agent_with_display(
                 live.update(
                     create_tool_display(
                         tool_handler.tool_calls,
-                        tool_handler.current_status,
                         plan=current_plan,
                         context_percent=context_pct,
                         question=question if ground_truth is not None else None,
@@ -572,10 +593,7 @@ async def cmd_ask(question: str, planning: bool = False, show_plan: bool = False
 
     # If showing plan, enable planning
     enable_planning = planning or show_plan
-
-    console.print("[bold blue]Initializing agent...[/bold blue]")
     agent = EnhancedKnowledgeAgent(enable_planning=enable_planning)
-    console.print("[green]✓ Agent ready[/green]\n")
 
     tool_handler.clear()
     response = await run_agent_with_display(agent, question, tool_handler, show_plan=show_plan)
@@ -911,7 +929,6 @@ async def cmd_eval(
     console.print(f"[green]✓ Loaded {len(examples)} example(s)[/green]\n")
 
     console.print("[bold blue]Initializing agent and judge...[/bold blue]")
-    # Enable planning if showing plan
     agent = EnhancedKnowledgeAgent(enable_planning=show_plan)
     judge = DeepSearchQAJudge()
     console.print("[green]✓ Ready[/green]\n")
