@@ -15,7 +15,7 @@ from rich.tree import Tree
 
 
 if TYPE_CHECKING:
-    from .knowledge_agent.grounding_tool import GroundedResponse
+    from .tools import GroundedResponse
 
 
 # Custom theme for consistent styling

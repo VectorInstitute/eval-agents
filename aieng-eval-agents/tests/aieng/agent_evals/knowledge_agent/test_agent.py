@@ -11,8 +11,8 @@ from aieng.agent_evals.knowledge_agent.agent import (
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
 )
-from aieng.agent_evals.knowledge_agent.grounding_tool import GroundedResponse, GroundingChunk
 from aieng.agent_evals.knowledge_agent.planner import PlanReflection, ResearchPlan, ResearchStep, StepExecution
+from aieng.agent_evals.tools import GroundedResponse, GroundingChunk
 
 
 class TestKnowledgeGroundedAgent:
