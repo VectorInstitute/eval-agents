@@ -40,8 +40,9 @@ class ResearchStep(BaseModel):
         Unique identifier for the step within the plan.
     description : str
         Clear description of what this step accomplishes.
-    tool_hint : str
-        Suggested tool to use: "web_search", "fetch_url", "read_pdf", or "synthesis".
+    step_type : str
+        Type of step: "research" (uses tools to gather info) or "synthesis"
+        (combines findings without tools).
     depends_on : list[int]
         IDs of steps that must complete before this one.
     expected_output : str
@@ -59,7 +60,7 @@ class ResearchStep(BaseModel):
 
     step_id: int
     description: str
-    tool_hint: str  # "web_search", "fetch_url", "read_pdf", "synthesis"
+    step_type: str = "research"  # "research" or "synthesis"
     depends_on: list[int] = Field(default_factory=list)
     expected_output: str = ""
     # Dynamic tracking fields
@@ -83,8 +84,6 @@ class ResearchPlan(BaseModel):
         Assessment of question complexity: "simple", "moderate", or "complex".
     steps : list[ResearchStep]
         Ordered list of research steps to execute.
-    estimated_tools : list[str]
-        Tools expected to be used during execution.
     reasoning : str
         Explanation of why this plan was chosen.
     """
@@ -92,7 +91,6 @@ class ResearchPlan(BaseModel):
     original_question: str
     complexity_assessment: str  # "simple", "moderate", "complex"
     steps: list[ResearchStep] = Field(default_factory=list)
-    estimated_tools: list[str] = Field(default_factory=list)
     reasoning: str = ""
 
     def get_step(self, step_id: int) -> ResearchStep | None:
@@ -312,9 +310,12 @@ structured research plans that can be executed by a knowledge-grounded QA agent.
 
 The agent has access to these tools:
 1. **web_search**: Google Search for finding relevant sources, current information, news, events
-2. **fetch_url**: Fetch and read the full content of a specific webpage URL
-3. **read_pdf**: Read and extract text from PDF documents (SEC filings, research papers, reports)
-4. **synthesis**: Combining information from multiple sources into a coherent answer
+2. **web_fetch**: Fetch and read the full content of a URL (HTML pages AND PDFs). Use this for
+   web pages, SEC filings, research papers, and any PDF documents.
+3. **fetch_file**: Download data files (CSV, XLSX, JSON) for local searching
+4. **grep_file**: Search within downloaded files for specific patterns
+5. **read_file**: Read specific sections of downloaded files by line numbers
+6. **synthesis**: Combining information from multiple sources into a coherent answer
 
 ## CRITICAL Planning Rules
 
@@ -322,7 +323,7 @@ The agent has access to these tools:
 For questions asking about multiple related items (e.g., "which of these 3 cities...",
 "compare X, Y, and Z..."), ALWAYS:
 - First search for a SINGLE authoritative source that contains ALL the data
-- Then use fetch_url to get that source
+- Then use web_fetch to get that source
 - Then extract ALL data points from that ONE source
 - DO NOT search separately for each item!
 
@@ -337,9 +338,10 @@ GOOD plan (efficient):
 3. Extract all relevant data from that source
 4. Synthesize the answer
 
-### Rule 2: Reuse Fetched Files
-Once a URL is fetched, use grep_file and read_file to extract multiple data points
-from that same file. DO NOT re-fetch or re-search for related data.
+### Rule 2: Use Specific Extraction Prompts
+When using web_fetch, provide specific prompts to extract exactly the data you need.
+If you need multiple data points from the same page, use one web_fetch call with a
+comprehensive extraction prompt rather than multiple calls.
 
 ### Rule 3: Minimize Searches
 - Aim for 1-2 well-crafted searches, not many narrow searches
@@ -364,14 +366,16 @@ Return a JSON object with this structure:
         {
             "step_id": 1,
             "description": "What this step does",
-            "tool_hint": "web_search|fetch_url|read_pdf|synthesis",
+            "step_type": "research|synthesis",
             "depends_on": [],
             "expected_output": "What we expect to learn"
         }
     ],
-    "estimated_tools": ["web_search", "fetch_url", "read_pdf"],
     "reasoning": "Why this plan makes sense for the question"
 }
+
+Note: step_type is either "research" (gather information using tools) or "synthesis" (combine findings).
+The final step should typically be "synthesis" to combine all research findings into an answer.
 """
 
 
@@ -411,7 +415,7 @@ def _parse_plan_response(response_text: str, question: str) -> ResearchPlan:
             ResearchStep(
                 step_id=s.get("step_id", i + 1),
                 description=s.get("description", ""),
-                tool_hint=s.get("tool_hint", "web_search"),
+                step_type=s.get("step_type", "research"),
                 depends_on=s.get("depends_on", []),
                 expected_output=s.get("expected_output", ""),
             )
@@ -422,7 +426,6 @@ def _parse_plan_response(response_text: str, question: str) -> ResearchPlan:
             original_question=plan_data.get("original_question", question),
             complexity_assessment=plan_data.get("complexity_assessment", "moderate"),
             steps=steps,
-            estimated_tools=plan_data.get("estimated_tools", ["web_search"]),
             reasoning=plan_data.get("reasoning", ""),
         )
 
@@ -436,19 +439,18 @@ def _parse_plan_response(response_text: str, question: str) -> ResearchPlan:
                 ResearchStep(
                     step_id=1,
                     description="Search for relevant information",
-                    tool_hint="web_search",
+                    step_type="research",
                     depends_on=[],
                     expected_output="Relevant facts and sources",
                 ),
                 ResearchStep(
                     step_id=2,
                     description="Synthesize findings into answer",
-                    tool_hint="synthesis",
+                    step_type="synthesis",
                     depends_on=[1],
                     expected_output="Complete answer with citations",
                 ),
             ],
-            estimated_tools=["web_search"],
             reasoning="Default plan due to parsing error",
         )
 
@@ -547,12 +549,11 @@ class ResearchPlanner:
                     ResearchStep(
                         step_id=1,
                         description="Search for relevant information",
-                        tool_hint="web_search",
+                        step_type="research",
                         depends_on=[],
                         expected_output="Relevant facts and sources",
                     ),
                 ],
-                estimated_tools=["web_search"],
                 reasoning=f"Fallback plan due to error: {e}",
             )
 
@@ -599,12 +600,11 @@ class ResearchPlanner:
                     ResearchStep(
                         step_id=1,
                         description="Search for relevant information",
-                        tool_hint="web_search",
+                        step_type="research",
                         depends_on=[],
                         expected_output="Relevant facts and sources",
                     ),
                 ],
-                estimated_tools=["web_search"],
                 reasoning=f"Fallback plan due to error: {e}",
             )
 
@@ -711,7 +711,7 @@ class ResearchPlanner:
         completed_step: ResearchStep,
         step_result: str,
         all_findings: list[str],
-        fetch_url_succeeded: bool = False,
+        has_substantial_content: bool = False,
     ) -> PlanReflection:
         """Reflect on a completed step and decide how to update the plan.
 
@@ -729,9 +729,9 @@ class ResearchPlanner:
             The result/output from the completed step.
         all_findings : list[str]
             All findings accumulated so far from previous steps.
-        fetch_url_succeeded : bool
-            Whether any fetch_url step has succeeded. Used to prevent
-            premature skipping of fetch_url steps.
+        has_substantial_content : bool
+            Whether substantial content has been gathered. Used to prevent
+            premature skipping of steps.
 
         Returns
         -------
@@ -756,8 +756,8 @@ class ResearchPlanner:
             response_text = response.text or ""
             reflection = self._parse_reflection_response(response_text, plan.get_next_step_id())
 
-            # Apply reflection (fetch_url_succeeded prevents premature skipping)
-            self._apply_reflection_to_plan(plan, reflection, fetch_url_succeeded)
+            # Apply reflection (has_substantial_content prevents premature skipping)
+            self._apply_reflection_to_plan(plan, reflection, has_substantial_content)
 
             logger.info(f"Reflection decision: {reflection.decision} - {reflection.reasoning[:100]}")
             return reflection
@@ -806,7 +806,7 @@ class ResearchPlanner:
                 StepStatus.PENDING: "○",
             }.get(step.status, "?")
 
-            line = f"  {status_icon} Step {step.step_id}: {step.description} [{step.tool_hint}]"
+            line = f"  {status_icon} Step {step.step_id}: {step.description}"
             if step.actual_output:
                 line += f"\n      → {step.actual_output[:150]}..."
             status_lines.append(line)
@@ -865,7 +865,7 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
                 step = ResearchStep(
                     step_id=next_step_id + i,
                     description=s.get("description", ""),
-                    tool_hint=s.get("tool_hint", "web_search"),
+                    step_type=s.get("step_type", "research"),
                     depends_on=s.get("depends_on", []),
                     expected_output=s.get("expected_output", ""),
                 )
@@ -891,7 +891,7 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
         self,
         plan: ResearchPlan,
         reflection: PlanReflection,
-        fetch_url_succeeded: bool = False,
+        has_substantial_content: bool = False,
     ) -> None:
         """Apply reflection decisions to the plan.
 
@@ -901,15 +901,14 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
             The plan to modify.
         reflection : PlanReflection
             The reflection with decisions.
-        fetch_url_succeeded : bool
-            Whether any fetch_url step has successfully completed. If False,
-            fetch_url steps will NOT be skipped even if can_answer_now is True.
+        has_substantial_content : bool
+            Whether substantial content has been gathered. If False,
+            steps will NOT be skipped even if can_answer_now is True.
         """
-        # Skip steps if requested (but protect fetch_url if nothing fetched yet)
+        # Skip steps if requested (but only if we have substantial content)
         for step_id in reflection.steps_to_skip:
-            step = plan.get_step(step_id)
-            if step and step.tool_hint == "fetch_url" and not fetch_url_succeeded:
-                logger.warning(f"Refusing to skip fetch_url step {step_id} - no URLs have been fetched yet")
+            if not has_substantial_content:
+                logger.warning(f"Refusing to skip step {step_id} - no substantial content gathered yet")
                 continue
             plan.update_step(step_id, status=StepStatus.SKIPPED)
             logger.info(f"Skipping step {step_id} based on reflection")
@@ -919,17 +918,11 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
             plan.add_step(new_step)
             logger.info(f"Added step {new_step.step_id}: {new_step.description}")
 
-        # If can_answer_now, skip remaining steps (except fetch_url if none fetched)
-        if reflection.can_answer_now:
+        # If can_answer_now, skip remaining steps (only if we have content)
+        if reflection.can_answer_now and has_substantial_content:
             for step in plan.get_steps_by_status(StepStatus.PENDING):
-                if step.tool_hint == "synthesis":
+                if step.step_type == "synthesis":
                     # Never skip synthesis
-                    continue
-                if step.tool_hint == "fetch_url" and not fetch_url_succeeded:
-                    # Don't skip fetch_url steps until we've actually fetched something
-                    logger.warning(
-                        f"NOT skipping fetch_url step {step.step_id} - need to fetch at least one URL before completing"
-                    )
                     continue
                 plan.update_step(step.step_id, status=StepStatus.SKIPPED)
                 logger.info(f"Skipping step {step.step_id} - can answer now")
@@ -988,7 +981,6 @@ Latest Result: {step_result}
             prompt += f"""
 Failed Step Details:
 - Step {failed_step.step_id}: {failed_step.description}
-- Tool hint: {failed_step.tool_hint}
 - Attempts: {failed_step.attempts}
 - Failure reason: {failed_step.failure_reason}
 """
@@ -1017,9 +1009,8 @@ new steps if needed.
    - Academic or institutional sources
 
 2. **Extract from Existing**: If we have a good source but need more data from it:
-   - Use grep_file with different patterns
-   - Use read_file for different sections
-   - DO NOT re-search or re-fetch!
+   - Use web_fetch with a different, more specific extraction prompt
+   - DO NOT re-search when a follow-up web_fetch on the same URL would suffice
 
 ## When NOT to Add Steps
 
@@ -1033,13 +1024,13 @@ Return a JSON array of new steps (empty array if no new steps needed):
 [
     {
         "description": "What this step does",
-        "tool_hint": "web_search|fetch_url|read_pdf|synthesis",
+        "step_type": "research|synthesis",
         "depends_on": [],
         "expected_output": "What we expect to learn"
     }
 ]
 
-PREFER empty array [] over adding low-value search steps.
+PREFER empty array [] over adding low-value research steps.
 """
 
 
@@ -1108,7 +1099,7 @@ Return a JSON object:
     "new_steps": [
         {
             "description": "Search for [specific term] to find detailed information",
-            "tool_hint": "web_search|fetch_url|read_pdf|synthesis",
+            "step_type": "research|synthesis",
             "expected_output": "What we expect to learn"
         }
     ],
@@ -1156,7 +1147,7 @@ def _parse_new_steps_response(response_text: str, start_id: int) -> list[Researc
             step = ResearchStep(
                 step_id=start_id + i,
                 description=s.get("description", ""),
-                tool_hint=s.get("tool_hint", "web_search"),
+                step_type=s.get("step_type", "research"),
                 depends_on=s.get("depends_on", []),
                 expected_output=s.get("expected_output", ""),
             )

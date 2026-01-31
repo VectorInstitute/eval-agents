@@ -356,10 +356,9 @@ class TestPlanQualityJudge:
             original_question="What caused the 2008 crisis?",
             complexity_assessment="complex",
             steps=[
-                ResearchStep(step_id=1, description="Research subprime", tool_hint="web_search"),
-                ResearchStep(step_id=2, description="Look up regulations", tool_hint="finance_knowledge"),
+                ResearchStep(step_id=1, description="Research subprime", step_type="research"),
+                ResearchStep(step_id=2, description="Look up regulations", step_type="research"),
             ],
-            estimated_tools=["web_search", "finance_knowledge"],
             reasoning="Complex question needs multiple sources",
         )
 

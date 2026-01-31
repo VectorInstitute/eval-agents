@@ -19,16 +19,16 @@ from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
-    create_fetch_url_tool,
+    create_fetch_file_tool,
     create_google_search_tool,
     create_grep_file_tool,
     create_read_file_tool,
-    create_read_pdf_tool,
-    fetch_url,
+    create_web_fetch_tool,
+    fetch_file,
     format_response_with_citations,
     grep_file,
     read_file,
-    read_pdf,
+    web_fetch,
 )
 
 from .agent import (
@@ -112,12 +112,13 @@ __all__ = [
     "is_tracing_enabled",
     "flush_traces",
     # Web tools
-    "fetch_url",
+    "web_fetch",
+    "create_web_fetch_tool",
+    # File tools
+    "fetch_file",
     "grep_file",
     "read_file",
-    "read_pdf",
-    "create_fetch_url_tool",
+    "create_fetch_file_tool",
     "create_grep_file_tool",
     "create_read_file_tool",
-    "create_read_pdf_tool",
 ]

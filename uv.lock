@@ -151,6 +151,7 @@ source = { editable = "aieng-eval-agents" }
 dependencies = [
     { name = "google-adk" },
     { name = "google-genai" },
+    { name = "html-to-markdown" },
     { name = "httpx" },
     { name = "kagglehub" },
     { name = "langfuse" },
@@ -175,6 +176,7 @@ dev = [
 requires-dist = [
     { name = "google-adk", specifier = ">=1.23.0" },
     { name = "google-genai", specifier = ">=1.52.0" },
+    { name = "html-to-markdown", specifier = ">=2.24.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "kagglehub", specifier = ">=0.4.1" },
     { name = "langfuse", specifier = ">=3.10.3" },
@@ -2269,6 +2271,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/48/71de9ed269fdae9c8057e5a4c0aa7402e8bb16f2c6e90b3aa53327b113f8/hpack-4.1.0.tar.gz", hash = "sha256:ec5eca154f7056aa06f196a557655c5b009b382873ac8d1e66e79e87535f1dca", size = 51276 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/c6/80c95b1b2b94682a72cbdbfb85b81ae2daffa4291fbfa1b1464502ede10d/hpack-4.1.0-py3-none-any.whl", hash = "sha256:157ac792668d995c657d93111f46b4535ed114f0c9c8d672271bbec7eae1b496", size = 34357 },
+]
+
+[[package]]
+name = "html-to-markdown"
+version = "2.24.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/39/8d6f5ef69d0b9e13480e82b692fea06b038589aa368e1ef08391b79d6016/html_to_markdown-2.24.3.tar.gz", hash = "sha256:24b18b27a63c6b378d93aca28183ecec4a56308f8c52b4f2e71d9e6c0a307d54", size = 292959 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/e0/37bdb2708b4af2eee1cc8843c694a0879743d759246fd7c0954609fec940/html_to_markdown-2.24.3-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:c33581456c263906bfb150ff6a4ecd6dc7302d5b91757319652419bdc11e09ce", size = 8844996 },
+    { url = "https://files.pythonhosted.org/packages/57/e0/76bb999aa5b330e477b3b0657751c8031f1dba829c6cae402a8cc1b340b4/html_to_markdown-2.24.3-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1ad265d9e0015d7b39fdd3fc71ff20a70222c59d3243fb1c2234f79fbbcd9dc1", size = 9664061 },
+    { url = "https://files.pythonhosted.org/packages/33/0b/5434d0d465483af4232d7084d5b6b1858152582903e068530cbd099493c6/html_to_markdown-2.24.3-cp310-abi3-win_amd64.whl", hash = "sha256:33bdad404c97a3fd7b831dc67af9aeb746dfa90bb66fac71d20258e055d704eb", size = 9262416 },
 ]
 
 [[package]]

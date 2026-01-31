@@ -35,13 +35,13 @@ class TestResearchStep:
         step = ResearchStep(
             step_id=1,
             description="Search for financial regulations",
-            tool_hint="finance_knowledge",
+            step_type="research",
             depends_on=[],
             expected_output="List of relevant regulations",
         )
         assert step.step_id == 1
         assert step.description == "Search for financial regulations"
-        assert step.tool_hint == "finance_knowledge"
+        assert step.step_type == "research"
         assert step.depends_on == []
         assert step.expected_output == "List of relevant regulations"
 
@@ -50,7 +50,7 @@ class TestResearchStep:
         step = ResearchStep(
             step_id=3,
             description="Synthesize findings",
-            tool_hint="synthesis",
+            step_type="synthesis",
             depends_on=[1, 2],
             expected_output="Comprehensive answer",
         )
@@ -61,7 +61,7 @@ class TestResearchStep:
         step = ResearchStep(
             step_id=1,
             description="Test step",
-            tool_hint="web_search",
+            step_type="research",
         )
         assert step.depends_on == []
         assert step.expected_output == ""
@@ -76,7 +76,7 @@ class TestResearchStep:
         step = ResearchStep(
             step_id=1,
             description="Test step",
-            tool_hint="web_search",
+            step_type="research",
             status=StepStatus.COMPLETED,
             actual_output="Found 5 results",
             attempts=2,
@@ -91,7 +91,7 @@ class TestResearchStep:
         step = ResearchStep(
             step_id=1,
             description="Fetch document",
-            tool_hint="fetch_url",
+            step_type="research",
             status=StepStatus.FAILED,
             attempts=3,
             failure_reason="404 Not Found",
@@ -113,21 +113,19 @@ class TestResearchPlan:
                 ResearchStep(
                     step_id=1,
                     description="Research subprime mortgages",
-                    tool_hint="web_search",
+                    step_type="research",
                 ),
                 ResearchStep(
                     step_id=2,
                     description="Look up Dodd-Frank regulations",
-                    tool_hint="finance_knowledge",
+                    step_type="research",
                 ),
             ],
-            estimated_tools=["web_search", "finance_knowledge"],
             reasoning="Complex question requiring multiple sources",
         )
         assert plan.original_question == "What caused the 2008 financial crisis?"
         assert plan.complexity_assessment == "complex"
         assert len(plan.steps) == 2
-        assert "web_search" in plan.estimated_tools
         assert plan.reasoning != ""
 
     def test_research_plan_defaults(self):
@@ -137,7 +135,6 @@ class TestResearchPlan:
             complexity_assessment="simple",
         )
         assert plan.steps == []
-        assert plan.estimated_tools == []
         assert plan.reasoning == ""
 
     def test_get_step_found(self):
@@ -146,8 +143,8 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="simple",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search"),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url"),
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
             ],
         )
         step = plan.get_step(2)
@@ -159,7 +156,7 @@ class TestResearchPlan:
         plan = ResearchPlan(
             original_question="Test",
             complexity_assessment="simple",
-            steps=[ResearchStep(step_id=1, description="Step 1", tool_hint="web_search")],
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
         )
         step = plan.get_step(99)
         assert step is None
@@ -169,7 +166,7 @@ class TestResearchPlan:
         plan = ResearchPlan(
             original_question="Test",
             complexity_assessment="simple",
-            steps=[ResearchStep(step_id=1, description="Step 1", tool_hint="web_search")],
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
         )
         result = plan.update_step(1, status=StepStatus.COMPLETED)
         assert result is True
@@ -180,7 +177,7 @@ class TestResearchPlan:
         plan = ResearchPlan(
             original_question="Test",
             complexity_assessment="simple",
-            steps=[ResearchStep(step_id=1, description="Step 1", tool_hint="web_search")],
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
         )
         result = plan.update_step(
             1,
@@ -200,7 +197,7 @@ class TestResearchPlan:
         plan = ResearchPlan(
             original_question="Test",
             complexity_assessment="simple",
-            steps=[ResearchStep(step_id=1, description="Step 1", tool_hint="web_search")],
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
         )
         plan.update_step(1, increment_attempts=True)
         plan.update_step(1, increment_attempts=True)
@@ -223,8 +220,8 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search"),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url"),
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
             ],
         )
         pending = plan.get_pending_steps()
@@ -236,9 +233,9 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search"),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url", depends_on=[1]),
-                ResearchStep(step_id=3, description="Step 3", tool_hint="synthesis", depends_on=[1, 2]),
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", depends_on=[1]),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", depends_on=[1, 2]),
             ],
         )
         # Only step 1 should be pending (no dependencies)
@@ -252,9 +249,9 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search", status=StepStatus.COMPLETED),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url", depends_on=[1]),
-                ResearchStep(step_id=3, description="Step 3", tool_hint="synthesis", depends_on=[1, 2]),
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", depends_on=[1]),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", depends_on=[1, 2]),
             ],
         )
         # Step 1 is done, step 2 should now be pending
@@ -268,9 +265,9 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search", status=StepStatus.COMPLETED),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url", status=StepStatus.FAILED),
-                ResearchStep(step_id=3, description="Step 3", tool_hint="synthesis", status=StepStatus.PENDING),
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.FAILED),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", status=StepStatus.PENDING),
             ],
         )
         completed = plan.get_steps_by_status(StepStatus.COMPLETED)
@@ -289,9 +286,9 @@ class TestResearchPlan:
         plan = ResearchPlan(
             original_question="Test",
             complexity_assessment="simple",
-            steps=[ResearchStep(step_id=1, description="Step 1", tool_hint="web_search")],
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
         )
-        new_step = ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url")
+        new_step = ResearchStep(step_id=2, description="Step 2", step_type="research")
         plan.add_step(new_step)
 
         assert len(plan.steps) == 2
@@ -303,9 +300,9 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search", status=StepStatus.COMPLETED),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url", status=StepStatus.FAILED),
-                ResearchStep(step_id=3, description="Step 3", tool_hint="synthesis", status=StepStatus.SKIPPED),
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.FAILED),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", status=StepStatus.SKIPPED),
             ],
         )
         assert plan.is_complete() is True
@@ -316,8 +313,8 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search", status=StepStatus.COMPLETED),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url", status=StepStatus.PENDING),
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.PENDING),
             ],
         )
         assert plan.is_complete() is False
@@ -328,7 +325,7 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="simple",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search", status=StepStatus.IN_PROGRESS),
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.IN_PROGRESS),
             ],
         )
         assert plan.is_complete() is False
@@ -348,8 +345,8 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search"),
-                ResearchStep(step_id=3, description="Step 3", tool_hint="fetch_url"),  # Gap in IDs
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=3, description="Step 3", step_type="research"),  # Gap in IDs
             ],
         )
         assert plan.get_next_step_id() == 4
@@ -360,11 +357,11 @@ class TestResearchPlan:
             original_question="Test",
             complexity_assessment="complex",
             steps=[
-                ResearchStep(step_id=1, description="Step 1", tool_hint="web_search", status=StepStatus.COMPLETED),
-                ResearchStep(step_id=2, description="Step 2", tool_hint="fetch_url", status=StepStatus.COMPLETED),
-                ResearchStep(step_id=3, description="Step 3", tool_hint="read_pdf", status=StepStatus.FAILED),
-                ResearchStep(step_id=4, description="Step 4", tool_hint="synthesis", status=StepStatus.PENDING),
-                ResearchStep(step_id=5, description="Step 5", tool_hint="web_search", status=StepStatus.IN_PROGRESS),
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=3, description="Step 3", step_type="research", status=StepStatus.FAILED),
+                ResearchStep(step_id=4, description="Step 4", step_type="synthesis", status=StepStatus.PENDING),
+                ResearchStep(step_id=5, description="Step 5", step_type="research", status=StepStatus.IN_PROGRESS),
             ],
         )
         summary = plan.get_progress_summary()
@@ -423,12 +420,11 @@ class TestParsePlanResponse:
                     {
                         "step_id": 1,
                         "description": "Search web",
-                        "tool_hint": "web_search",
+                        "step_type": "research",
                         "depends_on": [],
                         "expected_output": "Results",
                     }
                 ],
-                "estimated_tools": ["web_search"],
                 "reasoning": "Simple plan",
             }
         )
@@ -438,7 +434,7 @@ class TestParsePlanResponse:
         assert plan.original_question == "Test question"
         assert plan.complexity_assessment == "moderate"
         assert len(plan.steps) == 1
-        assert plan.steps[0].tool_hint == "web_search"
+        assert plan.steps[0].step_type == "research"
 
     def test_parses_json_in_markdown_block(self):
         """Test parsing JSON wrapped in markdown code block."""
@@ -452,11 +448,10 @@ class TestParsePlanResponse:
         {
             "step_id": 1,
             "description": "Search",
-            "tool_hint": "web_search"
+            "step_type": "research"
         }
     ],
-    "estimated_tools": ["web_search"],
-    "reasoning": "Quick lookup"
+        "reasoning": "Quick lookup"
 }
 ```
 """
@@ -472,8 +467,7 @@ class TestParsePlanResponse:
     "original_question": "Test",
     "complexity_assessment": "complex",
     "steps": [],
-    "estimated_tools": [],
-    "reasoning": "Empty plan"
+        "reasoning": "Empty plan"
 }
 ```"""
         plan = _parse_plan_response(response, "Test")
@@ -498,7 +492,7 @@ class TestParsePlanResponse:
                 "steps": [
                     {
                         "description": "Search",
-                        "tool_hint": "web_search",
+                        "step_type": "research",
                     }
                 ]
             }
@@ -557,10 +551,9 @@ class TestResearchPlanner:
                     {
                         "step_id": 1,
                         "description": "Search",
-                        "tool_hint": "web_search",
+                        "step_type": "research",
                     }
                 ],
-                "estimated_tools": ["web_search"],
                 "reasoning": "Simple lookup",
             }
         )
@@ -598,7 +591,6 @@ class TestResearchPlanner:
                 "original_question": "Async test",
                 "complexity_assessment": "moderate",
                 "steps": [],
-                "estimated_tools": [],
                 "reasoning": "Async plan",
             }
         )
@@ -626,7 +618,7 @@ class TestParseNewStepsResponse:
             [
                 {
                     "description": "Search alternative",
-                    "tool_hint": "web_search",
+                    "step_type": "research",
                     "depends_on": [],
                     "expected_output": "Alternative results",
                 }
@@ -638,15 +630,15 @@ class TestParseNewStepsResponse:
         assert len(steps) == 1
         assert steps[0].step_id == 5
         assert steps[0].description == "Search alternative"
-        assert steps[0].tool_hint == "web_search"
+        assert steps[0].step_type == "research"
 
     def test_parses_multiple_steps(self):
         """Test parsing multiple steps with sequential IDs."""
         response = json.dumps(
             [
-                {"description": "Step A", "tool_hint": "web_search"},
-                {"description": "Step B", "tool_hint": "fetch_url"},
-                {"description": "Step C", "tool_hint": "read_pdf"},
+                {"description": "Step A", "step_type": "research"},
+                {"description": "Step B", "step_type": "research"},
+                {"description": "Step C", "step_type": "research"},
             ]
         )
 
@@ -665,7 +657,7 @@ class TestParseNewStepsResponse:
 [
     {
         "description": "Try alternative source",
-        "tool_hint": "fetch_url",
+        "step_type": "research",
         "depends_on": [1],
         "expected_output": "Document content"
     }
@@ -715,7 +707,7 @@ class TestResearchPlannerReplanning:
             [
                 {
                     "description": "Try alternative search",
-                    "tool_hint": "web_search",
+                    "step_type": "research",
                     "depends_on": [],
                     "expected_output": "Alternative results",
                 }
@@ -732,7 +724,7 @@ class TestResearchPlannerReplanning:
                 ResearchStep(
                     step_id=1,
                     description="Initial search",
-                    tool_hint="web_search",
+                    step_type="research",
                     status=StepStatus.FAILED,
                     failure_reason="No results found",
                 ),
@@ -762,7 +754,7 @@ class TestResearchPlannerReplanning:
                 ResearchStep(
                     step_id=1,
                     description="Fetch document",
-                    tool_hint="fetch_url",
+                    step_type="research",
                     status=StepStatus.FAILED,
                     attempts=3,
                     failure_reason="404 Not Found",
@@ -810,7 +802,7 @@ class TestResearchPlannerReplanning:
             [
                 {
                     "description": "Alternative search",
-                    "tool_hint": "web_search",
+                    "step_type": "research",
                 }
             ]
         )
@@ -825,7 +817,7 @@ class TestResearchPlannerReplanning:
         plan = ResearchPlan(
             original_question="Async test",
             complexity_assessment="simple",
-            steps=[ResearchStep(step_id=1, description="Step 1", tool_hint="web_search")],
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
         )
 
         new_steps = await planner.suggest_new_steps_async(plan, "Initial result")
@@ -844,14 +836,14 @@ class TestResearchPlannerReplanning:
                 ResearchStep(
                     step_id=1,
                     description="Search for GDP data",
-                    tool_hint="web_search",
+                    step_type="research",
                     status=StepStatus.COMPLETED,
                     actual_output="Found several sources",
                 ),
                 ResearchStep(
                     step_id=2,
                     description="Fetch World Bank data",
-                    tool_hint="fetch_url",
+                    step_type="research",
                     depends_on=[1],
                     status=StepStatus.FAILED,
                     failure_reason="Timeout",
@@ -859,7 +851,7 @@ class TestResearchPlannerReplanning:
                 ResearchStep(
                     step_id=3,
                     description="Synthesize findings",
-                    tool_hint="synthesis",
+                    step_type="synthesis",
                     depends_on=[1, 2],
                     status=StepStatus.PENDING,
                 ),

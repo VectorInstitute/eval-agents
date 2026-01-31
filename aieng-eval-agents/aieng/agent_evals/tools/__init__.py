@@ -2,20 +2,29 @@
 
 This package provides modular tools for:
 - Google Search (search.py)
-- Web content fetching (web.py)
-- File searching and reading (file.py)
-- PDF document reading (pdf.py)
+- Web content fetching - HTML and PDF (web.py)
+- File downloading and searching - CSV, XLSX, text (file.py)
+
+Tool Selection Guide:
+- web_fetch(url): HTML pages and PDFs - returns content for agent to analyze
+- fetch_file(url) + grep_file + read_file: Data files (CSV, XLSX) - download and search
 """
 
-from .file import create_grep_file_tool, create_read_file_tool, grep_file, read_file
-from .pdf import create_read_pdf_tool, read_pdf
+from .file import (
+    create_fetch_file_tool,
+    create_grep_file_tool,
+    create_read_file_tool,
+    fetch_file,
+    grep_file,
+    read_file,
+)
 from .search import (
     GroundedResponse,
     GroundingChunk,
     create_google_search_tool,
     format_response_with_citations,
 )
-from .web import create_fetch_url_tool, fetch_url
+from .web import create_web_fetch_tool, web_fetch
 
 
 __all__ = [
@@ -24,15 +33,14 @@ __all__ = [
     "format_response_with_citations",
     "GroundedResponse",
     "GroundingChunk",
-    # Web tools
-    "fetch_url",
-    "create_fetch_url_tool",
-    # File tools
+    # Web tools (HTML pages and PDFs)
+    "web_fetch",
+    "create_web_fetch_tool",
+    # File tools (data files - CSV, XLSX, text)
+    "fetch_file",
     "grep_file",
     "read_file",
+    "create_fetch_file_tool",
     "create_grep_file_tool",
     "create_read_file_tool",
-    # PDF tools
-    "read_pdf",
-    "create_read_pdf_tool",
 ]

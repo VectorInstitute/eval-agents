@@ -122,6 +122,13 @@ def flush_traces() -> None:
 
     Call this before your application exits to ensure all traces are sent.
     """
+    # Flush OpenTelemetry spans first (these go through OTLP to Langfuse)
+    provider = trace.get_tracer_provider()
+    # The SDK TracerProvider has force_flush, but the base interface doesn't
+    if isinstance(provider, TracerProvider):
+        provider.force_flush(timeout_millis=5000)
+
+    # Also flush the direct Langfuse client if used
     manager = AsyncClientManager.get_instance()
     if manager._langfuse_client is not None:
         manager._langfuse_client.flush()

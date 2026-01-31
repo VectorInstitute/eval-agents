@@ -210,7 +210,6 @@ def _create_plan_display(plan) -> Panel:
         line.append(icon, style=icon_style)
         line.append(f" {step.step_id}. ", style="bold")
         line.append(step.description, style=desc_style)
-        line.append(f"  ({step.tool_hint})", style="cyan dim")
         lines.append(line)
 
     # Add complexity badge
@@ -563,21 +562,65 @@ async def run_agent_with_display(
         sys.stderr = original_stderr
 
 
-async def cmd_ask(question: str, planning: bool = False, show_plan: bool = False) -> int:
+def _setup_tracing(log_trace: bool) -> bool:
+    """Initialize Langfuse tracing if requested.
+
+    Parameters
+    ----------
+    log_trace : bool
+        Whether to enable tracing.
+
+    Returns
+    -------
+    bool
+        True if tracing was successfully enabled, False otherwise.
+    """
+    if not log_trace:
+        return False
+
+    from .tracing import init_tracing  # noqa: PLC0415
+
+    enabled = init_tracing()
+    if enabled:
+        console.print("[green]✓ Langfuse tracing enabled[/green]\n")
+    else:
+        console.print("[yellow]⚠ Could not initialize Langfuse tracing[/yellow]\n")
+    return enabled
+
+
+def _flush_tracing(tracing_enabled: bool) -> None:
+    """Flush traces to Langfuse if tracing was enabled.
+
+    Parameters
+    ----------
+    tracing_enabled : bool
+        Whether tracing is enabled.
+    """
+    if not tracing_enabled:
+        return
+
+    from .tracing import flush_traces  # noqa: PLC0415
+
+    flush_traces()
+    console.print("\n[dim]Traces flushed to Langfuse[/dim]")
+
+
+async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = False) -> int:
     """Ask the agent a question.
 
     Parameters
     ----------
     question : str
         The question to ask.
-    planning : bool
-        Enable research planning for complex questions.
     show_plan : bool
         Display the research plan checklist during execution.
+    log_trace : bool
+        Enable Langfuse tracing for this run.
     """
     from .agent import EnhancedKnowledgeAgent  # noqa: PLC0415
 
     display_banner()
+    tracing_enabled = _setup_tracing(log_trace)
 
     console.print(
         Panel(
@@ -591,9 +634,7 @@ async def cmd_ask(question: str, planning: bool = False, show_plan: bool = False
 
     tool_handler = setup_logging()
 
-    # If showing plan, enable planning
-    enable_planning = planning or show_plan
-    agent = EnhancedKnowledgeAgent(enable_planning=enable_planning)
+    agent = EnhancedKnowledgeAgent(enable_planning=True)
 
     tool_handler.clear()
     response = await run_agent_with_display(agent, question, tool_handler, show_plan=show_plan)
@@ -619,6 +660,7 @@ async def cmd_ask(question: str, planning: bool = False, show_plan: bool = False
             if src.uri:
                 console.print(f"  • [blue]{src.title or 'Source'}[/blue]: {src.uri}")
 
+    _flush_tracing(tracing_enabled)
     console.print("\n[bold green]✓ Complete[/bold green]")
     return 0
 
@@ -869,6 +911,7 @@ async def cmd_eval(
     category: str = "Finance & Economics",
     ids: list[int] | None = None,
     show_plan: bool = False,
+    log_trace: bool = False,
 ) -> int:
     """Run evaluation on DeepSearchQA samples.
 
@@ -882,12 +925,15 @@ async def cmd_eval(
         Specific example IDs to evaluate. If provided, samples and category are ignored.
     show_plan : bool
         Display the research plan checklist during execution.
+    log_trace : bool
+        Enable Langfuse tracing for this run.
     """
     from .agent import EnhancedKnowledgeAgent  # noqa: PLC0415
     from .evaluation import DeepSearchQADataset  # noqa: PLC0415
     from .judges import DeepSearchQAJudge  # noqa: PLC0415
 
     display_banner()
+    tracing_enabled = _setup_tracing(log_trace)
 
     # Build info text based on selection mode
     if ids:
@@ -929,7 +975,7 @@ async def cmd_eval(
     console.print(f"[green]✓ Loaded {len(examples)} example(s)[/green]\n")
 
     console.print("[bold blue]Initializing agent and judge...[/bold blue]")
-    agent = EnhancedKnowledgeAgent(enable_planning=show_plan)
+    agent = EnhancedKnowledgeAgent(enable_planning=True)
     judge = DeepSearchQAJudge()
     console.print("[green]✓ Ready[/green]\n")
 
@@ -970,6 +1016,7 @@ async def cmd_eval(
     if results:
         _display_eval_summary(results)
 
+    _flush_tracing(tracing_enabled)
     console.print("\n[bold green]✓ Evaluation complete[/bold green]")
     return 0
 
@@ -1157,9 +1204,15 @@ def _display_help() -> None:
     # Usage examples
     console.print("[bold]Examples:[/bold]")
     console.print('  [dim]$[/dim] knowledge-agent [green]ask[/green] [yellow]"What is quantum computing?"[/yellow]')
+    console.print(
+        '  [dim]$[/dim] knowledge-agent [green]ask[/green] [yellow]"What is AI?"[/yellow] [cyan]--log-trace[/cyan]'
+    )
     console.print("  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--samples[/cyan] 3")
     console.print(
         "  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--ids[/cyan] 123 456 [cyan]--show-plan[/cyan]"
+    )
+    console.print(
+        "  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--samples[/cyan] 5 [cyan]--log-trace[/cyan]"
     )
     console.print(
         '  [dim]$[/dim] knowledge-agent [green]sample[/green] [cyan]--category[/cyan] [yellow]"Finance & Economics"[/yellow]'
@@ -1193,14 +1246,14 @@ def main() -> int:
     ask_parser = subparsers.add_parser("ask", help="Ask the agent a question")
     ask_parser.add_argument("question", type=str, help="The question to ask")
     ask_parser.add_argument(
-        "--planning",
-        action="store_true",
-        help="Enable research planning for complex questions",
-    )
-    ask_parser.add_argument(
         "--show-plan",
         action="store_true",
-        help="Display the research plan checklist during execution (implies --planning)",
+        help="Display the research plan checklist during execution",
+    )
+    ask_parser.add_argument(
+        "--log-trace",
+        action="store_true",
+        help="Enable Langfuse tracing for this run",
     )
 
     # Eval command
@@ -1228,6 +1281,11 @@ def main() -> int:
         "--show-plan",
         action="store_true",
         help="Display the research plan checklist during execution",
+    )
+    eval_parser.add_argument(
+        "--log-trace",
+        action="store_true",
+        help="Enable Langfuse tracing for this run",
     )
 
     # Sample command
@@ -1267,9 +1325,9 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "ask":
-        return asyncio.run(cmd_ask(args.question, args.planning, args.show_plan))
+        return asyncio.run(cmd_ask(args.question, args.show_plan, args.log_trace))
     if args.command == "eval":
-        return asyncio.run(cmd_eval(args.samples, args.category, args.ids, args.show_plan))
+        return asyncio.run(cmd_eval(args.samples, args.category, args.ids, args.show_plan, args.log_trace))
     if args.command == "sample":
         return cmd_sample(
             ids=args.ids,

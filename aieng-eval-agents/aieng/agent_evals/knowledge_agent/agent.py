@@ -16,11 +16,11 @@ from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
-    create_fetch_url_tool,
+    create_fetch_file_tool,
     create_google_search_tool,
     create_grep_file_tool,
     create_read_file_tool,
-    create_read_pdf_tool,
+    create_web_fetch_tool,
 )
 from google.adk.agents import Agent
 from google.adk.agents.context_cache_config import ContextCacheConfig
@@ -175,6 +175,42 @@ def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
                     )
                 )
     return sources
+
+
+def _format_urls_for_agent(sources: list[GroundingChunk]) -> str:
+    """Format grounding sources as a message for the agent to use with web_fetch.
+
+    Parameters
+    ----------
+    sources : list[GroundingChunk]
+        Sources with URLs from grounding metadata.
+
+    Returns
+    -------
+    str
+        Formatted message with URLs the agent can use.
+    """
+    if not sources:
+        return ""
+
+    # Deduplicate by URI
+    seen_uris: set[str] = set()
+    unique_sources: list[GroundingChunk] = []
+    for src in sources:
+        if src.uri and src.uri not in seen_uris:
+            seen_uris.add(src.uri)
+            unique_sources.append(src)
+
+    if not unique_sources:
+        return ""
+
+    lines = ["Search found the following URLs. Use web_fetch to retrieve relevant pages:"]
+    for i, src in enumerate(unique_sources[:10], 1):  # Limit to 10 URLs
+        title = src.title or "Unknown"
+        lines.append(f"  {i}. {title}: {src.uri}")
+
+    lines.append('\nCall web_fetch(url="<url>") to get the full content of any page.')
+    return "\n".join(lines)
 
 
 def _extract_grounding_queries(event: Any) -> list[str]:
@@ -591,18 +627,21 @@ needed to answer precisely. Your job is to go beyond snippets to find the actual
 help you identify which URLs are worth exploring, but snippets alone are not reliable \
 sources for your final answer.
 
-**fetch_url** - Retrieve the full content of a webpage. This saves the page locally \
-and returns a file path. The preview shows only the first portion; the full content \
-may be much larger and contain the specific data you need.
+**web_fetch** - Fetch content from a URL (HTML pages or PDFs). Returns the full text \
+content for you to analyze. Use this for web pages and PDF documents like research \
+papers, SEC filings, or official reports.
 
-**grep_file** - Search within a fetched file for specific terms. Use this to locate \
-exactly where relevant information appears in large documents. You can search for \
-multiple terms separated by commas.
+Example usage:
+- web_fetch(url="https://example.com/about") - fetches HTML page content
+- web_fetch(url="https://arxiv.org/pdf/2301.00234.pdf") - extracts PDF text
 
-**read_file** - Read a specific section of a fetched file. Use this to examine the \
-context around matches found by grep_file, or to read through sections systematically.
+**fetch_file** - Download data files (CSV, XLSX, JSON) for searching. Use with \
+grep_file and read_file for large structured data files.
 
-**read_pdf** - Extract text from PDF documents at a URL.
+**grep_file** - Search within a downloaded file for specific patterns. Returns \
+matching lines with context.
+
+**read_file** - Read specific sections of a downloaded file by line numbers.
 
 ## CRITICAL: Iterative Search Refinement
 
@@ -614,7 +653,7 @@ You MUST refine your searches based on what you learn.
 1. **Initial Search**: Start broad to identify the topic/domain
 2. **Learn Domain Terminology**: Note specific terms, names, or jargon in the results
 3. **Targeted Follow-up Search**: Search for those specific terms to find detailed pages
-4. **Verify Before Answering**: Confirm the EXACT answer exists in your fetched sources
+4. **Verify Before Answering**: Use web_fetch to confirm the EXACT answer exists
 
 ### Example of Good Iterative Research
 
@@ -622,24 +661,25 @@ Question: "What are the four categories of regulated substances under the UN con
 
 BAD approach (stops too early):
 - Search "UN drug convention categories" -> finds general convention overview page
-- Sees page mentions "narcotics" and "psychotropics" -> guesses answer
+- Sees snippet mentions "narcotics" and "psychotropics" -> guesses answer
 - WRONG: Missed the specific scheduling system!
 
 GOOD approach (iterative refinement):
 - Search "UN drug convention categories" -> finds it's the 1971 Convention
-- Notices page mentions substances are organized into "Schedules"
+- Notices results mention substances are organized into "Schedules"
 - Search "1971 UN Convention Schedules" -> finds dedicated page on scheduling system
-- Fetch that page -> confirms the four schedules with their specific criteria
-- Answer with verified facts from the Schedules page
+- web_fetch(url="https://...scheduling-page") -> gets the full page content
+- Read through the content to find the four schedules and their criteria
+- Answer with verified facts from the fetched page
 
 ### Terminology Discovery Pattern
 
-When you see a page mention a SPECIFIC TERM for what you're researching:
+When you see search results mention a SPECIFIC TERM for what you're researching:
 1. STOP - Don't answer yet!
 2. NOTE the term (e.g., "substances are classified into Schedules")
 3. SEARCH for "[term] + [what you need]" (e.g., "UN Convention Schedules list")
-4. FETCH the dedicated page for that term
-5. NOW answer with verified information
+4. FETCH the dedicated page using web_fetch(url=...) to get the full content
+5. Read through the content and NOW answer with verified information
 
 ### When to Do Follow-up Searches
 
@@ -660,7 +700,7 @@ Before providing your final answer, ask yourself:
 2. **Source Verification**: Did I find this in actual fetched page content?
    - NOT from search snippets (often incomplete/outdated)
    - NOT inferred from related information
-   - YES quoted/paraphrased from text in a fetched document
+   - YES extracted from a fetched page using web_fetch
 
 3. **Terminology Check**: If I found a specific term for what the question asks about, \
 did I search for that term?
@@ -675,13 +715,13 @@ If ANY answer is "no" -> DO MORE RESEARCH before answering.
 2. **Reason about where to find it**: Before fetching any URL, ask: "Will this specific \
 URL contain the data I need?" Don't fetch generic pages when you need specific subpages.
 
-3. **Learn and refine**: After each search/fetch, ask "What NEW TERMS did I learn?" and \
+3. **Learn and refine**: After each search, ask "What NEW TERMS did I learn?" and \
 "Should I search for those terms specifically?"
 
-4. **Verify in the actual content**: Fetch the page and confirm the information is there. \
-Don't assume - verify. Use grep_file to find specific sections in large pages.
+4. **Verify with web_fetch**: Fetch the URL and read through the content to find what you need.
 
-5. **Extract precisely**: Read carefully. Context matters - dates, conditions, categories.
+5. **Extract precisely**: Read through the fetched content carefully to find exactly the \
+information needed - dates, conditions, categories, names, numbers.
 
 ## Quality Standards
 
@@ -757,10 +797,10 @@ class EnhancedKnowledgeAgent:
 
         # Create tools
         self._search_tool = create_google_search_tool()
-        self._fetch_url_tool = create_fetch_url_tool()
+        self._web_fetch_tool = create_web_fetch_tool()
+        self._fetch_file_tool = create_fetch_file_tool()
         self._grep_file_tool = create_grep_file_tool()
         self._read_file_tool = create_read_file_tool()
-        self._read_pdf_tool = create_read_pdf_tool()
 
         # Create ADK agent with multiple tools
         self._agent = Agent(
@@ -769,10 +809,10 @@ class EnhancedKnowledgeAgent:
             instruction=ENHANCED_SYSTEM_INSTRUCTIONS,
             tools=[
                 self._search_tool,
-                self._fetch_url_tool,
+                self._web_fetch_tool,
+                self._fetch_file_tool,
                 self._grep_file_tool,
                 self._read_file_tool,
-                self._read_pdf_tool,
             ],
         )
 
@@ -928,55 +968,19 @@ class EnhancedKnowledgeAgent:
 
         return trace
 
-    def _verify_tool_usage(self, expected_tool: str, tool_calls: list[dict[str, Any]]) -> bool:
-        """Verify that the expected tool was actually called.
-
-        Parameters
-        ----------
-        expected_tool : str
-            The tool that should have been used (e.g., "fetch_url", "web_search").
-        tool_calls : list[dict[str, Any]]
-            The actual tool calls made.
-
-        Returns
-        -------
-        bool
-            True if the expected tool was called at least once.
-        """
-        if expected_tool == "synthesis":
-            # Synthesis doesn't require a specific tool
-            return True
-
-        # Map tool hints to actual tool names
-        tool_mapping = {
-            "web_search": ["google_search", "search"],
-            "fetch_url": ["fetch_url"],
-            "read_pdf": ["read_pdf"],
-            "grep_file": ["grep_file"],
-            "read_file": ["read_file"],
-        }
-
-        expected_names = tool_mapping.get(expected_tool, [expected_tool])
-
-        for tc in tool_calls:
-            tool_name = str(tc.get("name", "")).lower()
-            if any(expected in tool_name for expected in expected_names):
-                return True
-
-        logger.warning(
-            f"Expected tool '{expected_tool}' was not called. Tool calls: {[tc.get('name') for tc in tool_calls]}"
-        )
-        return False
-
     async def _execute_step(
         self,
         step: ResearchStep,
         question: str,
         previous_results: list[str],
         adk_session_id: str,
-        retry_count: int = 0,
-    ) -> tuple[str, list[dict[str, Any]], list[GroundingChunk], list[str], bool]:
+    ) -> tuple[str, list[dict[str, Any]], list[GroundingChunk], list[str]]:
         """Execute a single research step.
+
+        The agent is given the task description and is free to choose the best
+        approach and tools to complete it. If the agent uses Google Search and
+        receives grounding URLs, those URLs are injected back so the agent can
+        use web_fetch to retrieve the full content.
 
         Parameters
         ----------
@@ -988,14 +992,11 @@ class EnhancedKnowledgeAgent:
             Results from previous steps.
         adk_session_id : str
             The ADK session ID.
-        retry_count : int
-            Number of retry attempts for this step.
 
         Returns
         -------
         tuple
-            (step_result, tool_calls, sources, search_queries, tool_used_correctly)
-            tool_used_correctly is True if the expected tool was actually called.
+            (step_result, tool_calls, sources, search_queries)
         """
         # Build context from previous steps
         context_parts = [f"Original question: {question}"]
@@ -1004,29 +1005,14 @@ class EnhancedKnowledgeAgent:
             for i, result in enumerate(previous_results, 1):
                 context_parts.append(f"  Step {i}: {result[:500]}...")
 
-        # Create focused instruction for this step - more forceful on retries
-        if retry_count > 0:
-            step_instruction = f"""
-{chr(10).join(context_parts)}
-
-MANDATORY TASK (Step {step.step_id}): {step.description}
-
-**CRITICAL**: You MUST use the {step.tool_hint} tool NOW. This is attempt #{retry_count + 1}.
-Previous attempts did not use the required tool. You MUST call {step.tool_hint} before responding.
-
-DO NOT explain why you cannot do it. DO NOT skip this step. JUST USE THE TOOL.
-
-Expected output: {step.expected_output}
-"""
-        else:
-            step_instruction = f"""
+        # Simple task instruction - let the agent decide how to accomplish it
+        step_instruction = f"""
 {chr(10).join(context_parts)}
 
 Current task (Step {step.step_id}): {step.description}
-Tool to use: {step.tool_hint}
 Expected output: {step.expected_output}
 
-Execute ONLY this step. Use the {step.tool_hint} tool to complete this specific task.
+Complete this task using the tools available to you.
 Provide a concise summary of what you found.
 """
 
@@ -1062,10 +1048,34 @@ Provide a concise summary of what you found.
             if text is not None:
                 step_result = text
 
-        # Check if the expected tool was actually used
-        tool_used_correctly = self._verify_tool_usage(step.tool_hint, tool_calls)
+        # If we got grounding sources with URLs, inject them back to the agent
+        # so it can use web_fetch to retrieve the full content
+        urls_message = _format_urls_for_agent(sources)
+        if urls_message:
+            logger.info(f"Injecting {len(sources)} grounding URLs back to agent")
+            followup_content = types.Content(
+                role="user",
+                parts=[types.Part(text=urls_message)],
+            )
 
-        return step_result, tool_calls, sources, search_queries, tool_used_correctly
+            async for event in self._runner.run_async(
+                user_id="user",
+                session_id=adk_session_id,
+                new_message=followup_content,
+            ):
+                self._token_tracker.add_from_event(event)
+
+                new_tool_calls = _extract_tool_calls(event)
+                tool_calls.extend(new_tool_calls)
+                search_queries.extend(_extract_search_queries_from_tool_calls(new_tool_calls))
+                sources.extend(_extract_sources_from_responses(event))
+                sources.extend(_extract_grounding_sources(event))
+
+                text = _extract_final_response(event)
+                if text is not None:
+                    step_result = text
+
+        return step_result, tool_calls, sources, search_queries
 
     async def _execute_plan_step(
         self,
@@ -1074,11 +1084,11 @@ Provide a concise summary of what you found.
         step_results: list[str],
         plan: ResearchPlan,
         adk_session_id: str,
-    ) -> tuple[str, list[dict[str, Any]], list[GroundingChunk], list[str], bool]:
+    ) -> tuple[str, list[dict[str, Any]], list[GroundingChunk], list[str]]:
         """Execute a single plan step and update plan status.
 
-        Returns tuple of (step_result, tool_calls, sources, queries, tool_executed).
-        tool_executed indicates whether the expected tool was actually called.
+        Returns tuple of (step_result, tool_calls, sources, queries).
+        Steps are marked COMPLETED if they produce output.
         """
         step_start = time.time()
         logger.info(f"Executing step {step.step_id}: {step.description}")
@@ -1087,7 +1097,7 @@ Provide a concise summary of what you found.
         plan.update_step(step.step_id, status=StepStatus.IN_PROGRESS)
 
         # Handle synthesis steps differently - use direct LLM without tools
-        if step.tool_hint == "synthesis":
+        if step.step_type == "synthesis":
             step_result = await self._execute_synthesis_step(
                 step=step,
                 question=question,
@@ -1096,51 +1106,28 @@ Provide a concise summary of what you found.
             tool_calls: list[dict[str, Any]] = []
             sources: list[GroundingChunk] = []
             queries: list[str] = []
-            tool_executed = True  # Synthesis doesn't need a tool
         else:
-            # Execute with retry logic for tool enforcement
-            max_retries = 2
-            tool_executed = False
-            step_result = ""
-            tool_calls = []
-            sources = []
-            queries = []
+            # Execute the step - let the agent choose how to accomplish it
+            step_result, tool_calls, sources, queries = await self._execute_step(
+                step=step,
+                question=question,
+                previous_results=step_results,
+                adk_session_id=adk_session_id,
+            )
 
-            for retry in range(max_retries + 1):
-                step_result, tool_calls, sources, queries, tool_executed = await self._execute_step(
-                    step=step,
-                    question=question,
-                    previous_results=step_results,
-                    adk_session_id=adk_session_id,
-                    retry_count=retry,
-                )
-
-                if tool_executed:
-                    break
-
-                if retry < max_retries:
-                    logger.warning(
-                        f"Step {step.step_id} did not use expected tool '{step.tool_hint}'. "
-                        f"Retrying ({retry + 1}/{max_retries})..."
-                    )
-                else:
-                    logger.warning(
-                        f"Step {step.step_id} failed to use expected tool '{step.tool_hint}' "
-                        f"after {max_retries + 1} attempts."
-                    )
-
-        # Mark step as completed (even if tool wasn't used - we tried)
+        # Mark step as completed if it produced output
         step_duration = int((time.time() - step_start) * 1000)
-        status = StepStatus.COMPLETED if tool_executed else StepStatus.FAILED
+        has_output = bool(step_result and step_result.strip())
+        status = StepStatus.COMPLETED if has_output else StepStatus.FAILED
         plan.update_step(
             step.step_id,
             status=status,
             actual_output=step_result[:500] if step_result else "No output",
-            failure_reason="" if tool_executed else f"Expected tool '{step.tool_hint}' was not called",
+            failure_reason="" if has_output else "Step produced no output",
         )
-        logger.info(f"Step {step.step_id} {'completed' if tool_executed else 'failed'} in {step_duration}ms")
+        logger.info(f"Step {step.step_id} {'completed' if has_output else 'failed'} in {step_duration}ms")
 
-        return step_result, tool_calls, sources, queries, tool_executed
+        return step_result, tool_calls, sources, queries
 
     async def _synthesize_final_answer(
         self,
@@ -1241,7 +1228,6 @@ Do NOT search for additional information - use only the findings above.
             original_question=question,
             complexity_assessment="simple",
             steps=[],
-            estimated_tools=["web_search"],
             reasoning="Planning disabled",
         )
         self._current_plan = plan
@@ -1298,9 +1284,8 @@ Do NOT search for additional information - use only the findings above.
         final_response = ""
 
         if plan.steps:
-            # Track whether we've successfully fetched any URLs
-            # This prevents premature synthesis without actual source content
-            fetch_url_succeeded = False
+            # Track whether we've gathered substantial content
+            has_substantial_content = False
 
             # Dynamic execution loop - reflect and adapt after each step
             max_iterations = len(plan.steps) * 2  # Safety limit
@@ -1312,14 +1297,14 @@ Do NOT search for additional information - use only the findings above.
                     break
 
                 step = pending_steps[0]
-                step_result, tool_calls, sources, queries, tool_executed = await self._execute_plan_step(
+                step_result, tool_calls, sources, queries = await self._execute_plan_step(
                     step, question, step_results, plan, adk_session_id
                 )
 
-                # Track if any fetch_url step succeeded
-                if step.tool_hint == "fetch_url" and tool_executed:
-                    fetch_url_succeeded = True
-                    logger.info("Successfully fetched URL content")
+                # Track if we've gathered substantial content
+                if step_result and len(step_result) > 200:
+                    has_substantial_content = True
+                    logger.info("Step produced substantial content")
 
                 # Collect results
                 all_tool_calls.extend(tool_calls)
@@ -1330,32 +1315,34 @@ Do NOT search for additional information - use only the findings above.
                     reasoning_chain.append(f"Step {step.step_id}: {step_result[:300]}")
 
                 # Reflect and potentially update plan (skip for synthesis steps)
-                if self._planner is not None and step.tool_hint != "synthesis":
+                if self._planner is not None and step.step_type != "synthesis":
                     reflection = await self._planner.reflect_and_update_plan_async(
                         plan=plan,
                         completed_step=step,
                         step_result=step_result,
                         all_findings=step_results,
-                        fetch_url_succeeded=fetch_url_succeeded,
+                        has_substantial_content=has_substantial_content,
                     )
                     logger.info(f"Reflection: {reflection.decision}")
 
-                    # Only allow early exit if we've actually fetched some content
-                    # OR if there are no remaining fetch_url steps in the plan
-                    remaining_fetch_steps = [s for s in plan.get_pending_steps() if s.tool_hint == "fetch_url"]
+                    if reflection.can_answer_now and has_substantial_content:
+                        logger.info("Can answer now - skipping remaining steps")
+                        break
 
-                    if reflection.can_answer_now:
-                        if fetch_url_succeeded or not remaining_fetch_steps:
-                            logger.info("Can answer now - skipping remaining steps")
-                            break
-                        logger.warning(
-                            "Reflection says can_answer_now but no URLs fetched yet. "
-                            f"Continuing with {len(remaining_fetch_steps)} pending fetch_url steps."
-                        )
-                        # Don't break - force the agent to attempt fetch steps
+            # Use the last step result as final response if it was a synthesis step
+            # Otherwise, synthesize from all step results
+            completed_steps = plan.get_steps_by_status(StepStatus.COMPLETED)
+            last_step = completed_steps[-1] if completed_steps else None
 
-            # Final synthesis: combine all step results into final answer
-            final_response = await self._synthesize_final_answer(question, step_results)
+            if last_step and last_step.step_type == "synthesis" and step_results:
+                # Last step was synthesis - use its result directly
+                final_response = step_results[-1]
+                logger.info("Using synthesis step result as final answer")
+            elif step_results:
+                # No synthesis step completed - synthesize now
+                final_response = await self._synthesize_final_answer(question, step_results)
+            else:
+                final_response = "Unable to find relevant information to answer this question."
 
         else:
             # No plan steps - execute directly (fallback behavior)

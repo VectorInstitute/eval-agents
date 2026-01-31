@@ -733,9 +733,8 @@ class TestEnhancedGroundedResponse:
             original_question="Test question",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Search web", tool_hint="web_search"),
+                ResearchStep(step_id=1, description="Search web", step_type="research"),
             ],
-            estimated_tools=["web_search"],
             reasoning="Test plan",
         )
 
@@ -792,8 +791,8 @@ class TestEnhancedKnowledgeAgent:
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
     def test_agent_initialization(
         self,
@@ -838,8 +837,8 @@ class TestEnhancedKnowledgeAgent:
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
     def test_agent_without_planning(
         self,
@@ -866,8 +865,8 @@ class TestEnhancedKnowledgeAgent:
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
     def test_create_execution_trace(
         self,
@@ -887,10 +886,9 @@ class TestEnhancedKnowledgeAgent:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Search web", tool_hint="web_search"),
-                ResearchStep(step_id=2, description="Synthesize", tool_hint="synthesis"),
+                ResearchStep(step_id=1, description="Search web", step_type="research"),
+                ResearchStep(step_id=2, description="Synthesize", step_type="synthesis"),
             ],
-            estimated_tools=["web_search"],
             reasoning="Test",
         )
 
@@ -912,8 +910,8 @@ class TestEnhancedKnowledgeAgent:
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
     async def test_answer_async_with_planning(
         self,
@@ -947,9 +945,8 @@ class TestEnhancedKnowledgeAgent:
             original_question="Test question",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Search", tool_hint="web_search"),
+                ResearchStep(step_id=1, description="Search", step_type="research"),
             ],
-            estimated_tools=["web_search"],
             reasoning="Test plan",
         )
         mock_planner = MagicMock()
@@ -986,8 +983,8 @@ class TestEnhancedKnowledgeAgent:
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_pdf_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_url_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
     def test_format_answer(
         self,
@@ -1007,9 +1004,8 @@ class TestEnhancedKnowledgeAgent:
             original_question="Test",
             complexity_assessment="moderate",
             steps=[
-                ResearchStep(step_id=1, description="Search web", tool_hint="web_search"),
+                ResearchStep(step_id=1, description="Search web", step_type="research"),
             ],
-            estimated_tools=["web_search"],
             reasoning="Test",
         )
 

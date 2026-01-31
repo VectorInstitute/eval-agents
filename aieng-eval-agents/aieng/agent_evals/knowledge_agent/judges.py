@@ -1110,9 +1110,7 @@ Return a JSON object:
             The evaluation result.
         """
         steps_text = (
-            "\n".join(
-                f"  {s.step_id}. {s.description} (tool: {s.tool_hint}, depends_on: {s.depends_on})" for s in plan.steps
-            )
+            "\n".join(f"  {s.step_id}. {s.description} (depends_on: {s.depends_on})" for s in plan.steps)
             if plan.steps
             else "No steps defined"
         )
@@ -1129,7 +1127,6 @@ Reasoning: {plan.reasoning}
 Steps:
 {steps_text}
 
-Estimated Tools: {plan.estimated_tools}
 """
 
         response = self._call_llm(prompt)
@@ -1142,9 +1139,7 @@ Estimated Tools: {plan.estimated_tools}
     ) -> JudgeResult:
         """Async version of evaluate."""
         steps_text = (
-            "\n".join(
-                f"  {s.step_id}. {s.description} (tool: {s.tool_hint}, depends_on: {s.depends_on})" for s in plan.steps
-            )
+            "\n".join(f"  {s.step_id}. {s.description} (depends_on: {s.depends_on})" for s in plan.steps)
             if plan.steps
             else "No steps defined"
         )
@@ -1161,7 +1156,6 @@ Reasoning: {plan.reasoning}
 Steps:
 {steps_text}
 
-Estimated Tools: {plan.estimated_tools}
 """
 
         response = await self._call_llm_async(prompt)
