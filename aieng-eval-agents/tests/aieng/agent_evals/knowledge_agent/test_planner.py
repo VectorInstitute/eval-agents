@@ -525,7 +525,11 @@ class TestStepExecution:
 
 
 class TestParsePlanResponse:
-    """Tests for the _parse_plan_response function."""
+    """Tests for the _parse_plan_response function.
+
+    With structured output, the function expects clean JSON matching
+    the ResearchPlan schema.
+    """
 
     def test_parses_valid_json(self):
         """Test parsing valid JSON response."""
@@ -546,64 +550,64 @@ class TestParsePlanResponse:
             }
         )
 
-        plan = _parse_plan_response(response, "Test question")
+        plan = _parse_plan_response(response)
 
         assert plan.original_question == "Test question"
         assert plan.complexity_assessment == "moderate"
         assert len(plan.steps) == 1
         assert plan.steps[0].step_type == "research"
 
-    def test_parses_json_in_markdown_block(self):
-        """Test parsing JSON wrapped in markdown code block."""
-        response = """Here's the plan:
-
-```json
-{
-    "original_question": "Test",
-    "complexity_assessment": "simple",
-    "steps": [
-        {
-            "step_id": 1,
-            "description": "Search",
-            "step_type": "research"
-        }
-    ],
-        "reasoning": "Quick lookup"
-}
-```
-"""
-        plan = _parse_plan_response(response, "Test")
+    def test_parses_minimal_valid_json(self):
+        """Test parsing minimal valid JSON with required fields."""
+        response = json.dumps(
+            {
+                "original_question": "Test",
+                "complexity_assessment": "simple",
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "description": "Search",
+                        "step_type": "research",
+                    }
+                ],
+                "reasoning": "Quick lookup",
+            }
+        )
+        plan = _parse_plan_response(response)
 
         assert plan.complexity_assessment == "simple"
         assert len(plan.steps) == 1
 
-    def test_parses_json_in_plain_code_block(self):
-        """Test parsing JSON in plain code block without json tag."""
-        response = """```
-{
-    "original_question": "Test",
-    "complexity_assessment": "complex",
-    "steps": [],
-        "reasoning": "Empty plan"
-}
-```"""
-        plan = _parse_plan_response(response, "Test")
+    def test_parses_empty_steps(self):
+        """Test parsing JSON with empty steps array."""
+        response = json.dumps(
+            {
+                "original_question": "Test",
+                "complexity_assessment": "complex",
+                "steps": [],
+                "reasoning": "Empty plan",
+            }
+        )
+        plan = _parse_plan_response(response)
 
         assert plan.complexity_assessment == "complex"
+        assert len(plan.steps) == 0
 
     def test_raises_error_for_invalid_json(self):
         """Test that invalid JSON raises ValueError."""
         response = "This is not valid JSON at all"
 
         with pytest.raises(ValueError, match="Failed to parse planner response"):
-            _parse_plan_response(response, "Original question")
+            _parse_plan_response(response)
 
-    def test_handles_missing_fields_gracefully(self):
-        """Test handling of missing fields in JSON."""
+    def test_raises_error_for_missing_required_fields(self):
+        """Test that missing required fields raise ValueError."""
+        # Missing original_question and complexity_assessment
         response = json.dumps(
             {
                 "steps": [
                     {
+                        "step_id": 1,
                         "description": "Search",
                         "step_type": "research",
                     }
@@ -611,11 +615,8 @@ class TestParsePlanResponse:
             }
         )
 
-        plan = _parse_plan_response(response, "Test question")
-
-        # Should use defaults for missing fields
-        assert plan.original_question == "Test question"
-        assert plan.complexity_assessment == "moderate"  # Default
+        with pytest.raises(ValueError, match="Failed to parse planner response"):
+            _parse_plan_response(response)
 
 
 class TestResearchPlanner:
@@ -721,19 +722,26 @@ class TestResearchPlanner:
 
 
 class TestParseNewStepsResponse:
-    """Tests for the _parse_new_steps_response function."""
+    """Tests for the _parse_new_steps_response function.
 
-    def test_parses_valid_json_array(self):
-        """Test parsing valid JSON array of steps."""
+    With structured output, the function expects NewStepsResponse format:
+    {"steps": [...]}.
+    """
+
+    def test_parses_valid_json(self):
+        """Test parsing valid JSON with steps array."""
         response = json.dumps(
-            [
-                {
-                    "description": "Search alternative",
-                    "step_type": "research",
-                    "depends_on": [],
-                    "expected_output": "Alternative results",
-                }
-            ]
+            {
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "description": "Search alternative",
+                        "step_type": "research",
+                        "depends_on": [],
+                        "expected_output": "Alternative results",
+                    }
+                ]
+            }
         )
 
         steps = _parse_new_steps_response(response, start_id=5)
@@ -746,11 +754,13 @@ class TestParseNewStepsResponse:
     def test_parses_multiple_steps(self):
         """Test parsing multiple steps with sequential IDs."""
         response = json.dumps(
-            [
-                {"description": "Step A", "step_type": "research"},
-                {"description": "Step B", "step_type": "research"},
-                {"description": "Step C", "step_type": "research"},
-            ]
+            {
+                "steps": [
+                    {"step_id": 1, "description": "Step A", "step_type": "research"},
+                    {"step_id": 2, "description": "Step B", "step_type": "research"},
+                    {"step_id": 3, "description": "Step C", "step_type": "research"},
+                ]
+            }
         )
 
         steps = _parse_new_steps_response(response, start_id=10)
@@ -760,21 +770,21 @@ class TestParseNewStepsResponse:
         assert steps[1].step_id == 11
         assert steps[2].step_id == 12
 
-    def test_parses_json_in_markdown_block(self):
-        """Test parsing JSON wrapped in markdown code block."""
-        response = """Here are the new steps:
-
-```json
-[
-    {
-        "description": "Try alternative source",
-        "step_type": "research",
-        "depends_on": [1],
-        "expected_output": "Document content"
-    }
-]
-```
-"""
+    def test_parses_steps_with_dependencies(self):
+        """Test parsing steps with depends_on field."""
+        response = json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "description": "Try alternative source",
+                        "step_type": "research",
+                        "depends_on": [1],
+                        "expected_output": "Document content",
+                    }
+                ]
+            }
+        )
         steps = _parse_new_steps_response(response, start_id=2)
 
         assert len(steps) == 1
@@ -789,17 +799,9 @@ class TestParseNewStepsResponse:
 
         assert steps == []
 
-    def test_returns_empty_for_non_array(self):
-        """Test that non-array JSON returns empty list."""
-        response = json.dumps({"not": "an array"})
-
-        steps = _parse_new_steps_response(response, start_id=1)
-
-        assert steps == []
-
-    def test_returns_empty_array_for_empty_response(self):
-        """Test parsing empty array response."""
-        response = "[]"
+    def test_returns_empty_for_empty_steps(self):
+        """Test parsing empty steps array response."""
+        response = json.dumps({"steps": []})
 
         steps = _parse_new_steps_response(response, start_id=1)
 
@@ -807,7 +809,11 @@ class TestParseNewStepsResponse:
 
 
 class TestParseReflectionResponse:
-    """Tests for the _parse_reflection_response method of ResearchPlanner."""
+    """Tests for the _parse_reflection_response method of ResearchPlanner.
+
+    With structured output, the function expects clean JSON matching
+    the PlanReflection schema.
+    """
 
     @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
     def test_parses_valid_json(self, mock_client_class):
@@ -837,6 +843,7 @@ class TestParseReflectionResponse:
         response = json.dumps(
             {
                 "can_answer_now": False,
+                "key_findings": "",
                 "reasoning": "Need to refine search",
                 "steps_to_update": [
                     {
@@ -845,6 +852,8 @@ class TestParseReflectionResponse:
                         "new_expected_output": "More specific results",
                     }
                 ],
+                "steps_to_remove": [],
+                "steps_to_add": [],
             }
         )
 
@@ -862,8 +871,11 @@ class TestParseReflectionResponse:
         response = json.dumps(
             {
                 "can_answer_now": False,
+                "key_findings": "",
                 "reasoning": "Some steps no longer needed",
+                "steps_to_update": [],
                 "steps_to_remove": [2, 3],
+                "steps_to_add": [],
             }
         )
 
@@ -878,15 +890,20 @@ class TestParseReflectionResponse:
         response = json.dumps(
             {
                 "can_answer_now": False,
+                "key_findings": "",
                 "reasoning": "Need additional research",
+                "steps_to_update": [],
+                "steps_to_remove": [],
                 "steps_to_add": [
                     {
+                        "step_id": 0,
                         "description": "New step 1",
                         "step_type": "research",
                         "depends_on": [1],
                         "expected_output": "Expected output 1",
                     },
                     {
+                        "step_id": 0,
                         "description": "New step 2",
                         "step_type": "synthesis",
                         "depends_on": [1, 5],
@@ -907,19 +924,19 @@ class TestParseReflectionResponse:
         assert reflection.steps_to_add[1].step_type == "synthesis"
 
     @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
-    def test_parses_json_in_markdown_block(self, mock_client_class):
-        """Test parsing JSON wrapped in markdown code block."""
+    def test_parses_minimal_valid_json(self, mock_client_class):
+        """Test parsing minimal valid JSON with defaults."""
         planner = ResearchPlanner()
-        response = """Here's my analysis:
-
-```json
-{
-    "can_answer_now": false,
-    "key_findings": "Found partial data",
-    "reasoning": "Need more sources"
-}
-```
-"""
+        response = json.dumps(
+            {
+                "can_answer_now": False,
+                "key_findings": "Found partial data",
+                "reasoning": "Need more sources",
+                "steps_to_update": [],
+                "steps_to_remove": [],
+                "steps_to_add": [],
+            }
+        )
         reflection = planner._parse_reflection_response(response, next_step_id=5)
 
         assert reflection.can_answer_now is False
@@ -938,10 +955,19 @@ class TestParseReflectionResponse:
         assert "parse error" in reflection.reasoning.lower()
 
     @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
-    def test_handles_missing_fields(self, mock_client_class):
-        """Test handling of missing fields in JSON."""
+    def test_handles_optional_fields(self, mock_client_class):
+        """Test handling of optional fields with defaults."""
         planner = ResearchPlanner()
-        response = json.dumps({"can_answer_now": True})
+        response = json.dumps(
+            {
+                "can_answer_now": True,
+                "key_findings": "",
+                "reasoning": "",
+                "steps_to_update": [],
+                "steps_to_remove": [],
+                "steps_to_add": [],
+            }
+        )
 
         reflection = planner._parse_reflection_response(response, next_step_id=5)
 
@@ -1154,14 +1180,17 @@ class TestResearchPlannerReplanning:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.text = json.dumps(
-            [
-                {
-                    "description": "Try alternative search",
-                    "step_type": "research",
-                    "depends_on": [],
-                    "expected_output": "Alternative results",
-                }
-            ]
+            {
+                "steps": [
+                    {
+                        "step_id": 0,
+                        "description": "Try alternative search",
+                        "step_type": "research",
+                        "depends_on": [],
+                        "expected_output": "Alternative results",
+                    }
+                ]
+            }
         )
         mock_client.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client
@@ -1192,7 +1221,7 @@ class TestResearchPlannerReplanning:
         """Test suggesting new steps when a specific step failed."""
         mock_client = MagicMock()
         mock_response = MagicMock()
-        mock_response.text = "[]"  # No new steps suggested
+        mock_response.text = json.dumps({"steps": []})  # No new steps suggested
         mock_client.models.generate_content.return_value = mock_response
         mock_client_class.return_value = mock_client
 
@@ -1249,12 +1278,15 @@ class TestResearchPlannerReplanning:
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.text = json.dumps(
-            [
-                {
-                    "description": "Alternative search",
-                    "step_type": "research",
-                }
-            ]
+            {
+                "steps": [
+                    {
+                        "step_id": 0,
+                        "description": "Alternative search",
+                        "step_type": "research",
+                    }
+                ]
+            }
         )
 
         async def mock_generate(*args, **kwargs):

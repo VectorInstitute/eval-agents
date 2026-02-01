@@ -15,41 +15,57 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 DEFAULT_MODEL = os.environ.get("DEFAULT_WORKER_MODEL", "gemini-2.5-flash")
 
+# Known context limits for Gemini models (as of 2025)
+# Used as fallback if API fetch fails
+KNOWN_MODEL_LIMITS: dict[str, int] = {
+    "gemini-2.5-pro": 1_048_576,
+    "gemini-2.5-flash": 1_048_576,
+}
+
 
 class TokenUsage(BaseModel):
     """Token usage statistics.
 
     Attributes
     ----------
-    prompt_tokens : int
-        Total prompt/input tokens used.
-    cached_tokens : int
-        Tokens served from cache (don't count against new context).
-    completion_tokens : int
-        Total completion/output tokens used.
+    latest_prompt_tokens : int
+        Prompt tokens from the most recent API call. This represents the
+        actual current context size since each call includes full history.
+    latest_cached_tokens : int
+        Cached tokens from the most recent API call.
+    total_prompt_tokens : int
+        Cumulative prompt tokens across all calls (for cost tracking).
+    total_completion_tokens : int
+        Cumulative completion tokens across all calls.
     total_tokens : int
-        Total tokens used (prompt + completion).
+        Cumulative total tokens across all calls.
     context_limit : int
         Maximum context window size for the model.
     """
 
-    prompt_tokens: int = 0
-    cached_tokens: int = 0
-    completion_tokens: int = 0
+    latest_prompt_tokens: int = 0
+    latest_cached_tokens: int = 0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
     total_tokens: int = 0
     context_limit: int = 1_000_000  # Default for Gemini 2.0 Flash
 
     @property
     def uncached_prompt_tokens(self) -> int:
-        """Prompt tokens excluding cached content."""
-        return max(0, self.prompt_tokens - self.cached_tokens)
+        """Current context tokens excluding cached content.
+
+        Uses the LATEST prompt tokens since each API call includes the
+        full conversation history. Cached tokens are stored separately
+        and don't count against the active context window.
+        """
+        return max(0, self.latest_prompt_tokens - self.latest_cached_tokens)
 
     @property
     def context_used_percent(self) -> float:
-        """Calculate percentage of context window used.
+        """Calculate percentage of context window currently used.
 
-        Uses uncached prompt tokens since cached content is stored separately
-        and doesn't count against the active context window.
+        Uses the latest prompt tokens (minus cached) since that reflects
+        the actual current conversation context size.
         """
         if self.context_limit == 0:
             return 0.0
@@ -59,6 +75,22 @@ class TokenUsage(BaseModel):
     def context_remaining_percent(self) -> float:
         """Calculate percentage of context window remaining."""
         return max(0.0, 100.0 - self.context_used_percent)
+
+    # Backwards compatibility aliases
+    @property
+    def prompt_tokens(self) -> int:
+        """Alias for total_prompt_tokens (backwards compatibility)."""
+        return self.total_prompt_tokens
+
+    @property
+    def cached_tokens(self) -> int:
+        """Alias for latest_cached_tokens (backwards compatibility)."""
+        return self.latest_cached_tokens
+
+    @property
+    def completion_tokens(self) -> int:
+        """Alias for total_completion_tokens (backwards compatibility)."""
+        return self.total_completion_tokens
 
 
 class TokenTracker:
@@ -90,15 +122,23 @@ class TokenTracker:
         self._fetch_model_limits()
 
     def _fetch_model_limits(self) -> None:
-        """Fetch model context limits from the API."""
+        """Fetch model context limits from the API, with known fallbacks."""
         try:
             client = genai.Client()
             model_info = client.models.get(model=self._model)
             if model_info.input_token_limit:
                 self._usage.context_limit = model_info.input_token_limit
                 logger.debug(f"Model {self._model} context limit: {self._usage.context_limit}")
+                return
         except Exception as e:
-            logger.warning(f"Failed to fetch model limits: {e}. Using default.")
+            logger.warning(f"Failed to fetch model limits from API: {e}")
+
+        # Use known fallback if available
+        if self._model in KNOWN_MODEL_LIMITS:
+            self._usage.context_limit = KNOWN_MODEL_LIMITS[self._model]
+            logger.info(f"Using known limit for {self._model}: {self._usage.context_limit}")
+        else:
+            logger.warning(f"Unknown model {self._model}, using default limit: {self._usage.context_limit}")
 
     @property
     def usage(self) -> TokenUsage:
@@ -107,6 +147,9 @@ class TokenTracker:
 
     def add_from_event(self, event: Any) -> None:
         """Add token usage from an ADK event.
+
+        Updates both the latest token counts (for context tracking) and
+        cumulative totals (for cost tracking).
 
         Parameters
         ----------
@@ -118,24 +161,35 @@ class TokenTracker:
 
         metadata = event.usage_metadata
 
-        # Extract token counts
+        # Extract token counts from this API call
         prompt = getattr(metadata, "prompt_token_count", 0) or 0
         cached = getattr(metadata, "cached_content_token_count", 0) or 0
         completion = getattr(metadata, "candidates_token_count", 0) or 0
         total = getattr(metadata, "total_token_count", 0) or 0
 
-        # Accumulate tokens
-        self._usage.prompt_tokens += prompt
-        self._usage.cached_tokens += cached
-        self._usage.completion_tokens += completion
+        # Update LATEST tokens - this reflects current context size
+        # Each API call includes full conversation history, so the latest
+        # prompt_token_count is the actual current context usage
+        self._usage.latest_prompt_tokens = prompt
+        self._usage.latest_cached_tokens = cached
+
+        # Accumulate totals for cost/usage tracking
+        self._usage.total_prompt_tokens += prompt
+        self._usage.total_completion_tokens += completion
         self._usage.total_tokens += total
 
         logger.debug(
-            f"Token update: +{total} total (+{cached} cached), "
-            f"cumulative: {self._usage.total_tokens} ({self._usage.cached_tokens} cached)"
+            f"Token update: prompt={prompt} (cached={cached}), context: {self._usage.context_used_percent:.1f}% used"
         )
 
     def reset(self) -> None:
-        """Reset token counts (keeps context limit)."""
+        """Reset all token counts (keeps context limit)."""
         context_limit = self._usage.context_limit
-        self._usage = TokenUsage(context_limit=context_limit)
+        self._usage = TokenUsage(
+            latest_prompt_tokens=0,
+            latest_cached_tokens=0,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            total_tokens=0,
+            context_limit=context_limit,
+        )

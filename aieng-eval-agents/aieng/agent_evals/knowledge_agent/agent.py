@@ -486,7 +486,7 @@ class KnowledgeGroundedAgent:
         enable_planning: bool = True,
         enable_caching: bool = True,
         enable_compaction: bool = True,
-        compaction_interval: int = 5,
+        compaction_interval: int = 3,
     ) -> None:
         """Initialize the enhanced knowledge-grounded agent.
 

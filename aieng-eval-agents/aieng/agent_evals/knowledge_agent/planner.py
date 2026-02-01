@@ -5,7 +5,6 @@ enabling it to break down complex research questions into structured,
 multi-step research plans that are observable and evaluable.
 """
 
-import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -331,6 +330,18 @@ class PlanReflection(BaseModel):
     steps_to_add: list[ResearchStep] = Field(default_factory=list)
 
 
+class NewStepsResponse(BaseModel):
+    """Response model for replanning - wrapper for list of new steps.
+
+    Attributes
+    ----------
+    steps : list[ResearchStep]
+        New steps to add to the plan. Empty list if no new steps needed.
+    """
+
+    steps: list[ResearchStep] = Field(default_factory=list)
+
+
 PLANNER_SYSTEM_PROMPT = """\
 You are a research planning expert. Your task is to analyze questions and create
 structured research plans that can be executed by a knowledge-grounded QA agent.
@@ -409,59 +420,26 @@ The final step should typically be "synthesis" to combine all research findings 
 """
 
 
-def _parse_plan_response(response_text: str, question: str) -> ResearchPlan:
+def _parse_plan_response(response_text: str) -> ResearchPlan:
     """Parse the LLM response into a ResearchPlan.
+
+    With structured output, this is a simple Pydantic validation.
 
     Parameters
     ----------
     response_text : str
-        Raw response from the planning LLM.
-    question : str
-        The original question (for fallback).
+        JSON response from the planning LLM (structured output).
 
     Returns
     -------
     ResearchPlan
         Parsed research plan.
     """
-    # Try to extract JSON from response
     try:
-        # Look for JSON block in response
-        text = response_text.strip()
-
-        # Handle markdown code blocks
-        if "```json" in text:
-            start = text.find("```json") + 7
-            end = text.find("```", start)
-            text = text[start:end].strip()
-        elif "```" in text:
-            start = text.find("```") + 3
-            end = text.find("```", start)
-            text = text[start:end].strip()
-
-        plan_data = json.loads(text)
-
-        steps = [
-            ResearchStep(
-                step_id=s.get("step_id", i + 1),
-                description=s.get("description", ""),
-                step_type=s.get("step_type", "research"),
-                depends_on=s.get("depends_on", []),
-                expected_output=s.get("expected_output", ""),
-            )
-            for i, s in enumerate(plan_data.get("steps", []))
-        ]
-
-        return ResearchPlan(
-            original_question=plan_data.get("original_question", question),
-            complexity_assessment=plan_data.get("complexity_assessment", "moderate"),
-            steps=steps,
-            reasoning=plan_data.get("reasoning", ""),
-        )
-
-    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        return ResearchPlan.model_validate_json(response_text)
+    except Exception as e:
         logger.error(f"Failed to parse plan response: {e}\nResponse was: {response_text[:500]}")
-        raise ValueError(f"Failed to parse planner response as JSON: {e}") from e
+        raise ValueError(f"Failed to parse planner response: {e}") from e
 
 
 class ResearchPlanner:
@@ -542,11 +520,13 @@ class ResearchPlanner:
                 config=types.GenerateContentConfig(
                     system_instruction=PLANNER_SYSTEM_PROMPT,
                     temperature=self._temperature,
+                    response_mime_type="application/json",
+                    response_schema=ResearchPlan,
                 ),
             )
 
             response_text = response.text or ""
-            plan = _parse_plan_response(response_text, question)
+            plan = _parse_plan_response(response_text)
 
             logger.info(f"Created plan with {len(plan.steps)} steps (complexity: {plan.complexity_assessment})")
             return plan
@@ -580,11 +560,13 @@ class ResearchPlanner:
                 config=types.GenerateContentConfig(
                     system_instruction=PLANNER_SYSTEM_PROMPT,
                     temperature=self._temperature,
+                    response_mime_type="application/json",
+                    response_schema=ResearchPlan,
                 ),
             )
 
             response_text = response.text or ""
-            plan = _parse_plan_response(response_text, question)
+            plan = _parse_plan_response(response_text)
 
             logger.info(f"Created plan with {len(plan.steps)} steps (complexity: {plan.complexity_assessment})")
             return plan
@@ -630,6 +612,8 @@ class ResearchPlanner:
                 config=types.GenerateContentConfig(
                     system_instruction=REPLANNING_SYSTEM_PROMPT,
                     temperature=self._temperature,
+                    response_mime_type="application/json",
+                    response_schema=NewStepsResponse,
                 ),
             )
 
@@ -677,6 +661,8 @@ class ResearchPlanner:
                 config=types.GenerateContentConfig(
                     system_instruction=REPLANNING_SYSTEM_PROMPT,
                     temperature=self._temperature,
+                    response_mime_type="application/json",
+                    response_schema=NewStepsResponse,
                 ),
             )
 
@@ -735,6 +721,8 @@ class ResearchPlanner:
                 config=types.GenerateContentConfig(
                     system_instruction=REFLECTION_SYSTEM_PROMPT,
                     temperature=self._temperature,
+                    response_mime_type="application/json",
+                    response_schema=PlanReflection,
                 ),
             )
 
@@ -817,10 +805,13 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
     def _parse_reflection_response(self, response_text: str, next_step_id: int) -> PlanReflection:
         """Parse the reflection response.
 
+        With structured output, this is a simple Pydantic validation.
+        We still need to assign step IDs to any new steps.
+
         Parameters
         ----------
         response_text : str
-            Raw response from the reflection LLM.
+            JSON response from the reflection LLM (structured output).
         next_step_id : int
             Starting ID for any new steps.
 
@@ -830,56 +821,15 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
             Parsed reflection.
         """
         try:
-            text = response_text.strip()
+            reflection = PlanReflection.model_validate_json(response_text)
 
-            # Handle markdown code blocks
-            if "```json" in text:
-                start = text.find("```json") + 7
-                end = text.find("```", start)
-                text = text[start:end].strip()
-            elif "```" in text:
-                start = text.find("```") + 3
-                end = text.find("```", start)
-                text = text[start:end].strip()
+            # Assign step IDs to new steps (structured output doesn't know next ID)
+            for i, step in enumerate(reflection.steps_to_add):
+                step.step_id = next_step_id + i
 
-            data = json.loads(text)
+            return reflection
 
-            # Parse step updates
-            steps_to_update = []
-            for update in data.get("steps_to_update", []):
-                steps_to_update.append(
-                    StepUpdate(
-                        step_id=update.get("step_id"),
-                        new_description=update.get("new_description", ""),
-                        new_expected_output=update.get("new_expected_output", ""),
-                    )
-                )
-
-            # Parse steps to remove
-            steps_to_remove = data.get("steps_to_remove", [])
-
-            # Parse new steps to add
-            steps_to_add = []
-            for i, s in enumerate(data.get("steps_to_add", [])):
-                step = ResearchStep(
-                    step_id=next_step_id + i,
-                    description=s.get("description", ""),
-                    step_type=s.get("step_type", "research"),
-                    depends_on=s.get("depends_on", []),
-                    expected_output=s.get("expected_output", ""),
-                )
-                steps_to_add.append(step)
-
-            return PlanReflection(
-                can_answer_now=data.get("can_answer_now", False),
-                key_findings=data.get("key_findings", ""),
-                reasoning=data.get("reasoning", ""),
-                steps_to_update=steps_to_update,
-                steps_to_remove=steps_to_remove,
-                steps_to_add=steps_to_add,
-            )
-
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to parse reflection response: {e}")
             return PlanReflection(
                 reasoning=f"Continuing due to parse error: {e}",
@@ -1032,17 +982,19 @@ new steps if needed.
 
 ## Output Format
 
-Return a JSON array of new steps (empty array if no new steps needed):
-[
-    {
-        "description": "What this step does",
-        "step_type": "research|synthesis",
-        "depends_on": [],
-        "expected_output": "What we expect to learn"
-    }
-]
+Return a JSON object with a "steps" array (empty array if no new steps needed):
+{
+    "steps": [
+        {
+            "description": "What this step does",
+            "step_type": "research|synthesis",
+            "depends_on": [],
+            "expected_output": "What we expect to learn"
+        }
+    ]
+}
 
-PREFER empty array [] over adding low-value research steps.
+PREFER empty steps array over adding low-value research steps.
 """
 
 
@@ -1133,10 +1085,13 @@ All arrays can be empty. Prefer updating over removing+adding.
 def _parse_new_steps_response(response_text: str, start_id: int) -> list[ResearchStep]:
     """Parse the replanning response into new steps.
 
+    With structured output, this is a simple Pydantic validation.
+    We still need to assign step IDs to the new steps.
+
     Parameters
     ----------
     response_text : str
-        Raw response from the replanning LLM.
+        JSON response from the replanning LLM (structured output).
     start_id : int
         Starting step ID for new steps.
 
@@ -1146,36 +1101,14 @@ def _parse_new_steps_response(response_text: str, start_id: int) -> list[Researc
         Parsed new steps.
     """
     try:
-        text = response_text.strip()
+        response = NewStepsResponse.model_validate_json(response_text)
 
-        # Handle markdown code blocks
-        if "```json" in text:
-            start = text.find("```json") + 7
-            end = text.find("```", start)
-            text = text[start:end].strip()
-        elif "```" in text:
-            start = text.find("```") + 3
-            end = text.find("```", start)
-            text = text[start:end].strip()
+        # Assign step IDs (structured output doesn't know the next ID)
+        for i, step in enumerate(response.steps):
+            step.step_id = start_id + i
 
-        steps_data = json.loads(text)
+        return response.steps
 
-        if not isinstance(steps_data, list):
-            return []
-
-        new_steps = []
-        for i, s in enumerate(steps_data):
-            step = ResearchStep(
-                step_id=start_id + i,
-                description=s.get("description", ""),
-                step_type=s.get("step_type", "research"),
-                depends_on=s.get("depends_on", []),
-                expected_output=s.get("expected_output", ""),
-            )
-            new_steps.append(step)
-
-        return new_steps
-
-    except (json.JSONDecodeError, KeyError, TypeError) as e:
+    except Exception as e:
         logger.warning(f"Failed to parse new steps response: {e}")
         return []
