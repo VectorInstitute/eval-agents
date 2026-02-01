@@ -13,7 +13,6 @@ The knowledge agent uses a ReAct (Reasoning + Acting) architecture powered by Go
 - **Source Citation**: Automatically extracts and includes source URLs from search results
 - **DeepSearchQA Evaluation**: Built-in evaluation on the DeepSearchQA benchmark (900 research tasks)
 - **Multi-turn Conversations**: Session management via ADK's `InMemorySessionService`
-- **Gradio Interface**: Interactive chat UI for testing
 
 ## Setup
 
@@ -35,14 +34,6 @@ uv sync
 ```
 
 ## Usage
-
-### Interactive Chat
-
-Run the Gradio app:
-
-```bash
-uv run --env-file .env gradio implementations/knowledge_agent/gradio_app.py
-```
 
 ### Programmatic Usage
 
@@ -83,19 +74,27 @@ print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
 
 ## Notebooks
 
-1. **01_grounding_basics.ipynb**: Introduction to the knowledge agent and Google Search tool
-2. **02_agent_basics.ipynb**: Creating agents with custom instructions
-3. **03_multi_turn.ipynb**: Multi-turn conversations and DeepSearchQA evaluation
+1. **01_agent_basics.ipynb**: Agent architecture, tools, running queries, and single-sample evaluation with LLM-as-judge
+2. **02_langfuse_tracing.ipynb**: Observability with Langfuse - enabling tracing, viewing traces, and loading traces via API
 
 ## Architecture
 
 ```
 aieng.agent_evals.knowledge_agent/
-├── config.py          # Configuration (Pydantic settings)
-├── grounding_tool.py  # GoogleSearchTool wrapper and response models
 ├── agent.py           # KnowledgeGroundedAgent (ADK Agent + Runner)
-├── session.py         # Conversation session management
-└── evaluation.py      # DeepSearchQA dataset and evaluator
+├── evaluation.py      # DeepSearchQA dataset and evaluator
+├── judges.py          # LLM-as-judge evaluation
+├── metrics.py         # Evaluation metrics
+├── planner.py         # Research planning
+├── token_tracker.py   # Token usage tracking
+└── tracing.py         # Langfuse tracing integration
+
+aieng.agent_evals/
+├── configs.py         # Configuration (Pydantic settings)
+└── tools/             # Shared tools
+    ├── search.py      # GoogleSearchTool wrapper
+    ├── web.py         # web_fetch for HTML/PDF
+    └── file.py        # fetch_file, grep_file, read_file
 ```
 
 ## DeepSearchQA Dataset

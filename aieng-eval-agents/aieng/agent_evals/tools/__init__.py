@@ -24,7 +24,13 @@ from .search import (
     create_google_search_tool,
     format_response_with_citations,
 )
-from .web import create_web_fetch_tool, web_fetch
+from .web import (
+    create_web_fetch_tool,
+    resolve_redirect_url,
+    resolve_redirect_url_async,
+    resolve_redirect_urls_async,
+    web_fetch,
+)
 
 
 __all__ = [
@@ -36,6 +42,9 @@ __all__ = [
     # Web tools (HTML pages and PDFs)
     "web_fetch",
     "create_web_fetch_tool",
+    "resolve_redirect_url",
+    "resolve_redirect_url_async",
+    "resolve_redirect_urls_async",
     # File tools (data files - CSV, XLSX, text)
     "fetch_file",
     "grep_file",

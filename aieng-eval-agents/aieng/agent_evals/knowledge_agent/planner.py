@@ -118,8 +118,10 @@ class ResearchPlan(BaseModel):
         actual_output: str | None = None,
         failure_reason: str | None = None,
         increment_attempts: bool = False,
+        description: str | None = None,
+        expected_output: str | None = None,
     ) -> bool:
-        """Update a step's tracking fields.
+        """Update a step's fields.
 
         Parameters
         ----------
@@ -133,6 +135,10 @@ class ResearchPlan(BaseModel):
             Reason for failure if applicable.
         increment_attempts : bool
             Whether to increment the attempts counter.
+        description : str, optional
+            New description for the step (for plan refinement).
+        expected_output : str, optional
+            New expected output for the step (for plan refinement).
 
         Returns
         -------
@@ -151,6 +157,10 @@ class ResearchPlan(BaseModel):
             step.failure_reason = failure_reason
         if increment_attempts:
             step.attempts += 1
+        if description is not None:
+            step.description = description
+        if expected_output is not None:
+            step.expected_output = expected_output
 
         return True
 
@@ -275,31 +285,50 @@ class StepExecution(BaseModel):
     raw_output: str = ""
 
 
+class StepUpdate(BaseModel):
+    """An update to an existing step.
+
+    Attributes
+    ----------
+    step_id : int
+        The ID of the step to update.
+    new_description : str
+        The updated description for the step.
+    new_expected_output : str
+        The updated expected output for the step.
+    """
+
+    step_id: int
+    new_description: str
+    new_expected_output: str = ""
+
+
 class PlanReflection(BaseModel):
     """Result of reflecting on a completed step.
 
     Attributes
     ----------
-    decision : str
-        The decision: CONTINUE, ADD_STEPS, SKIP_STEPS, or COMPLETE.
-    reasoning : str
-        Why this decision was made.
-    steps_to_skip : list[int]
-        Step IDs to skip (if decision is SKIP_STEPS).
-    new_steps : list[ResearchStep]
-        New steps to add (if decision is ADD_STEPS).
     can_answer_now : bool
         Whether we have enough information to synthesize the answer.
     key_findings : str
         Summary of what was learned in this step.
+    reasoning : str
+        Why this decision was made.
+    steps_to_update : list[StepUpdate]
+        Updates to pending steps based on what was learned.
+        Prefer this over remove+add when refining a step's approach.
+    steps_to_remove : list[int]
+        IDs of pending steps that are no longer needed.
+    steps_to_add : list[ResearchStep]
+        New steps to add. Only use if work doesn't fit existing steps.
     """
 
-    decision: str = "CONTINUE"
-    reasoning: str = ""
-    steps_to_skip: list[int] = Field(default_factory=list)
-    new_steps: list[ResearchStep] = Field(default_factory=list)
     can_answer_now: bool = False
     key_findings: str = ""
+    reasoning: str = ""
+    steps_to_update: list[StepUpdate] = Field(default_factory=list)
+    steps_to_remove: list[int] = Field(default_factory=list)
+    steps_to_add: list[ResearchStep] = Field(default_factory=list)
 
 
 PLANNER_SYSTEM_PROMPT = """\
@@ -350,11 +379,12 @@ comprehensive extraction prompt rather than multiple calls.
 
 ## Complexity Assessment
 
-- "simple": Single fact lookup → 1-2 steps
-- "moderate": Multiple related facts from one source → 2-3 steps
-- "complex": Multi-part analysis requiring synthesis → 3-5 steps
+- "simple": Single fact lookup (e.g., "What is X?") → 2 steps (search + synthesis)
+- "moderate": Multiple related facts or comparisons → 3 steps (search + fetch/verify + synthesis)
+- "complex": Multi-part analysis, historical data, or multi-source verification → 3-5 steps
 
-Even "complex" questions should use efficient patterns. More steps ≠ better.
+IMPORTANT: Every plan MUST include a final "synthesis" step to combine findings into a complete answer.
+Even simple questions need at least 2 steps: research + synthesis.
 
 ## Output Format
 
@@ -430,29 +460,8 @@ def _parse_plan_response(response_text: str, question: str) -> ResearchPlan:
         )
 
     except (json.JSONDecodeError, KeyError, TypeError) as e:
-        logger.warning(f"Failed to parse plan response: {e}")
-        # Return a simple default plan
-        return ResearchPlan(
-            original_question=question,
-            complexity_assessment="simple",
-            steps=[
-                ResearchStep(
-                    step_id=1,
-                    description="Search for relevant information",
-                    step_type="research",
-                    depends_on=[],
-                    expected_output="Relevant facts and sources",
-                ),
-                ResearchStep(
-                    step_id=2,
-                    description="Synthesize findings into answer",
-                    step_type="synthesis",
-                    depends_on=[1],
-                    expected_output="Complete answer with citations",
-                ),
-            ],
-            reasoning="Default plan due to parsing error",
-        )
+        logger.error(f"Failed to parse plan response: {e}\nResponse was: {response_text[:500]}")
+        raise ValueError(f"Failed to parse planner response as JSON: {e}") from e
 
 
 class ResearchPlanner:
@@ -502,6 +511,9 @@ class ResearchPlanner:
         else:
             self._model = "gemini-2.5-flash"
 
+        # Temperature for planning (use config if available)
+        self._temperature = config.default_temperature if config is not None else 0.3
+
         # Initialize Genai client
         self._client = genai.Client()
 
@@ -529,7 +541,7 @@ class ResearchPlanner:
                 ),
                 config=types.GenerateContentConfig(
                     system_instruction=PLANNER_SYSTEM_PROMPT,
-                    temperature=0.3,  # Lower temperature for more consistent planning
+                    temperature=self._temperature,
                 ),
             )
 
@@ -540,22 +552,8 @@ class ResearchPlanner:
             return plan
 
         except Exception as e:
-            logger.error(f"Error creating research plan: {e}")
-            # Return a simple fallback plan
-            return ResearchPlan(
-                original_question=question,
-                complexity_assessment="simple",
-                steps=[
-                    ResearchStep(
-                        step_id=1,
-                        description="Search for relevant information",
-                        step_type="research",
-                        depends_on=[],
-                        expected_output="Relevant facts and sources",
-                    ),
-                ],
-                reasoning=f"Fallback plan due to error: {e}",
-            )
+            logger.error(f"Error creating research plan: {e}", exc_info=True)
+            raise
 
     async def create_plan_async(self, question: str) -> ResearchPlan:
         """Async version of create_plan.
@@ -581,7 +579,7 @@ class ResearchPlanner:
                 ),
                 config=types.GenerateContentConfig(
                     system_instruction=PLANNER_SYSTEM_PROMPT,
-                    temperature=0.3,
+                    temperature=self._temperature,
                 ),
             )
 
@@ -592,21 +590,8 @@ class ResearchPlanner:
             return plan
 
         except Exception as e:
-            logger.error(f"Error creating research plan: {e}")
-            return ResearchPlan(
-                original_question=question,
-                complexity_assessment="simple",
-                steps=[
-                    ResearchStep(
-                        step_id=1,
-                        description="Search for relevant information",
-                        step_type="research",
-                        depends_on=[],
-                        expected_output="Relevant facts and sources",
-                    ),
-                ],
-                reasoning=f"Fallback plan due to error: {e}",
-            )
+            logger.error(f"Error creating research plan: {e}", exc_info=True)
+            raise
 
     def suggest_new_steps(
         self,
@@ -644,7 +629,7 @@ class ResearchPlanner:
                 ),
                 config=types.GenerateContentConfig(
                     system_instruction=REPLANNING_SYSTEM_PROMPT,
-                    temperature=0.3,
+                    temperature=self._temperature,
                 ),
             )
 
@@ -691,7 +676,7 @@ class ResearchPlanner:
                 ),
                 config=types.GenerateContentConfig(
                     system_instruction=REPLANNING_SYSTEM_PROMPT,
-                    temperature=0.3,
+                    temperature=self._temperature,
                 ),
             )
 
@@ -749,7 +734,7 @@ class ResearchPlanner:
                 ),
                 config=types.GenerateContentConfig(
                     system_instruction=REFLECTION_SYSTEM_PROMPT,
-                    temperature=0.2,  # Low temperature for consistent decisions
+                    temperature=self._temperature,
                 ),
             )
 
@@ -759,14 +744,14 @@ class ResearchPlanner:
             # Apply reflection (has_substantial_content prevents premature skipping)
             self._apply_reflection_to_plan(plan, reflection, has_substantial_content)
 
-            logger.info(f"Reflection decision: {reflection.decision} - {reflection.reasoning[:100]}")
+            logger.info(f"Reflection: can_answer={reflection.can_answer_now} - {reflection.reasoning[:100]}")
             return reflection
 
         except Exception as e:
             logger.error(f"Error during reflection: {e}")
-            # Default to continuing
+            # Default to continuing (can_answer_now=False means continue)
             return PlanReflection(
-                decision="CONTINUE",
+                can_answer_now=False,
                 reasoning=f"Continuing due to reflection error: {e}",
             )
 
@@ -859,9 +844,23 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
 
             data = json.loads(text)
 
-            # Parse new steps if present
-            new_steps = []
-            for i, s in enumerate(data.get("new_steps", [])):
+            # Parse step updates
+            steps_to_update = []
+            for update in data.get("steps_to_update", []):
+                steps_to_update.append(
+                    StepUpdate(
+                        step_id=update.get("step_id"),
+                        new_description=update.get("new_description", ""),
+                        new_expected_output=update.get("new_expected_output", ""),
+                    )
+                )
+
+            # Parse steps to remove
+            steps_to_remove = data.get("steps_to_remove", [])
+
+            # Parse new steps to add
+            steps_to_add = []
+            for i, s in enumerate(data.get("steps_to_add", [])):
                 step = ResearchStep(
                     step_id=next_step_id + i,
                     description=s.get("description", ""),
@@ -869,21 +868,20 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
                     depends_on=s.get("depends_on", []),
                     expected_output=s.get("expected_output", ""),
                 )
-                new_steps.append(step)
+                steps_to_add.append(step)
 
             return PlanReflection(
-                decision=data.get("decision", "CONTINUE"),
-                reasoning=data.get("reasoning", ""),
-                steps_to_skip=data.get("steps_to_skip", []),
-                new_steps=new_steps,
                 can_answer_now=data.get("can_answer_now", False),
                 key_findings=data.get("key_findings", ""),
+                reasoning=data.get("reasoning", ""),
+                steps_to_update=steps_to_update,
+                steps_to_remove=steps_to_remove,
+                steps_to_add=steps_to_add,
             )
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.warning(f"Failed to parse reflection response: {e}")
             return PlanReflection(
-                decision="CONTINUE",
                 reasoning=f"Continuing due to parse error: {e}",
             )
 
@@ -903,20 +901,34 @@ Based on this, decide how to proceed. Can we answer the question now? Do we need
             The reflection with decisions.
         has_substantial_content : bool
             Whether substantial content has been gathered. If False,
-            steps will NOT be skipped even if can_answer_now is True.
+            remaining steps will NOT be skipped even if can_answer_now is True.
         """
-        # Skip steps if requested (but only if we have substantial content)
-        for step_id in reflection.steps_to_skip:
-            if not has_substantial_content:
-                logger.warning(f"Refusing to skip step {step_id} - no substantial content gathered yet")
-                continue
-            plan.update_step(step_id, status=StepStatus.SKIPPED)
-            logger.info(f"Skipping step {step_id} based on reflection")
+        # 1. Update pending steps based on what was learned
+        for update in reflection.steps_to_update:
+            step = plan.get_step(update.step_id)
+            if step and step.status == StepStatus.PENDING:
+                plan.update_step(
+                    update.step_id,
+                    description=update.new_description if update.new_description else None,
+                    expected_output=update.new_expected_output if update.new_expected_output else None,
+                )
+                logger.info(f"Updated step {update.step_id}: {update.new_description[:50]}...")
 
-        # Add new steps if requested
-        for new_step in reflection.new_steps:
+        # 2. Remove steps that are no longer needed
+        for step_id in reflection.steps_to_remove:
+            step = plan.get_step(step_id)
+            if step and step.status == StepStatus.PENDING:
+                # Don't remove synthesis steps
+                if step.step_type == "synthesis":
+                    logger.warning(f"Refusing to remove synthesis step {step_id}")
+                    continue
+                plan.update_step(step_id, status=StepStatus.SKIPPED)
+                logger.info(f"Removed step {step_id}: {step.description[:50]}...")
+
+        # 3. Add new steps if needed
+        for new_step in reflection.steps_to_add:
             plan.add_step(new_step)
-            logger.info(f"Added step {new_step.step_id}: {new_step.description}")
+            logger.info(f"Added step {new_step.step_id}: {new_step.description[:50]}...")
 
         # If can_answer_now, skip remaining steps (only if we have content)
         if reflection.can_answer_now and has_substantial_content:
@@ -1038,25 +1050,26 @@ REFLECTION_SYSTEM_PROMPT = """\
 You are a research assistant reflecting on your progress after completing a research step.
 Your job is to analyze what was found and decide how to adjust the research plan.
 
-## Your Decision Options
+## Plan Modification Options
 
-1. **CONTINUE**: The current plan is good, proceed to the next step
-2. **ADD_STEPS**: Add new steps based on what was discovered (especially for terminology refinement)
-3. **SKIP_STEPS**: Mark remaining steps as unnecessary if we have VERIFIED the exact answer
-4. **COMPLETE**: We have VERIFIED information to answer the question precisely
+After each step, you can:
+1. **Update steps**: Modify pending steps based on what you learned (PREFERRED)
+2. **Remove steps**: Delete steps that are no longer needed
+3. **Add steps**: Add new steps if genuinely new work is discovered
+4. **Finish early**: Set can_answer_now=true if you have verified the answer
 
-## CRITICAL: Terminology Discovery Triggers Follow-up
+**IMPORTANT**: Prefer UPDATING existing steps over removing and adding new ones.
+If step 2 needs a different approach, UPDATE step 2's description rather than removing it and adding step 4.
 
-When analyzing step results, look for NEW SPECIFIC TERMS that name what you're researching:
-- If the question asks about "buffs" and you learned they're called "Sigils" -> ADD a search for "Sigils"
-- If the question asks about "types" and you learned they're called "Classes" -> ADD a search for "Classes"
-- If a general page mentions a subsystem has "its own page" -> ADD a fetch for that specific page
+## CRITICAL: Terminology Discovery
 
-This is the most important pattern: GENERAL TERM in question -> SPECIFIC TERM in source -> SEARCH for specific term
+When you discover a SPECIFIC TERM for what you're researching:
+- Question asks about "buffs" -> source calls them "Sigils" -> UPDATE next step to search for "Sigils"
+- Question asks about "types" -> source calls them "Classes" -> UPDATE next step to search for "Classes"
 
-## Verification Before Completion
+## Verification Before can_answer_now=true
 
-Before marking COMPLETE or can_answer_now=true, verify:
+Before setting can_answer_now=true, verify:
 
 1. **Do we have the EXACT answer?**
    - If asked for "3 categories", do we have exactly 3 named items from fetched content?
@@ -1066,46 +1079,54 @@ Before marking COMPLETE or can_answer_now=true, verify:
    - Search snippets are often incomplete or outdated
    - The answer must be in fetched document content
 
-3. **Did we follow up on discovered terminology?**
-   - If we found a specific term for what we're researching, did we search for it?
-   - A general overview page is NOT enough if it mentions a dedicated page exists
+If ANY answer is "no" -> keep can_answer_now=false.
 
-If ANY answer is "no" -> ADD_STEPS or CONTINUE, not COMPLETE.
+## When to UPDATE Steps
 
-## When to ADD_STEPS
+UPDATE pending steps when:
+- You discovered a specific term to search for
+- The approach needs refinement based on what you learned
+- The expected output needs to be more specific
 
-ADD follow-up steps when:
-- You discovered a SPECIFIC TERM for what you're researching (most important!)
-- The fetched page references a more detailed page or subsection
-- You have related information but not the EXACT answer to the question
-- The current source is a general overview and specialized pages likely exist
+## When to REMOVE Steps
 
-## When NOT to ADD_STEPS
+REMOVE steps when:
+- A step is now redundant (we already have that information)
+- The step was based on an assumption that proved wrong
+- Never remove synthesis steps
 
-- If we already searched for the specific terminology
-- If we've already fetched the most specific page available
-- If we have the exact answer verified in fetched content
-- If 5+ searches have been done with diminishing returns
+## When to ADD Steps
+
+ADD new steps only when:
+- Genuinely new work is discovered that doesn't fit existing steps
+- Multiple independent sources need to be checked
+- Avoid if you could just UPDATE an existing step instead
 
 ## Output Format
 
 Return a JSON object:
 {
-    "decision": "CONTINUE|ADD_STEPS|SKIP_STEPS|COMPLETE",
-    "reasoning": "Why this decision makes sense",
-    "terminology_discovered": "Any specific terms found (e.g., 'buffs are called Sigils')",
-    "needs_followup_search": true/false,
-    "steps_to_skip": [2, 3],
-    "new_steps": [
+    "can_answer_now": false,
+    "key_findings": "Brief summary of what was learned",
+    "reasoning": "Why these plan changes make sense",
+    "steps_to_update": [
         {
-            "description": "Search for [specific term] to find detailed information",
-            "step_type": "research|synthesis",
-            "expected_output": "What we expect to learn"
+            "step_id": 2,
+            "new_description": "Updated task description",
+            "new_expected_output": "Updated expected output"
         }
     ],
-    "can_answer_now": false,
-    "key_findings": "Brief summary of what was learned in this step"
+    "steps_to_remove": [3],
+    "steps_to_add": [
+        {
+            "description": "New task if truly needed",
+            "step_type": "research",
+            "expected_output": "What we expect to learn"
+        }
+    ]
 }
+
+All arrays can be empty. Prefer updating over removing+adding.
 """
 
 

@@ -1,8 +1,8 @@
 """Knowledge-grounded QA agent using Google ADK with Google Search.
 
-This module provides a proper ReAct agent that explicitly calls
-Google Search and shows the reasoning process through observable tool calls.
-It also provides an enhanced agent with planning and multiple knowledge sources.
+This module provides a ReAct agent with planning and multiple knowledge sources
+that explicitly calls tools and shows the reasoning process through observable
+tool calls.
 """
 
 import asyncio
@@ -10,17 +10,18 @@ import logging
 import time
 import uuid
 import warnings
+from datetime import datetime, timezone
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
-    GroundedResponse,
     GroundingChunk,
     create_fetch_file_tool,
     create_google_search_tool,
     create_grep_file_tool,
     create_read_file_tool,
     create_web_fetch_tool,
+    resolve_redirect_urls_async,
 )
 from google.adk.agents import Agent
 from google.adk.agents.context_cache_config import ContextCacheConfig
@@ -91,7 +92,8 @@ def _extract_search_queries_from_tool_calls(tool_calls: list[dict[str, Any]]) ->
         tool_name = str(tool_call.get("name", ""))
         tool_args = tool_call.get("args", {})
         if "search" in tool_name.lower() and isinstance(tool_args, dict):
-            query = tool_args.get("query", "")
+            # google_search_agent uses "request", other tools may use "query"
+            query = tool_args.get("request") or tool_args.get("query") or ""
             if query:
                 queries.append(query)
     return queries
@@ -108,7 +110,7 @@ def _extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
     Returns
     -------
     list[GroundingChunk]
-        Sources extracted from the function responses.
+        Sources extracted from the function responses (raw URLs, not resolved).
     """
     if not hasattr(event, "get_function_responses"):
         return []
@@ -156,7 +158,7 @@ def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
     Returns
     -------
     list[GroundingChunk]
-        Sources extracted from the grounding metadata.
+        Sources extracted from the grounding metadata (raw URLs, not resolved).
     """
     gm = getattr(event, "grounding_metadata", None)
     if not gm and hasattr(event, "content") and event.content:
@@ -177,8 +179,34 @@ def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
     return sources
 
 
-def _format_urls_for_agent(sources: list[GroundingChunk]) -> str:
+async def _resolve_source_urls(sources: list[GroundingChunk]) -> list[GroundingChunk]:
+    """Resolve redirect URLs in sources to actual URLs (in parallel).
+
+    Parameters
+    ----------
+    sources : list[GroundingChunk]
+        Sources with potentially redirect URLs.
+
+    Returns
+    -------
+    list[GroundingChunk]
+        Sources with resolved URLs.
+    """
+    if not sources:
+        return sources
+
+    # Extract URIs and resolve in parallel
+    uris = [s.uri for s in sources]
+    resolved_uris = await resolve_redirect_urls_async(uris)
+
+    # Create new sources with resolved URIs
+    return [GroundingChunk(title=s.title, uri=resolved) for s, resolved in zip(sources, resolved_uris)]
+
+
+async def _format_urls_for_agent(sources: list[GroundingChunk]) -> str:
     """Format grounding sources as a message for the agent to use with web_fetch.
+
+    Resolves redirect URLs to actual URLs before formatting.
 
     Parameters
     ----------
@@ -188,7 +216,7 @@ def _format_urls_for_agent(sources: list[GroundingChunk]) -> str:
     Returns
     -------
     str
-        Formatted message with URLs the agent can use.
+        Formatted message with resolved URLs the agent can use.
     """
     if not sources:
         return ""
@@ -203,6 +231,9 @@ def _format_urls_for_agent(sources: list[GroundingChunk]) -> str:
 
     if not unique_sources:
         return ""
+
+    # Resolve redirect URLs to actual URLs (in parallel)
+    unique_sources = await _resolve_source_urls(unique_sources)
 
     lines = ["Search found the following URLs. Use web_fetch to retrieve relevant pages:"]
     for i, src in enumerate(unique_sources[:10], 1):  # Limit to 10 URLs
@@ -251,330 +282,6 @@ def _extract_final_response(event: Any) -> str | None:
     return event.content.parts[0].text or ""
 
 
-SYSTEM_INSTRUCTIONS = """\
-You are a knowledge-grounded research assistant. Your role is to answer
-questions accurately by searching the web for relevant information.
-
-## How to Answer Questions
-
-1. **Search First**: Always search the web before answering factual questions
-   that require current information. Do not rely solely on your training data.
-
-2. **Be Thorough**: For complex questions, search multiple times to gather
-   all relevant facts before synthesizing your answer.
-
-3. **Cite Sources**: Always mention which sources you used to answer the question.
-
-4. **Be Honest**: If you cannot find relevant information, say so clearly.
-
-5. **Synthesize Information**: When answering complex questions, synthesize
-   findings from multiple sources into a coherent response.
-
-## Response Format
-
-When answering questions:
-- Provide a clear, direct answer first
-- Include relevant context and details from your sources
-- List the sources used at the end of your response
-"""
-
-
-class KnowledgeGroundedAgent:
-    """A ReAct agent for knowledge-grounded QA using Google Search.
-
-    This agent uses Google ADK with explicit Google Search tool calls,
-    making the reasoning process observable and traceable.
-
-    Parameters
-    ----------
-    config : Configs, optional
-        Configuration settings. If not provided, creates default config.
-    model : str, optional
-        The model to use. If not provided, uses config.default_worker_model.
-
-    Attributes
-    ----------
-    config : Configs
-        The configuration settings.
-
-    Examples
-    --------
-    >>> from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
-    >>> agent = KnowledgeGroundedAgent()
-    >>> response = agent.answer("Who won the 2024 Nobel Prize in Physics?")
-    >>> print(response.text)
-    """
-
-    def __init__(
-        self,
-        config: Configs | None = None,
-        model: str | None = None,
-        enable_caching: bool = True,
-    ) -> None:
-        """Initialize the knowledge-grounded agent.
-
-        Parameters
-        ----------
-        config : Configs, optional
-            Configuration settings. If not provided, creates default config.
-        model : str, optional
-            The model to use. If not provided, uses config.default_worker_model.
-        enable_caching : bool, optional
-            Whether to enable context caching. Defaults to True.
-            Set to False for testing or when caching is not desired.
-        """
-        if config is None:
-            config = Configs()  # type: ignore[call-arg]
-
-        self.config = config
-        self.model = model or config.default_worker_model
-
-        # Create the Google Search tool
-        self._search_tool = create_google_search_tool()
-
-        # Create ADK agent with Google Search tool
-        self._agent = Agent(
-            name="knowledge_qa_agent",
-            model=self.model,
-            instruction=SYSTEM_INSTRUCTIONS,
-            tools=[self._search_tool],
-        )
-
-        # Session service for conversation history
-        self._session_service = InMemorySessionService()
-
-        if enable_caching:
-            # Create App with context caching enabled
-            # min_tokens=2048 is the minimum for Gemini caching
-            # ttl_seconds=600 (10 min) balances cost vs cache hits
-            # cache_intervals=10 refreshes cache periodically
-            self._app = App(
-                name="knowledge_agent",
-                root_agent=self._agent,
-                context_cache_config=ContextCacheConfig(
-                    min_tokens=2048,
-                    ttl_seconds=600,
-                    cache_intervals=10,
-                ),
-            )
-            # Runner orchestrates the ReAct loop
-            self._runner = Runner(
-                app=self._app,
-                session_service=self._session_service,
-            )
-        else:
-            # Runner without caching (for tests)
-            self._runner = Runner(
-                app_name="knowledge_agent",
-                agent=self._agent,
-                session_service=self._session_service,
-            )
-
-        # Track active sessions
-        self._sessions: dict[str, str] = {}  # Maps external session_id to ADK session_id
-
-    async def _get_or_create_session_async(self, session_id: str | None = None) -> str:
-        """Get or create an ADK session for the given session ID.
-
-        Parameters
-        ----------
-        session_id : str, optional
-            External session ID. If not provided, generates a new one.
-
-        Returns
-        -------
-        str
-            The ADK session ID.
-        """
-        if session_id is None:
-            session_id = str(uuid.uuid4())
-
-        if session_id not in self._sessions:
-            # Create a new ADK session through the session service
-            session = await self._session_service.create_session(
-                app_name="knowledge_agent",
-                user_id="user",
-                state={},
-            )
-            self._sessions[session_id] = session.id
-
-        return self._sessions[session_id]
-
-    async def answer_async(
-        self,
-        question: str,
-        session_id: str | None = None,
-    ) -> GroundedResponse:
-        """Answer a question using the ReAct loop asynchronously.
-
-        Parameters
-        ----------
-        question : str
-            The question to answer.
-        session_id : str, optional
-            Session ID for multi-turn conversations.
-
-        Returns
-        -------
-        GroundedResponse
-            The response with text, tool calls, and sources.
-        """
-        logger.info(f"Answering question (async): {question[:100]}...")
-
-        adk_session_id = await self._get_or_create_session_async(session_id)
-
-        # Create the user message
-        content = types.Content(
-            role="user",
-            parts=[types.Part(text=question)],
-        )
-
-        # Collect events from the ReAct loop
-        tool_calls: list[dict[str, Any]] = []
-        sources: list[GroundingChunk] = []
-        search_queries: list[str] = []
-        final_response = ""
-
-        async for event in self._runner.run_async(
-            user_id="user",
-            session_id=adk_session_id,
-            new_message=content,
-        ):
-            logger.debug(f"Event: {event}")
-
-            # Extract tool calls and search queries from function calls
-            new_tool_calls = _extract_tool_calls(event)
-            tool_calls.extend(new_tool_calls)
-            search_queries.extend(_extract_search_queries_from_tool_calls(new_tool_calls))
-
-            # Extract sources from function responses
-            sources.extend(_extract_sources_from_responses(event))
-
-            # Extract sources and queries from grounding metadata
-            sources.extend(_extract_grounding_sources(event))
-            for q in _extract_grounding_queries(event):
-                if q not in search_queries:
-                    search_queries.append(q)
-
-            text = _extract_final_response(event)
-            if text is not None:
-                final_response = text
-
-        return GroundedResponse(
-            text=final_response,
-            search_queries=search_queries,
-            sources=sources,
-            tool_calls=tool_calls,
-        )
-
-    def answer(
-        self,
-        question: str,
-        session_id: str | None = None,
-    ) -> GroundedResponse:
-        """Answer a question using the ReAct loop.
-
-        Parameters
-        ----------
-        question : str
-            The question to answer.
-        session_id : str, optional
-            Session ID for multi-turn conversations.
-
-        Returns
-        -------
-        GroundedResponse
-            The response with text, tool calls, and sources.
-
-        Notes
-        -----
-        This is a synchronous wrapper around answer_async(). For Jupyter notebooks,
-        use `await agent.answer_async(question)` directly instead.
-        """
-        logger.info(f"Answering question: {question[:100]}...")
-        return asyncio.run(self.answer_async(question, session_id))
-
-
-class KnowledgeAgentManager:
-    """Manages KnowledgeGroundedAgent lifecycle with lazy initialization.
-
-    This class provides convenient lifecycle management for the knowledge agent,
-    with lazy initialization and state tracking. Unlike the general-purpose
-    AsyncClientManager (for infrastructure clients), this is specific to the
-    knowledge agent and is not a singleton.
-
-    Parameters
-    ----------
-    config : Configs, optional
-        Configuration object for client setup. If not provided, creates default.
-
-    Examples
-    --------
-    >>> manager = KnowledgeAgentManager()
-    >>> agent = manager.agent
-    >>> response = await agent.answer_async("What is quantum computing?")
-    >>> print(response.text)
-    >>> manager.close()
-    """
-
-    def __init__(self, config: Configs | None = None, enable_caching: bool = True) -> None:
-        """Initialize the client manager.
-
-        Parameters
-        ----------
-        config : Configs, optional
-            Configuration object. If not provided, creates default config.
-        enable_caching : bool, default True
-            Whether to enable context caching.
-        """
-        self._config = config
-        self._enable_caching = enable_caching
-        self._agent: KnowledgeGroundedAgent | None = None
-        self._initialized = False
-
-    @property
-    def config(self) -> Configs:
-        """Get or create the config instance.
-
-        Returns
-        -------
-        Configs
-            The configuration settings.
-        """
-        if self._config is None:
-            self._config = Configs()  # type: ignore[call-arg]
-        return self._config
-
-    @property
-    def agent(self) -> KnowledgeGroundedAgent:
-        """Get or create the knowledge-grounded agent.
-
-        Returns
-        -------
-        KnowledgeGroundedAgent
-            The knowledge-grounded QA agent.
-        """
-        if self._agent is None:
-            self._agent = KnowledgeGroundedAgent(config=self.config, enable_caching=self._enable_caching)
-            self._initialized = True
-        return self._agent
-
-    def close(self) -> None:
-        """Close all initialized clients and reset state."""
-        self._agent = None
-        self._initialized = False
-
-    def is_initialized(self) -> bool:
-        """Check if any clients have been initialized.
-
-        Returns
-        -------
-        bool
-            True if any clients have been initialized.
-        """
-        return self._initialized
-
-
 class EnhancedGroundedResponse(BaseModel):
     """Response with full execution trace for evaluation.
 
@@ -611,9 +318,11 @@ class EnhancedGroundedResponse(BaseModel):
     total_duration_ms: int = 0
 
 
-ENHANCED_SYSTEM_INSTRUCTIONS = """\
+SYSTEM_INSTRUCTIONS_TEMPLATE = """\
 You are a research assistant that finds accurate, factual answers by retrieving and \
 verifying information from authoritative sources.
+
+**Today's date: {current_date}**
 
 ## Your Goal
 
@@ -733,7 +442,19 @@ information needed - dates, conditions, categories, names, numbers.
 """
 
 
-class EnhancedKnowledgeAgent:
+def _build_system_instructions() -> str:
+    """Build system instructions with current date context."""
+    now = datetime.now(timezone.utc)
+    return SYSTEM_INSTRUCTIONS_TEMPLATE.format(
+        current_date=now.strftime("%B %d, %Y"),
+    )
+
+
+# For backwards compatibility (static snapshot at import time)
+SYSTEM_INSTRUCTIONS = _build_system_instructions()
+
+
+class KnowledgeGroundedAgent:
     """An enhanced ReAct agent with planning and multiple knowledge sources.
 
     This agent uses Google ADK with Google Search, URL fetching, and PDF reading
@@ -751,8 +472,8 @@ class EnhancedKnowledgeAgent:
 
     Examples
     --------
-    >>> from aieng.agent_evals.knowledge_agent import EnhancedKnowledgeAgent
-    >>> agent = EnhancedKnowledgeAgent()
+    >>> from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
+    >>> agent = KnowledgeGroundedAgent()
     >>> response = agent.answer("What are the Basel III capital requirements?")
     >>> print(response.text)
     >>> print(f"Plan complexity: {response.plan.complexity_assessment}")
@@ -793,6 +514,7 @@ class EnhancedKnowledgeAgent:
 
         self.config = config
         self.model = model or config.default_worker_model
+        self.temperature = config.default_temperature
         self.enable_planning = enable_planning
 
         # Create tools
@@ -803,10 +525,11 @@ class EnhancedKnowledgeAgent:
         self._read_file_tool = create_read_file_tool()
 
         # Create ADK agent with multiple tools
+        # Lower temperature improves consistency between runs
         self._agent = Agent(
             name="enhanced_knowledge_agent",
             model=self.model,
-            instruction=ENHANCED_SYSTEM_INSTRUCTIONS,
+            instruction=_build_system_instructions(),
             tools=[
                 self._search_tool,
                 self._web_fetch_tool,
@@ -814,6 +537,9 @@ class EnhancedKnowledgeAgent:
                 self._grep_file_tool,
                 self._read_file_tool,
             ],
+            generate_content_config=types.GenerateContentConfig(
+                temperature=self.temperature,
+            ),
         )
 
         # Create planner if enabled
@@ -1050,7 +776,7 @@ Provide a concise summary of what you found.
 
         # If we got grounding sources with URLs, inject them back to the agent
         # so it can use web_fetch to retrieve the full content
-        urls_message = _format_urls_for_agent(sources)
+        urls_message = await _format_urls_for_agent(sources)
         if urls_message:
             logger.info(f"Injecting {len(sources)} grounding URLs back to agent")
             followup_content = types.Content(
@@ -1157,6 +883,9 @@ Cite sources where appropriate.
                 role="user",
                 parts=[types.Part(text=synthesis_prompt)],
             ),
+            config=types.GenerateContentConfig(
+                temperature=self.temperature,
+            ),
         )
         return response.text or ""
 
@@ -1206,6 +935,9 @@ Do NOT search for additional information - use only the findings above.
             contents=types.Content(
                 role="user",
                 parts=[types.Part(text=synthesis_prompt)],
+            ),
+            config=types.GenerateContentConfig(
+                temperature=self.temperature,
             ),
         )
 
@@ -1323,7 +1055,9 @@ Do NOT search for additional information - use only the findings above.
                         all_findings=step_results,
                         has_substantial_content=has_substantial_content,
                     )
-                    logger.info(f"Reflection: {reflection.decision}")
+                    logger.info(
+                        f"Reflection: can_answer={reflection.can_answer_now}, updates={len(reflection.steps_to_update)}"
+                    )
 
                     if reflection.can_answer_now and has_substantial_content:
                         logger.info("Can answer now - skipping remaining steps")
@@ -1351,6 +1085,9 @@ Do NOT search for additional information - use only the findings above.
             )
 
         total_duration_ms = int((time.time() - start_time) * 1000)
+
+        # Resolve redirect URLs in sources (in parallel for speed)
+        all_sources = await _resolve_source_urls(all_sources)
 
         # Create execution trace
         execution_trace = self._create_execution_trace(plan, all_tool_calls, total_duration_ms)
@@ -1421,3 +1158,100 @@ Do NOT search for additional information - use only the findings above.
                     parts.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
 
         return "\n".join(parts)
+
+
+class KnowledgeAgentManager:
+    """Manages KnowledgeGroundedAgent lifecycle with lazy initialization.
+
+    This class provides convenient lifecycle management for the knowledge agent,
+    with lazy initialization and state tracking. Unlike the general-purpose
+    AsyncClientManager (for infrastructure clients), this is specific to the
+    knowledge agent and is not a singleton.
+
+    Parameters
+    ----------
+    config : Configs, optional
+        Configuration object for client setup. If not provided, creates default.
+
+    Examples
+    --------
+    >>> manager = KnowledgeAgentManager()
+    >>> agent = manager.agent
+    >>> response = await agent.answer_async("What is quantum computing?")
+    >>> print(response.text)
+    >>> manager.close()
+    """
+
+    def __init__(
+        self,
+        config: Configs | None = None,
+        enable_caching: bool = True,
+        enable_planning: bool = True,
+        enable_compaction: bool = True,
+    ) -> None:
+        """Initialize the client manager.
+
+        Parameters
+        ----------
+        config : Configs, optional
+            Configuration object. If not provided, creates default config.
+        enable_caching : bool, default True
+            Whether to enable context caching.
+        enable_planning : bool, default True
+            Whether to enable research planning.
+        enable_compaction : bool, default True
+            Whether to enable context compaction.
+        """
+        self._config = config
+        self._enable_caching = enable_caching
+        self._enable_planning = enable_planning
+        self._enable_compaction = enable_compaction
+        self._agent: KnowledgeGroundedAgent | None = None
+        self._initialized = False
+
+    @property
+    def config(self) -> Configs:
+        """Get or create the config instance.
+
+        Returns
+        -------
+        Configs
+            The configuration settings.
+        """
+        if self._config is None:
+            self._config = Configs()  # type: ignore[call-arg]
+        return self._config
+
+    @property
+    def agent(self) -> KnowledgeGroundedAgent:
+        """Get or create the knowledge-grounded agent.
+
+        Returns
+        -------
+        KnowledgeGroundedAgent
+            The knowledge-grounded QA agent.
+        """
+        if self._agent is None:
+            self._agent = KnowledgeGroundedAgent(
+                config=self.config,
+                enable_caching=self._enable_caching,
+                enable_planning=self._enable_planning,
+                enable_compaction=self._enable_compaction,
+            )
+            self._initialized = True
+        return self._agent
+
+    def close(self) -> None:
+        """Close all initialized clients and reset state."""
+        self._agent = None
+        self._initialized = False
+
+    def is_initialized(self) -> bool:
+        """Check if any clients have been initialized.
+
+        Returns
+        -------
+        bool
+            True if any clients have been initialized.
+        """
+        return self._initialized

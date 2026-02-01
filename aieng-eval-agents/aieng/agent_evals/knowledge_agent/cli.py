@@ -485,7 +485,7 @@ async def run_agent_with_display(
 
     Parameters
     ----------
-    agent : EnhancedKnowledgeAgent
+    agent : KnowledgeGroundedAgent
         The agent to run.
     question : str
         The question to answer.
@@ -526,7 +526,7 @@ async def run_agent_with_display(
             create_tool_display(
                 [],
                 plan=agent.current_plan if show_plan else None,
-                question=question if ground_truth is not None else None,
+                question=question,
                 ground_truth=ground_truth,
                 example_id=example_id,
                 answer_type=answer_type,
@@ -548,7 +548,7 @@ async def run_agent_with_display(
                         tool_handler.tool_calls,
                         plan=current_plan,
                         context_percent=context_pct,
-                        question=question if ground_truth is not None else None,
+                        question=question,
                         ground_truth=ground_truth,
                         example_id=example_id,
                         answer_type=answer_type,
@@ -617,7 +617,7 @@ async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = Fals
     log_trace : bool
         Enable Langfuse tracing for this run.
     """
-    from .agent import EnhancedKnowledgeAgent  # noqa: PLC0415
+    from .agent import KnowledgeGroundedAgent  # noqa: PLC0415
 
     display_banner()
     tracing_enabled = _setup_tracing(log_trace)
@@ -634,7 +634,7 @@ async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = Fals
 
     tool_handler = setup_logging()
 
-    agent = EnhancedKnowledgeAgent(enable_planning=True)
+    agent = KnowledgeGroundedAgent(enable_planning=True)
 
     tool_handler.clear()
     response = await run_agent_with_display(agent, question, tool_handler, show_plan=show_plan)
@@ -928,7 +928,7 @@ async def cmd_eval(
     log_trace : bool
         Enable Langfuse tracing for this run.
     """
-    from .agent import EnhancedKnowledgeAgent  # noqa: PLC0415
+    from .agent import KnowledgeGroundedAgent  # noqa: PLC0415
     from .evaluation import DeepSearchQADataset  # noqa: PLC0415
     from .judges import DeepSearchQAJudge  # noqa: PLC0415
 
@@ -975,7 +975,7 @@ async def cmd_eval(
     console.print(f"[green]✓ Loaded {len(examples)} example(s)[/green]\n")
 
     console.print("[bold blue]Initializing agent and judge...[/bold blue]")
-    agent = EnhancedKnowledgeAgent(enable_planning=True)
+    agent = KnowledgeGroundedAgent(enable_planning=True)
     judge = DeepSearchQAJudge()
     console.print("[green]✓ Ready[/green]\n")
 

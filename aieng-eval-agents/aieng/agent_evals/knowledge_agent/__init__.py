@@ -33,7 +33,6 @@ from aieng.agent_evals.tools import (
 
 from .agent import (
     EnhancedGroundedResponse,
-    EnhancedKnowledgeAgent,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
 )
@@ -59,6 +58,7 @@ from .metrics import (
     EvaluationMetrics,
     MetricsAggregator,
 )
+from .notebook import run_with_display
 from .planner import (
     ResearchPlan,
     ResearchPlanner,
@@ -72,7 +72,6 @@ from .tracing import flush_traces, init_tracing, is_tracing_enabled
 __all__ = [
     # Agent
     "KnowledgeGroundedAgent",
-    "EnhancedKnowledgeAgent",
     "EnhancedGroundedResponse",
     "KnowledgeAgentManager",
     # Config
@@ -111,6 +110,8 @@ __all__ = [
     "init_tracing",
     "is_tracing_enabled",
     "flush_traces",
+    # Notebook
+    "run_with_display",
     # Web tools
     "web_fetch",
     "create_web_fetch_tool",

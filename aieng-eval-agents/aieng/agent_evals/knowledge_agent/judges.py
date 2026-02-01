@@ -121,6 +121,7 @@ class BaseJudge:
             self._model = config.default_evaluator_model
 
         self._client = genai.Client()
+        self._temperature = config.default_evaluator_temperature
 
     def _call_llm(self, prompt: str) -> str:
         """Call the LLM with the given prompt."""
@@ -132,7 +133,7 @@ class BaseJudge:
             ),
             config=types.GenerateContentConfig(
                 system_instruction=self.system_prompt,
-                temperature=0.2,  # Low temperature for consistent judging
+                temperature=self._temperature,
             ),
         )
         return response.text or ""
@@ -147,7 +148,7 @@ class BaseJudge:
             ),
             config=types.GenerateContentConfig(
                 system_instruction=self.system_prompt,
-                temperature=0.2,
+                temperature=self._temperature,
             ),
         )
         return response.text or ""
@@ -795,7 +796,7 @@ class DeepSearchQAJudge(BaseJudge):
                     parts=[types.Part(text=grader_prompt)],
                 ),
                 config=types.GenerateContentConfig(
-                    temperature=0.0,  # Deterministic for evaluation
+                    temperature=self._temperature,
                 ),
             )
             response_text = (llm_response.text or "").strip()
@@ -960,7 +961,7 @@ class DeepSearchQAJudge(BaseJudge):
                     parts=[types.Part(text=grader_prompt)],
                 ),
                 config=types.GenerateContentConfig(
-                    temperature=0.0,
+                    temperature=self._temperature,
                 ),
             )
             response_text = (llm_response.text or "").strip()

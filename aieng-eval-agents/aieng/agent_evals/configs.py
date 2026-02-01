@@ -46,6 +46,18 @@ class Configs(BaseSettings):
         default="gemini-2.5-pro",
         description="Model name for LLM-as-judge evaluation tasks.",
     )
+    default_temperature: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=2.0,
+        description="Default temperature for LLM generation. Lower values (0.0-0.3) produce more consistent outputs.",
+    )
+    default_evaluator_temperature: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for LLM-as-judge evaluations. Default 0.0 for deterministic judging.",
+    )
 
     # === Tracing (Langfuse) ===
     langfuse_public_key: str | None = Field(

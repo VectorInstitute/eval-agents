@@ -4,10 +4,20 @@ Tests web_fetch which handles both HTML pages and PDF documents.
 """
 
 from io import BytesIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
-from aieng.agent_evals.tools.web import _html_to_markdown, create_web_fetch_tool, web_fetch
+from aieng.agent_evals.tools.web import (
+    REDIRECT_URL_PATTERNS,
+    _html_to_markdown,
+    _redirect_cache,
+    create_web_fetch_tool,
+    resolve_redirect_url,
+    resolve_redirect_url_async,
+    resolve_redirect_urls_async,
+    web_fetch,
+)
 from pypdf import PdfWriter
 
 
@@ -173,6 +183,219 @@ class TestCreateWebFetchTool:
         tool = create_web_fetch_tool()
         assert tool is not None
         assert tool.func == web_fetch
+
+
+class TestResolveRedirectUrl:
+    """Tests for the resolve_redirect_url function."""
+
+    def test_non_redirect_url_returns_unchanged(self):
+        """Test that non-redirect URLs are returned unchanged without HTTP calls."""
+        url = "https://example.com/page"
+        result = resolve_redirect_url(url)
+        assert result == url
+
+    def test_recognizes_vertex_ai_redirect_patterns(self):
+        """Test that Vertex AI redirect patterns are recognized."""
+        # Verify the patterns are defined correctly
+        assert "vertexaisearch.cloud.google.com/grounding-api-redirect" in REDIRECT_URL_PATTERNS
+        assert "vertexaisearch.cloud.google.com/redirect" in REDIRECT_URL_PATTERNS
+
+    @patch("aieng.agent_evals.tools.web.httpx.Client")
+    def test_resolves_redirect_url(self, mock_client_class):
+        """Test that redirect URLs are resolved to final destination."""
+        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
+        final_url = "https://example.com/actual-page"
+
+        mock_response = MagicMock()
+        mock_response.url = final_url
+
+        mock_client = MagicMock()
+        mock_client.head.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        # Clear lru_cache before test
+        resolve_redirect_url.cache_clear()
+
+        result = resolve_redirect_url(redirect_url)
+
+        assert result == final_url
+        mock_client.head.assert_called_once()
+
+    @patch("aieng.agent_evals.tools.web.httpx.Client")
+    def test_returns_original_on_error(self, mock_client_class):
+        """Test that original URL is returned if resolution fails."""
+        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/error123"
+
+        mock_client = MagicMock()
+        # Both HEAD and GET (stream) fail
+        mock_client.head.side_effect = Exception("Connection failed")
+        mock_client.stream.side_effect = Exception("Connection failed")
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_class.return_value = mock_client
+
+        # Clear lru_cache before test
+        resolve_redirect_url.cache_clear()
+
+        result = resolve_redirect_url(redirect_url)
+
+        assert result == redirect_url  # Returns original on failure
+
+    @patch("aieng.agent_evals.tools.web.httpx.Client")
+    def test_skips_http_call_for_non_redirect_url(self, mock_client_class):
+        """Test that non-redirect URLs don't trigger HTTP calls."""
+        url = "https://example.com/page"
+        result = resolve_redirect_url(url)
+
+        assert result == url
+        mock_client_class.assert_not_called()
+
+
+class TestResolveRedirectUrlAsync:
+    """Tests for async redirect URL resolution."""
+
+    @pytest.mark.asyncio
+    async def test_non_redirect_url_returns_unchanged(self):
+        """Test that non-redirect URLs are returned unchanged."""
+        url = "https://example.com/page"
+        result = await resolve_redirect_url_async(url)
+        assert result == url
+
+    @pytest.mark.asyncio
+    async def test_resolves_redirect_url_async(self):
+        """Test async resolution of redirect URLs."""
+        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/async123"
+        final_url = "https://example.com/actual-page-async"
+
+        mock_response = MagicMock()
+        mock_response.url = final_url
+
+        # Create async mock for head method
+        async def mock_head(*_args, **_kwargs):
+            return mock_response
+
+        # Clear the cache
+        _redirect_cache.clear()
+
+        with patch("aieng.agent_evals.tools.web.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.head = mock_head
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            result = await resolve_redirect_url_async(redirect_url)
+            assert result == final_url
+
+    @pytest.mark.asyncio
+    async def test_resolve_multiple_urls_in_parallel(self):
+        """Test that multiple URLs can be resolved in parallel."""
+        urls = [
+            "https://example.com/page1",
+            "https://example.com/page2",
+            "https://example.com/page3",
+        ]
+        results = await resolve_redirect_urls_async(urls)
+
+        # Non-redirect URLs should be returned as-is
+        assert results == urls
+
+    @pytest.mark.asyncio
+    async def test_empty_list_returns_empty(self):
+        """Test that empty list input returns empty list."""
+        results = await resolve_redirect_urls_async([])
+        assert results == []
+
+    @pytest.mark.asyncio
+    async def test_caches_resolved_urls(self):
+        """Test that resolved URLs are cached to avoid repeated HTTP calls."""
+        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/cache-test"
+        final_url = "https://example.com/cached-page"
+
+        call_count = 0
+
+        async def mock_head(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            mock_response = MagicMock()
+            mock_response.url = final_url
+            return mock_response
+
+        # Clear the cache
+        _redirect_cache.clear()
+
+        with patch("aieng.agent_evals.tools.web.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.head = mock_head
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            # First call should make HTTP request
+            result1 = await resolve_redirect_url_async(redirect_url)
+            assert result1 == final_url
+            assert call_count == 1
+
+            # Second call should use cache (no HTTP request)
+            result2 = await resolve_redirect_url_async(redirect_url)
+            assert result2 == final_url
+            assert call_count == 1  # Still 1, used cache
+
+    @pytest.mark.asyncio
+    async def test_retries_on_timeout(self):
+        """Test that resolution retries on transient failures."""
+        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/retry-test"
+        final_url = "https://example.com/retried-page"
+
+        head_call_count = 0
+        stream_call_count = 0
+
+        # HEAD will always fail (return None triggers GET fallback)
+        async def mock_head(*_args, **_kwargs):
+            nonlocal head_call_count
+            head_call_count += 1
+            # Return None to simulate HEAD not supported, triggers GET fallback
+            raise httpx.HTTPStatusError(
+                "Method Not Allowed",
+                request=MagicMock(),
+                response=MagicMock(status_code=405),
+            )
+
+        # Stream (GET) will fail first two times, then succeed
+        class MockStreamContext:
+            def __init__(self, fail_count):
+                self.fail_count = fail_count
+
+            async def __aenter__(self):
+                nonlocal stream_call_count
+                stream_call_count += 1
+                if stream_call_count <= self.fail_count:
+                    raise httpx.TimeoutException("Connection timed out")
+                mock_response = MagicMock()
+                mock_response.url = final_url
+                return mock_response
+
+            async def __aexit__(self, *_args):
+                pass
+
+        # Clear the cache
+        _redirect_cache.clear()
+
+        with patch("aieng.agent_evals.tools.web.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.head = mock_head
+            mock_client.stream.return_value = MockStreamContext(fail_count=2)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            result = await resolve_redirect_url_async(redirect_url)
+            assert result == final_url
+            # HEAD called once per retry attempt (3 times)
+            # Stream called 3 times (2 failures + 1 success)
+            assert stream_call_count == 3
 
 
 @pytest.mark.integration_test

@@ -5,11 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_agent.planner import (
+    PlanReflection,
     ResearchPlan,
     ResearchPlanner,
     ResearchStep,
     StepExecution,
     StepStatus,
+    StepUpdate,
     _parse_new_steps_response,
     _parse_plan_response,
 )
@@ -99,6 +101,67 @@ class TestResearchStep:
         assert step.status == StepStatus.FAILED
         assert step.attempts == 3
         assert step.failure_reason == "404 Not Found"
+
+
+class TestStepUpdate:
+    """Tests for the StepUpdate model."""
+
+    def test_step_update_creation(self):
+        """Test creating a step update."""
+        update = StepUpdate(
+            step_id=1,
+            new_description="Updated search query",
+            new_expected_output="More specific results",
+        )
+        assert update.step_id == 1
+        assert update.new_description == "Updated search query"
+        assert update.new_expected_output == "More specific results"
+
+    def test_step_update_defaults(self):
+        """Test default values for step update."""
+        update = StepUpdate(
+            step_id=1,
+            new_description="Updated description",
+        )
+        assert update.new_expected_output == ""
+
+
+class TestPlanReflection:
+    """Tests for the PlanReflection model."""
+
+    def test_plan_reflection_creation(self):
+        """Test creating a plan reflection with all fields."""
+        reflection = PlanReflection(
+            can_answer_now=True,
+            key_findings="Found GDP data for 2023",
+            reasoning="Have all necessary information",
+            steps_to_update=[StepUpdate(step_id=2, new_description="Updated step")],
+            steps_to_remove=[3],
+            steps_to_add=[ResearchStep(step_id=4, description="New step", step_type="research")],
+        )
+        assert reflection.can_answer_now is True
+        assert reflection.key_findings == "Found GDP data for 2023"
+        assert reflection.reasoning == "Have all necessary information"
+        assert len(reflection.steps_to_update) == 1
+        assert reflection.steps_to_update[0].step_id == 2
+        assert reflection.steps_to_remove == [3]
+        assert len(reflection.steps_to_add) == 1
+
+    def test_plan_reflection_defaults(self):
+        """Test default values for plan reflection."""
+        reflection = PlanReflection()
+        assert reflection.can_answer_now is False
+        assert reflection.key_findings == ""
+        assert reflection.reasoning == ""
+        assert reflection.steps_to_update == []
+        assert reflection.steps_to_remove == []
+        assert reflection.steps_to_add == []
+
+    def test_plan_reflection_with_only_reasoning(self):
+        """Test creating reflection with only reasoning."""
+        reflection = PlanReflection(reasoning="Need more information")
+        assert reflection.can_answer_now is False
+        assert reflection.reasoning == "Need more information"
 
 
 class TestResearchPlan:
@@ -213,6 +276,60 @@ class TestResearchPlan:
         )
         result = plan.update_step(99, status=StepStatus.COMPLETED)
         assert result is False
+
+    def test_update_step_description(self):
+        """Test updating a step's description."""
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="simple",
+            steps=[ResearchStep(step_id=1, description="Original", step_type="research")],
+        )
+        result = plan.update_step(1, description="Updated description")
+        assert result is True
+        assert plan.steps[0].description == "Updated description"
+
+    def test_update_step_expected_output(self):
+        """Test updating a step's expected output."""
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="simple",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Step 1",
+                    step_type="research",
+                    expected_output="Original output",
+                )
+            ],
+        )
+        result = plan.update_step(1, expected_output="Updated expected output")
+        assert result is True
+        assert plan.steps[0].expected_output == "Updated expected output"
+
+    def test_update_step_multiple_fields(self):
+        """Test updating multiple fields at once including description."""
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="simple",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Original description",
+                    step_type="research",
+                    expected_output="Original output",
+                )
+            ],
+        )
+        result = plan.update_step(
+            1,
+            status=StepStatus.IN_PROGRESS,
+            description="New description",
+            expected_output="New output",
+        )
+        assert result is True
+        assert plan.steps[0].status == StepStatus.IN_PROGRESS
+        assert plan.steps[0].description == "New description"
+        assert plan.steps[0].expected_output == "New output"
 
     def test_get_pending_steps_no_dependencies(self):
         """Test getting pending steps when none have dependencies."""
@@ -474,16 +591,12 @@ class TestParsePlanResponse:
 
         assert plan.complexity_assessment == "complex"
 
-    def test_returns_fallback_for_invalid_json(self):
-        """Test that invalid JSON returns fallback plan."""
+    def test_raises_error_for_invalid_json(self):
+        """Test that invalid JSON raises ValueError."""
         response = "This is not valid JSON at all"
 
-        plan = _parse_plan_response(response, "Original question")
-
-        assert plan.original_question == "Original question"
-        assert plan.complexity_assessment == "simple"
-        assert len(plan.steps) == 2  # Default steps
-        assert plan.reasoning == "Default plan due to parsing error"
+        with pytest.raises(ValueError, match="Failed to parse planner response"):
+            _parse_plan_response(response, "Original question")
 
     def test_handles_missing_fields_gracefully(self):
         """Test handling of missing fields in JSON."""
@@ -567,18 +680,16 @@ class TestResearchPlanner:
         assert plan.original_question == "Test"
 
     @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
-    def test_create_plan_returns_fallback_on_error(self, mock_client_class):
-        """Test that create_plan returns fallback on error."""
+    def test_create_plan_raises_on_api_error(self, mock_client_class):
+        """Test that create_plan raises exception on API error."""
         mock_client = MagicMock()
         mock_client.models.generate_content.side_effect = Exception("API Error")
         mock_client_class.return_value = mock_client
 
         planner = ResearchPlanner()
-        plan = planner.create_plan("Test question")
 
-        assert plan.original_question == "Test question"
-        assert plan.complexity_assessment == "simple"
-        assert "error" in plan.reasoning.lower()
+        with pytest.raises(Exception, match="API Error"):
+            planner.create_plan("Test question")
 
     @pytest.mark.asyncio
     @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
@@ -693,6 +804,345 @@ class TestParseNewStepsResponse:
         steps = _parse_new_steps_response(response, start_id=1)
 
         assert steps == []
+
+
+class TestParseReflectionResponse:
+    """Tests for the _parse_reflection_response method of ResearchPlanner."""
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_parses_valid_json(self, mock_client_class):
+        """Test parsing valid JSON reflection response."""
+        planner = ResearchPlanner()
+        response = json.dumps(
+            {
+                "can_answer_now": True,
+                "key_findings": "Found key information",
+                "reasoning": "Have enough data to answer",
+                "steps_to_update": [],
+                "steps_to_remove": [],
+                "steps_to_add": [],
+            }
+        )
+
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        assert reflection.can_answer_now is True
+        assert reflection.key_findings == "Found key information"
+        assert reflection.reasoning == "Have enough data to answer"
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_parses_steps_to_update(self, mock_client_class):
+        """Test parsing steps_to_update field."""
+        planner = ResearchPlanner()
+        response = json.dumps(
+            {
+                "can_answer_now": False,
+                "reasoning": "Need to refine search",
+                "steps_to_update": [
+                    {
+                        "step_id": 2,
+                        "new_description": "Updated search query",
+                        "new_expected_output": "More specific results",
+                    }
+                ],
+            }
+        )
+
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        assert len(reflection.steps_to_update) == 1
+        assert reflection.steps_to_update[0].step_id == 2
+        assert reflection.steps_to_update[0].new_description == "Updated search query"
+        assert reflection.steps_to_update[0].new_expected_output == "More specific results"
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_parses_steps_to_remove(self, mock_client_class):
+        """Test parsing steps_to_remove field."""
+        planner = ResearchPlanner()
+        response = json.dumps(
+            {
+                "can_answer_now": False,
+                "reasoning": "Some steps no longer needed",
+                "steps_to_remove": [2, 3],
+            }
+        )
+
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        assert reflection.steps_to_remove == [2, 3]
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_parses_steps_to_add(self, mock_client_class):
+        """Test parsing steps_to_add field with correct IDs."""
+        planner = ResearchPlanner()
+        response = json.dumps(
+            {
+                "can_answer_now": False,
+                "reasoning": "Need additional research",
+                "steps_to_add": [
+                    {
+                        "description": "New step 1",
+                        "step_type": "research",
+                        "depends_on": [1],
+                        "expected_output": "Expected output 1",
+                    },
+                    {
+                        "description": "New step 2",
+                        "step_type": "synthesis",
+                        "depends_on": [1, 5],
+                        "expected_output": "Expected output 2",
+                    },
+                ],
+            }
+        )
+
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        assert len(reflection.steps_to_add) == 2
+        # Verify IDs are assigned starting from next_step_id
+        assert reflection.steps_to_add[0].step_id == 5
+        assert reflection.steps_to_add[1].step_id == 6
+        assert reflection.steps_to_add[0].description == "New step 1"
+        assert reflection.steps_to_add[0].depends_on == [1]
+        assert reflection.steps_to_add[1].step_type == "synthesis"
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_parses_json_in_markdown_block(self, mock_client_class):
+        """Test parsing JSON wrapped in markdown code block."""
+        planner = ResearchPlanner()
+        response = """Here's my analysis:
+
+```json
+{
+    "can_answer_now": false,
+    "key_findings": "Found partial data",
+    "reasoning": "Need more sources"
+}
+```
+"""
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        assert reflection.can_answer_now is False
+        assert reflection.key_findings == "Found partial data"
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_returns_default_for_invalid_json(self, mock_client_class):
+        """Test that invalid JSON returns default reflection."""
+        planner = ResearchPlanner()
+        response = "This is not valid JSON at all"
+
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        # Should return default values with parse error reasoning
+        assert reflection.can_answer_now is False
+        assert "parse error" in reflection.reasoning.lower()
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_handles_missing_fields(self, mock_client_class):
+        """Test handling of missing fields in JSON."""
+        planner = ResearchPlanner()
+        response = json.dumps({"can_answer_now": True})
+
+        reflection = planner._parse_reflection_response(response, next_step_id=5)
+
+        assert reflection.can_answer_now is True
+        assert reflection.key_findings == ""
+        assert reflection.reasoning == ""
+        assert reflection.steps_to_update == []
+        assert reflection.steps_to_remove == []
+        assert reflection.steps_to_add == []
+
+
+class TestApplyReflectionToPlan:
+    """Tests for the _apply_reflection_to_plan method of ResearchPlanner."""
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_applies_step_updates(self, mock_client_class):
+        """Test that step updates are applied correctly."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Step 1",
+                    step_type="research",
+                    status=StepStatus.COMPLETED,
+                ),
+                ResearchStep(
+                    step_id=2,
+                    description="Original description",
+                    step_type="research",
+                    status=StepStatus.PENDING,
+                    expected_output="Original output",
+                ),
+            ],
+        )
+        reflection = PlanReflection(
+            can_answer_now=False,
+            steps_to_update=[
+                StepUpdate(
+                    step_id=2,
+                    new_description="Updated description",
+                    new_expected_output="Updated output",
+                )
+            ],
+        )
+
+        planner._apply_reflection_to_plan(plan, reflection)
+
+        step2 = plan.get_step(2)
+        assert step2.description == "Updated description"
+        assert step2.expected_output == "Updated output"
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_applies_step_removals(self, mock_client_class):
+        """Test that step removals mark steps as skipped."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
+                ResearchStep(step_id=3, description="Step 3", step_type="research"),
+            ],
+        )
+        reflection = PlanReflection(
+            can_answer_now=False,
+            steps_to_remove=[2],
+        )
+
+        planner._apply_reflection_to_plan(plan, reflection)
+
+        assert plan.get_step(1).status == StepStatus.PENDING  # Unchanged
+        assert plan.get_step(2).status == StepStatus.SKIPPED  # Removed
+        assert plan.get_step(3).status == StepStatus.PENDING  # Unchanged
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_does_not_remove_synthesis_steps(self, mock_client_class):
+        """Test that synthesis steps cannot be removed."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Research", step_type="research"),
+                ResearchStep(step_id=2, description="Synthesize", step_type="synthesis"),
+            ],
+        )
+        reflection = PlanReflection(
+            can_answer_now=False,
+            steps_to_remove=[2],
+        )
+
+        planner._apply_reflection_to_plan(plan, reflection)
+
+        # Synthesis step should NOT be skipped
+        assert plan.get_step(2).status == StepStatus.PENDING
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_applies_step_additions(self, mock_client_class):
+        """Test that new steps are added to the plan."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+            ],
+        )
+        new_step = ResearchStep(
+            step_id=5,
+            description="New step",
+            step_type="research",
+        )
+        reflection = PlanReflection(
+            can_answer_now=False,
+            steps_to_add=[new_step],
+        )
+
+        planner._apply_reflection_to_plan(plan, reflection)
+
+        assert len(plan.steps) == 2
+        assert plan.get_step(5) is not None
+        assert plan.get_step(5).description == "New step"
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_can_answer_now_skips_pending_with_content(self, mock_client_class):
+        """Test that can_answer_now skips pending steps when content exists."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
+                ResearchStep(step_id=3, description="Synthesize", step_type="synthesis"),
+            ],
+        )
+        reflection = PlanReflection(
+            can_answer_now=True,
+            reasoning="Have enough information",
+        )
+
+        planner._apply_reflection_to_plan(plan, reflection, has_substantial_content=True)
+
+        # Research step should be skipped
+        assert plan.get_step(2).status == StepStatus.SKIPPED
+        # Synthesis step should NOT be skipped
+        assert plan.get_step(3).status == StepStatus.PENDING
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_can_answer_now_does_not_skip_without_content(self, mock_client_class):
+        """Test that can_answer_now doesn't skip when no substantial content."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="moderate",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
+            ],
+        )
+        reflection = PlanReflection(
+            can_answer_now=True,
+            reasoning="Have enough information",
+        )
+
+        # has_substantial_content defaults to False
+        planner._apply_reflection_to_plan(plan, reflection)
+
+        # Steps should NOT be skipped
+        assert plan.get_step(1).status == StepStatus.PENDING
+        assert plan.get_step(2).status == StepStatus.PENDING
+
+    @patch("aieng.agent_evals.knowledge_agent.planner.genai.Client")
+    def test_does_not_update_completed_steps(self, mock_client_class):
+        """Test that completed steps are not updated."""
+        planner = ResearchPlanner()
+        plan = ResearchPlan(
+            original_question="Test",
+            complexity_assessment="simple",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Original",
+                    step_type="research",
+                    status=StepStatus.COMPLETED,
+                ),
+            ],
+        )
+        reflection = PlanReflection(
+            can_answer_now=False,
+            steps_to_update=[StepUpdate(step_id=1, new_description="Should not change")],
+        )
+
+        planner._apply_reflection_to_plan(plan, reflection)
+
+        # Completed step should not be updated
+        assert plan.get_step(1).description == "Original"
 
 
 class TestResearchPlannerReplanning:
