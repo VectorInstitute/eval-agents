@@ -31,6 +31,7 @@ knowledge-agent = "aieng.agent_evals.knowledge_agent.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
 ]
 
 [build-system]
