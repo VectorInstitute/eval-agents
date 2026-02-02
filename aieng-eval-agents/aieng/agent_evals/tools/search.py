@@ -13,7 +13,7 @@ from google.adk.tools.function_tool import FunctionTool
 from google.genai import Client, types
 from pydantic import BaseModel, Field
 
-from .web import resolve_redirect_urls_async
+from ._redirect import resolve_redirect_urls_async
 
 
 logger = logging.getLogger(__name__)
