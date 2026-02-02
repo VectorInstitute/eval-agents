@@ -11,7 +11,6 @@ Tool Selection Guide:
 """
 
 from ._redirect import (
-    resolve_redirect_url,
     resolve_redirect_url_async,
     resolve_redirect_urls_async,
 )
@@ -46,7 +45,6 @@ __all__ = [
     # Web tools (HTML pages and PDFs)
     "web_fetch",
     "create_web_fetch_tool",
-    "resolve_redirect_url",
     "resolve_redirect_url_async",
     "resolve_redirect_urls_async",
     # File tools (data files - CSV, XLSX, text)

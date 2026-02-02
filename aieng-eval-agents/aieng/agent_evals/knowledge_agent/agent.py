@@ -69,6 +69,7 @@ from .retry import (
     API_RETRY_MAX_ATTEMPTS,
     API_RETRY_MAX_WAIT,
     MAX_EMPTY_RESPONSE_RETRIES,
+    is_cache_expiration_error,
     is_context_overflow_error,
     is_retryable_api_error,
 )
@@ -225,8 +226,8 @@ class KnowledgeGroundedAgent:
         if enable_caching:
             app_kwargs["context_cache_config"] = ContextCacheConfig(
                 min_tokens=2048,
-                ttl_seconds=600,
-                cache_intervals=10,
+                ttl_seconds=3600,  # 1 hour (increased from 10 min)
+                cache_intervals=50,  # 50 reuses (increased from 10)
             )
 
         if enable_compaction:

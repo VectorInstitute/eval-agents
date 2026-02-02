@@ -9,9 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from aieng.agent_evals.tools._redirect import (
-    REDIRECT_URL_PATTERNS,
     _redirect_cache,
-    resolve_redirect_url,
     resolve_redirect_url_async,
     resolve_redirect_urls_async,
 )
@@ -185,74 +183,6 @@ class TestCreateWebFetchTool:
         tool = create_web_fetch_tool()
         assert tool is not None
         assert tool.func == web_fetch
-
-
-class TestResolveRedirectUrl:
-    """Tests for the resolve_redirect_url function."""
-
-    def test_non_redirect_url_returns_unchanged(self):
-        """Test that non-redirect URLs are returned unchanged without HTTP calls."""
-        url = "https://example.com/page"
-        result = resolve_redirect_url(url)
-        assert result == url
-
-    def test_recognizes_vertex_ai_redirect_patterns(self):
-        """Test that Vertex AI redirect patterns are recognized."""
-        # Verify the patterns are defined correctly
-        assert "vertexaisearch.cloud.google.com/grounding-api-redirect" in REDIRECT_URL_PATTERNS
-        assert "vertexaisearch.cloud.google.com/redirect" in REDIRECT_URL_PATTERNS
-
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_resolves_redirect_url(self, mock_client_class):
-        """Test that redirect URLs are resolved to final destination."""
-        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc123"
-        final_url = "https://example.com/actual-page"
-
-        mock_response = MagicMock()
-        mock_response.url = final_url
-
-        mock_client = MagicMock()
-        mock_client.head.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client_class.return_value = mock_client
-
-        # Clear lru_cache before test
-        resolve_redirect_url.cache_clear()
-
-        result = resolve_redirect_url(redirect_url)
-
-        assert result == final_url
-        mock_client.head.assert_called_once()
-
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_returns_original_on_error(self, mock_client_class):
-        """Test that original URL is returned if resolution fails."""
-        redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/error123"
-
-        mock_client = MagicMock()
-        # Both HEAD and GET (stream) fail
-        mock_client.head.side_effect = Exception("Connection failed")
-        mock_client.stream.side_effect = Exception("Connection failed")
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client_class.return_value = mock_client
-
-        # Clear lru_cache before test
-        resolve_redirect_url.cache_clear()
-
-        result = resolve_redirect_url(redirect_url)
-
-        assert result == redirect_url  # Returns original on failure
-
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_skips_http_call_for_non_redirect_url(self, mock_client_class):
-        """Test that non-redirect URLs don't trigger HTTP calls."""
-        url = "https://example.com/page"
-        result = resolve_redirect_url(url)
-
-        assert result == url
-        mock_client_class.assert_not_called()
 
 
 class TestResolveRedirectUrlAsync:

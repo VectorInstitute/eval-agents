@@ -7,7 +7,6 @@ display actual URLs.
 
 import asyncio
 import logging
-from functools import lru_cache
 
 import httpx
 
@@ -40,80 +39,6 @@ def _get_redirect_timeout() -> httpx.Timeout:
         write=10.0,
         pool=10.0,
     )
-
-
-# ============================================================================
-# Synchronous Redirect Resolution
-# ============================================================================
-
-
-def _resolve_with_head(client: httpx.Client, url: str) -> str | None:
-    """Try to resolve redirect using HEAD request."""
-    try:
-        response = client.head(url, headers={"User-Agent": _USER_AGENT})
-        return str(response.url)
-    except httpx.HTTPStatusError as e:
-        # Some servers return 405 Method Not Allowed for HEAD
-        if e.response.status_code in (405, 501):
-            return None  # Signal to try GET
-        raise
-    except Exception:
-        return None
-
-
-def _resolve_with_get(client: httpx.Client, url: str) -> str:
-    """Resolve redirect using GET request (fallback when HEAD fails)."""
-    # Use stream=True to avoid downloading the body
-    with client.stream("GET", url, headers={"User-Agent": _USER_AGENT}) as response:
-        return str(response.url)
-
-
-@lru_cache(maxsize=256)
-def resolve_redirect_url(url: str) -> str:
-    """Resolve a redirect URL to its final destination without downloading content.
-
-    This is useful for resolving Vertex AI grounding redirect URLs to actual URLs
-    before displaying them in traces, CLI output, or citations.
-
-    Results are cached to avoid repeated HTTP calls for the same URL.
-
-    Uses robust resolution with:
-    - Configurable timeouts (connect, read, total)
-    - HEAD request first, falls back to GET if server doesn't support HEAD
-    - Retries with exponential backoff for transient failures
-    - Realistic User-Agent to avoid blocks
-
-    Parameters
-    ----------
-    url : str
-        The URL to resolve (may be a redirect URL).
-
-    Returns
-    -------
-    str
-        The final destination URL after following redirects.
-        Returns the original URL if resolution fails.
-    """
-    # Skip resolution for non-redirect URLs
-    if not _is_redirect_url(url):
-        return url
-
-    try:
-        with httpx.Client(timeout=_get_redirect_timeout(), follow_redirects=True) as client:
-            # Try HEAD first (faster, no body download)
-            final_url = _resolve_with_head(client, url)
-
-            # Fall back to GET if HEAD failed
-            if final_url is None:
-                logger.debug(f"HEAD failed for {url[:60]}..., trying GET")
-                final_url = _resolve_with_get(client, url)
-
-            if final_url != url:
-                logger.debug(f"Resolved redirect: {url[:60]}... -> {final_url[:60]}...")
-            return final_url
-    except Exception as e:
-        logger.warning(f"Failed to resolve redirect URL {url[:60]}...: {type(e).__name__}: {e}")
-        return url
 
 
 async def _resolve_with_head_async(client: httpx.AsyncClient, url: str) -> str | None:

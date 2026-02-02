@@ -20,7 +20,7 @@ API_RETRY_JITTER = 5  # seconds
 def is_retryable_api_error(exception: BaseException) -> bool:
     """Check if an exception is a retryable API error (rate limit/quota exhaustion).
 
-    Does NOT retry context overflow errors - those need session reset instead.
+    Does NOT retry context overflow or cache expiration - those need session reset instead.
 
     Parameters
     ----------
@@ -37,6 +37,10 @@ def is_retryable_api_error(exception: BaseException) -> bool:
 
         # Don't retry context overflow - needs session reset, not retry
         if "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str):
+            return False
+
+        # Don't retry cache expiration - needs session reset, not retry
+        if "cache" in error_str and "expired" in error_str:
             return False
 
         # Check for rate limit indicators
@@ -61,4 +65,23 @@ def is_context_overflow_error(exception: BaseException) -> bool:
     if isinstance(exception, ClientError):
         error_str = str(exception).lower()
         return "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str)
+    return False
+
+
+def is_cache_expiration_error(exception: BaseException) -> bool:
+    """Check if an exception is a cache expiration error.
+
+    Parameters
+    ----------
+    exception : BaseException
+        The exception to check.
+
+    Returns
+    -------
+    bool
+        True if the exception is due to expired cache content.
+    """
+    if isinstance(exception, ClientError):
+        error_str = str(exception).lower()
+        return "cache" in error_str and "expired" in error_str
     return False
