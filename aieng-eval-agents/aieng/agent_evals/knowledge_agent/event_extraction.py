@@ -10,7 +10,8 @@ from typing import Any
 from aieng.agent_evals.tools import GroundingChunk, resolve_redirect_urls_async
 
 
-logger = logging.getLogger(__name__)
+# Use the agent module's logger so CLI tool call handler captures these messages
+logger = logging.getLogger("aieng.agent_evals.knowledge_agent.agent")
 
 
 def extract_tool_calls(event: Any) -> list[dict[str, Any]]:
@@ -91,8 +92,19 @@ def extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
     for fr in function_responses:
         # Log tool response for CLI display tracking
         tool_name = getattr(fr, "name", None) or getattr(fr, "id", "unknown")
-        logger.info(f"Tool response: {tool_name} completed")
         response_data = getattr(fr, "response", {})
+
+        # Check for error responses
+        if isinstance(response_data, dict):
+            error = response_data.get("error") or response_data.get("status") == "error"
+            if error:
+                error_msg = response_data.get("error", "Unknown error")
+                logger.warning(f"Tool error: {tool_name} failed - {error_msg}")
+            else:
+                logger.info(f"Tool response: {tool_name} completed")
+        else:
+            logger.info(f"Tool response: {tool_name} completed")
+
         if not isinstance(response_data, dict):
             continue
         # Extract sources from search tool response

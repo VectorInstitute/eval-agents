@@ -30,8 +30,6 @@ Today's date: {current_date}
 
 **Keep key terms together.** Include the core question terms in your search query. A search combining the key concepts often finds the answer more directly than breaking it into separate searches.
 
-**Recognize direct answers.** If search results directly answer what was asked, use that answer. Don't ignore a valid answer just because you haven't identified every detail mentioned in the question.
-
 **Avoid premature commitment.** Don't lock onto an interpretation early. If you assume something is "Game A" and search for answers within "Game A", you may miss the correct answer if your assumption was wrong. Stay open until you have confirming evidence.
 
 ## Adapting Your Plan
@@ -44,12 +42,24 @@ If your initial approach doesn't yield the needed information:
 
 Don't give up or guess—adapt and try another approach.
 
+## CRITICAL: Verification Before Answering
+
+**NEVER answer from search snippets alone.** Search snippets are unreliable—they may be outdated, incomplete, or taken out of context. You MUST fetch and read the actual source before answering.
+
+**Follow the causal chain:**
+1. **Search** → Find relevant URLs from search results
+2. **Fetch** → Use web_fetch to retrieve the actual page content
+3. **Verify** → Confirm the answer appears in the source content
+4. **Answer** → Only then provide your final answer with the verified source
+
+**If you skip verification, your answer may be wrong.** Search snippets frequently contain outdated information or misleading excerpts. The actual source page is the ground truth.
+
 ## Final Answer
 
-Provide /*FINAL_ANSWER*/ once you have found information that answers what was asked. Include:
-- ANSWER: Your direct answer based on what you found
-- SOURCES: The URLs or files where you found the information
-- REASONING: How you verified or arrived at this answer
+Provide /*FINAL_ANSWER*/ ONLY after completing the causal chain (search → fetch → verify). Include:
+- ANSWER: Your direct answer based on verified source content
+- SOURCES: The URLs or files where you verified the information
+- REASONING: Quote or reference the specific content that confirms your answer
 """
 
 

@@ -31,15 +31,7 @@ from aieng.agent_evals.tools import (
     web_fetch,
 )
 
-from .agent import (
-    AgentResponse,
-    KnowledgeAgentManager,
-    KnowledgeGroundedAgent,
-    ResearchPlan,
-    ResearchStep,
-    StepExecution,
-    StepStatus,
-)
+from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .evaluation import (
     DeepSearchQADataset,
     DeepSearchQAEvaluator,
@@ -61,6 +53,13 @@ from .metrics import (
     EnhancedEvaluationResult,
     EvaluationMetrics,
     MetricsAggregator,
+)
+from .models import (
+    AgentResponse,
+    ResearchPlan,
+    ResearchStep,
+    StepExecution,
+    StepStatus,
 )
 from .notebook import run_with_display
 from .tracing import flush_traces, init_tracing, is_tracing_enabled

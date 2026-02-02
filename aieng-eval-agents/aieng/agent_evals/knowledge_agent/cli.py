@@ -214,7 +214,32 @@ class ToolCallHandler(logging.Handler):
                     args_str = parts[paren_idx + 1 : -1]
                     if len(args_str) > 80:
                         args_str = args_str[:77] + "..."
-                    self.tool_calls.append({"name": tool_name, "args": args_str, "completed": False})
+                    self.tool_calls.append(
+                        {
+                            "name": tool_name,
+                            "args": args_str,
+                            "completed": False,
+                            "failed": False,
+                            "error": None,
+                        }
+                    )
+            except Exception:
+                pass
+        elif "Tool error:" in msg:
+            # Mark the most recent incomplete tool call as failed
+            try:
+                parts = msg.split("Tool error: ", 1)[1]
+                # Format: "tool_name failed - error message"
+                tool_part, error_msg = (
+                    parts.split(" failed - ", 1) if " failed - " in parts else (parts, "Unknown error")
+                )
+                tool_name = tool_part.strip()
+                # Find the most recent matching incomplete tool call
+                for tc in reversed(self.tool_calls):
+                    if tc["name"] == tool_name and not tc["completed"] and not tc["failed"]:
+                        tc["failed"] = True
+                        tc["error"] = error_msg[:60] + "..." if len(error_msg) > 60 else error_msg
+                        break
             except Exception:
                 pass
         elif "Tool response:" in msg:
@@ -224,7 +249,7 @@ class ToolCallHandler(logging.Handler):
                 tool_name = parts.split(" ")[0]
                 # Find the most recent matching incomplete tool call
                 for tc in reversed(self.tool_calls):
-                    if tc["name"] == tool_name and not tc["completed"]:
+                    if tc["name"] == tool_name and not tc["completed"] and not tc["failed"]:
                         tc["completed"] = True
                         break
             except Exception:
@@ -284,7 +309,7 @@ def _create_plan_display(plan) -> Panel:
     Panel
         A rich panel with the plan checklist.
     """
-    from .agent import StepStatus  # noqa: PLC0415
+    from .models import StepStatus  # noqa: PLC0415
 
     lines = []
 
@@ -499,13 +524,27 @@ def _build_tool_calls_content(tool_calls: list[dict], has_plan: bool) -> Group |
 
     for tc in display_calls:
         is_completed = tc.get("completed", False)
+        is_failed = tc.get("failed", False)
         display_name, icon, style = _get_tool_display_info(tc["name"])
 
         line = Text()
-        line.append("  ✓ " if is_completed else "  → ", style="dim green" if is_completed else "bold yellow")
-        line.append(f"{icon} ", style=style)
-        line.append(display_name, style=f"bold {style}")
-        line.append(f"  {tc['args']}", style="dim")
+        if is_failed:
+            line.append("  ✗ ", style="bold red")
+            line.append(f"{icon} ", style="red")
+            line.append(display_name, style="bold red")
+            line.append(f"  {tc['args']}", style="dim red")
+            if tc.get("error"):
+                line.append(f"  [{tc['error']}]", style="red")
+        elif is_completed:
+            line.append("  ✓ ", style="dim green")
+            line.append(f"{icon} ", style=style)
+            line.append(display_name, style=f"bold {style}")
+            line.append(f"  {tc['args']}", style="dim")
+        else:
+            line.append("  → ", style="bold yellow")
+            line.append(f"{icon} ", style=style)
+            line.append(display_name, style=f"bold {style}")
+            line.append(f"  {tc['args']}", style="dim")
         lines.append(line)
 
     return Group(*lines) if lines else Text("No tool calls yet", style="dim")

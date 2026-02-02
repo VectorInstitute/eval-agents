@@ -10,8 +10,8 @@ from collections import Counter
 
 from pydantic import BaseModel, Field
 
-from .agent import ResearchPlan, StepExecution
 from .judges import DeepSearchQAResult, JudgeResult
+from .models import ResearchPlan, StepExecution
 
 
 class EvaluationMetrics(BaseModel):

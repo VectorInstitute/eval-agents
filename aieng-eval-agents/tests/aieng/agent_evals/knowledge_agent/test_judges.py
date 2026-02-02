@@ -4,7 +4,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aieng.agent_evals.knowledge_agent.agent import ResearchPlan, ResearchStep
 from aieng.agent_evals.knowledge_agent.judges import (
     BaseJudge,
     CausalChainJudge,
@@ -17,6 +16,7 @@ from aieng.agent_evals.knowledge_agent.judges import (
     SourceQualityJudge,
     _parse_judge_response,
 )
+from aieng.agent_evals.knowledge_agent.models import ResearchPlan, ResearchStep
 
 
 class TestJudgeResult:

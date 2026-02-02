@@ -168,15 +168,19 @@ def extract_final_answer_text(text: str) -> str | None:
         return None
 
     start = text.find(FINAL_ANSWER_TAG) + len(FINAL_ANSWER_TAG)
-    answer_text = text[start:].strip()
+
+    # Find the end - truncate at the next tag if any
+    end = len(text)
+    for end_tag in [PLANNING_TAG, REPLANNING_TAG, REASONING_TAG, ACTION_TAG]:
+        if end_tag in text[start:]:
+            tag_pos = text.find(end_tag, start)
+            if tag_pos != -1 and tag_pos < end:
+                end = tag_pos
+
+    answer_text = text[start:end].strip()
 
     # Return None for empty/whitespace-only content
     if not answer_text:
         return None
-
-    # Handle case where FINAL_ANSWER is followed by another tag with no content between
-    for end_tag in [PLANNING_TAG, REPLANNING_TAG, REASONING_TAG, ACTION_TAG]:
-        if answer_text.startswith(end_tag):
-            return None
 
     return answer_text

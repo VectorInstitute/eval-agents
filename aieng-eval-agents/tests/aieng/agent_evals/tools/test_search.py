@@ -1,14 +1,14 @@
 """Tests for Google Search tool."""
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
     create_google_search_tool,
     format_response_with_citations,
+    google_search,
 )
+from google.adk.tools.function_tool import FunctionTool
 
 
 class TestGroundingChunk:
@@ -81,16 +81,13 @@ class TestGroundedResponse:
 class TestCreateGoogleSearchTool:
     """Tests for the create_google_search_tool function."""
 
-    @patch("aieng.agent_evals.tools.search.GoogleSearchTool")
-    def test_creates_tool_with_bypass_flag(self, mock_tool_class):
-        """Test that the tool is created with bypass_multi_tools_limit=True."""
-        mock_tool = MagicMock()
-        mock_tool_class.return_value = mock_tool
-
+    def test_creates_function_tool(self):
+        """Test that the tool is created as a FunctionTool wrapping google_search."""
         result = create_google_search_tool()
 
-        mock_tool_class.assert_called_once_with(bypass_multi_tools_limit=True)
-        assert result is mock_tool
+        assert isinstance(result, FunctionTool)
+        # The function tool should wrap the google_search function
+        assert result.func.__name__ == "google_search"
 
 
 class TestFormatResponseWithCitations:
@@ -160,7 +157,49 @@ class TestGoogleSearchToolIntegration:
     """
 
     def test_create_google_search_tool_real(self):
-        """Test creating a real GoogleSearchTool instance."""
+        """Test creating a real FunctionTool instance wrapping google_search."""
         tool = create_google_search_tool()
-        # The tool should be a GoogleSearchTool instance with bypass flag
-        assert tool is not None
+        # The tool should be a FunctionTool wrapping google_search
+        assert isinstance(tool, FunctionTool)
+
+    def test_google_search_returns_urls(self):
+        """Test that google_search returns actual URLs, not redirect URLs."""
+        result = google_search("capital of France")
+
+        # Should have success status
+        assert result["status"] == "success"
+
+        # Should have a summary
+        assert result["summary"], "Expected non-empty summary"
+
+        # Should have sources with URLs
+        assert result["source_count"] > 0, "Expected at least one source"
+        assert len(result["sources"]) == result["source_count"]
+
+        # Each source should have title and url
+        for source in result["sources"]:
+            assert "title" in source
+            assert "url" in source
+            # URL should be a real URL, not a redirect URL
+            assert source["url"].startswith("http"), f"Expected URL, got: {source['url']}"
+            assert "vertexaisearch" not in source["url"], "URL should not be a redirect URL"
+
+    def test_google_search_response_structure(self):
+        """Test the complete response structure from google_search."""
+        result = google_search("Python programming language")
+
+        # Check all expected keys exist
+        assert "status" in result
+        assert "summary" in result
+        assert "sources" in result
+        assert "source_count" in result
+
+        # Sources should be a list
+        assert isinstance(result["sources"], list)
+
+        # If we have sources, verify their structure
+        if result["sources"]:
+            source = result["sources"][0]
+            assert isinstance(source, dict)
+            assert "title" in source
+            assert "url" in source

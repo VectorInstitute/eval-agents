@@ -52,7 +52,6 @@ from .event_extraction import (
 from .models import (
     AgentResponse,
     ResearchPlan,
-    ResearchStep,
     StepExecution,
     StepStatus,
 )
@@ -75,18 +74,6 @@ from .retry import (
 )
 from .system_instructions import build_system_instructions
 from .token_tracker import TokenTracker
-
-
-# Re-export models for backward compatibility
-__all__ = [
-    "AgentResponse",
-    "KnowledgeAgentManager",
-    "KnowledgeGroundedAgent",
-    "ResearchPlan",
-    "ResearchStep",
-    "StepExecution",
-    "StepStatus",
-]
 
 
 # Suppress experimental warnings from ADK
@@ -129,7 +116,7 @@ class KnowledgeGroundedAgent:
         enable_planning: bool = True,
         enable_caching: bool = True,
         enable_compaction: bool = True,
-        compaction_interval: int = 3,
+        compaction_interval: int = 10,
         thinking_budget: int = 8192,
     ) -> None:
         """Initialize the knowledge-grounded agent with built-in planning.
@@ -163,7 +150,7 @@ class KnowledgeGroundedAgent:
         self.enable_planning = enable_planning
         self._thinking_budget = thinking_budget
 
-        # Create tools
+        # Create tools - use function tool for search so agent sees actual URLs
         self._search_tool = create_google_search_tool()
         self._web_fetch_tool = create_web_fetch_tool()
         self._fetch_file_tool = create_fetch_file_tool()
@@ -639,11 +626,11 @@ class KnowledgeGroundedAgent:
 
         total_duration_ms = int((time.time() - start_time) * 1000)
 
-        # Mark remaining steps as completed
+        # Mark remaining steps as skipped (not completed - they weren't executed)
         if self._current_plan:
             for step in self._current_plan.steps:
                 if step.status in (StepStatus.PENDING, StepStatus.IN_PROGRESS):
-                    step.status = StepStatus.COMPLETED
+                    step.status = StepStatus.SKIPPED
 
         # Resolve redirect URLs and build response
         resolved_sources = await resolve_source_urls(results.get("sources", []))

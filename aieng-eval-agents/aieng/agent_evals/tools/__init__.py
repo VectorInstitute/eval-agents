@@ -23,6 +23,7 @@ from .search import (
     GroundingChunk,
     create_google_search_tool,
     format_response_with_citations,
+    google_search,
 )
 from .web import (
     create_web_fetch_tool,
@@ -36,6 +37,7 @@ from .web import (
 __all__ = [
     # Search tools
     "create_google_search_tool",
+    "google_search",
     "format_response_with_citations",
     "GroundedResponse",
     "GroundingChunk",

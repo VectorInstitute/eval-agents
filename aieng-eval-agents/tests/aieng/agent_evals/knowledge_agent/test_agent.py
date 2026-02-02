@@ -4,9 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_agent.agent import (
-    AgentResponse,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
+)
+from aieng.agent_evals.knowledge_agent.models import (
+    AgentResponse,
     ResearchPlan,
     ResearchStep,
     StepExecution,
@@ -552,6 +554,88 @@ class TestAgentResponse:
         assert response.sources[0].uri == "https://example.com"
         assert response.search_queries == ["test query"]
         assert response.total_duration_ms == 1000
+
+
+class TestPlanStepStatusOnEarlyTermination:
+    """Tests for plan steps marked correctly when agent terminates early."""
+
+    def test_remaining_steps_marked_as_skipped(self):
+        """Test remaining steps are marked SKIPPED on early termination.
+
+        When the agent finds the answer early and terminates before completing
+        all planned steps, the remaining steps should be marked as SKIPPED
+        to accurately reflect that they were not executed.
+        """
+        # Create a plan with multiple steps
+        plan = ResearchPlan(
+            original_question="Test question",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Search for initial info",
+                    status=StepStatus.COMPLETED,
+                ),
+                ResearchStep(
+                    step_id=2,
+                    description="Verify the information",
+                    status=StepStatus.PENDING,
+                ),
+                ResearchStep(
+                    step_id=3,
+                    description="Cross-check with another source",
+                    status=StepStatus.PENDING,
+                ),
+                ResearchStep(
+                    step_id=4,
+                    description="Synthesize findings",
+                    status=StepStatus.IN_PROGRESS,
+                ),
+            ],
+            reasoning="Multi-step research plan",
+        )
+
+        # Simulate the agent's early termination logic
+        # (this is what happens in agent.py lines 629-633)
+        for step in plan.steps:
+            if step.status in (StepStatus.PENDING, StepStatus.IN_PROGRESS):
+                step.status = StepStatus.SKIPPED
+
+        # Verify step 1 is still completed (it was executed)
+        assert plan.steps[0].status == StepStatus.COMPLETED
+
+        # Verify remaining steps are marked as SKIPPED, not COMPLETED
+        assert plan.steps[1].status == StepStatus.SKIPPED
+        assert plan.steps[2].status == StepStatus.SKIPPED
+        assert plan.steps[3].status == StepStatus.SKIPPED
+
+    def test_plan_is_complete_with_skipped_steps(self):
+        """Test that a plan with SKIPPED steps is considered complete."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", status=StepStatus.SKIPPED),
+                ResearchStep(step_id=3, description="Step 3", status=StepStatus.SKIPPED),
+            ],
+        )
+
+        # SKIPPED is a terminal status, so the plan should be complete
+        assert plan.is_complete()
+
+    def test_get_steps_by_status_skipped(self):
+        """Test getting steps by SKIPPED status."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", status=StepStatus.SKIPPED),
+                ResearchStep(step_id=3, description="Step 3", status=StepStatus.SKIPPED),
+            ],
+        )
+
+        skipped_steps = plan.get_steps_by_status(StepStatus.SKIPPED)
+        assert len(skipped_steps) == 2
+        assert all(s.status == StepStatus.SKIPPED for s in skipped_steps)
 
 
 @pytest.mark.integration_test

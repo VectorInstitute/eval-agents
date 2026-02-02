@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 
 if TYPE_CHECKING:
-    from .agent import ResearchPlan
+    from .models import ResearchPlan
 
 
 logger = logging.getLogger(__name__)
