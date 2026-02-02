@@ -95,11 +95,14 @@ The DB tool is initialized lazily when a tool call happens (so importing the mod
 
 ## Safety Notes (Why Read‑Only SQL?)
 
-Agents should not be allowed to write to operational databases. This repo’s SQL tool is designed to be read-only and defensive:
+Agents' access to operational databases should be limited to prevent accidental or malicious data modification.
+This repo’s SQL tool is designed to be read-only and defensive:
 
 - it allows only a small set of statement roots (e.g., `SELECT`),
 - it blocks write/DDL nodes anywhere in the parsed SQL AST,
 - it limits rows returned and applies a timeout,
 - it formats results as a small markdown table for LLM consumption.
+
+For an extra layer of security, access control can be enforced at the database user/role level.
 
 See `aieng-eval-agents/aieng/agent_evals/tools/sql_database.py`.
