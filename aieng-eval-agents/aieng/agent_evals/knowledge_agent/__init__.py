@@ -16,6 +16,12 @@ Example
 """
 
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.tools import (
+    GroundedResponse,
+    GroundingChunk,
+    create_google_search_tool,
+    format_response_with_citations,
+)
 
 from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .evaluation import (
@@ -23,12 +29,6 @@ from .evaluation import (
     DeepSearchQAEvaluator,
     DSQAExample,
     EvaluationResult,
-)
-from .grounding_tool import (
-    GroundedResponse,
-    GroundingChunk,
-    create_google_search_tool,
-    format_response_with_citations,
 )
 from .tracing import flush_traces, init_tracing, is_tracing_enabled
 
