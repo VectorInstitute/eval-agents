@@ -540,6 +540,8 @@ API_RETRY_JITTER = 5  # seconds
 def _is_retryable_api_error(exception: BaseException) -> bool:
     """Check if an exception is a retryable API error (rate limit/quota exhaustion).
 
+    Does NOT retry context overflow errors - those need session reset instead.
+
     Parameters
     ----------
     exception : BaseException
@@ -552,9 +554,33 @@ def _is_retryable_api_error(exception: BaseException) -> bool:
     """
     if isinstance(exception, ClientError):
         error_str = str(exception).lower()
+
+        # Don't retry context overflow - needs session reset, not retry
+        if "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str):
+            return False
+
         # Check for rate limit indicators
         if "429" in error_str or "resource_exhausted" in error_str or "quota" in error_str:
             return True
+    return False
+
+
+def _is_context_overflow_error(exception: BaseException) -> bool:
+    """Check if an exception is a context overflow error.
+
+    Parameters
+    ----------
+    exception : BaseException
+        The exception to check.
+
+    Returns
+    -------
+    bool
+        True if the exception is due to context window overflow.
+    """
+    if isinstance(exception, ClientError):
+        error_str = str(exception).lower()
+        return "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str)
     return False
 
 
@@ -1317,10 +1343,11 @@ class KnowledgeGroundedAgent:
         question: str,
         adk_session_id: str,
     ) -> dict[str, Any]:
-        """Run the agent once with retry logic for API rate limits.
+        """Run the agent once with retry logic for rate limits and context overflow.
 
         Wraps _run_agent_once_inner with exponential backoff retry for
-        429/RESOURCE_EXHAUSTED errors from the Gemini API.
+        429/RESOURCE_EXHAUSTED errors from the Gemini API. If a context overflow
+        error occurs, resets the session and retries once with fresh context.
 
         Parameters
         ----------
@@ -1339,6 +1366,8 @@ class KnowledgeGroundedAgent:
         ------
         ClientError
             If all retry attempts fail due to persistent API errors.
+        RuntimeError
+            If context overflow occurs and retry with fresh session also fails.
         """
 
         # Create a retry-wrapped version of the inner method
@@ -1356,7 +1385,30 @@ class KnowledgeGroundedAgent:
         async def _run_with_retry() -> dict[str, Any]:
             return await self._run_agent_once_inner(question, adk_session_id)
 
-        return await _run_with_retry()
+        try:
+            return await _run_with_retry()
+        except ClientError as e:
+            # Handle context overflow by resetting session
+            if _is_context_overflow_error(e):
+                logger.warning(f"Context overflow detected: {e}")
+                logger.warning("Resetting session and retrying with fresh context...")
+
+                # Create fresh session to clear accumulated history
+                self._session_service = InMemorySessionService()
+                new_session_id = await self._get_or_create_session_async()
+
+                # Retry once with fresh session
+                try:
+                    return await self._run_agent_once_inner(question, new_session_id)
+                except Exception as retry_error:
+                    logger.error(f"Retry with fresh session failed: {retry_error}")
+                    raise RuntimeError(
+                        f"Context overflow error. Original error: {e}. "
+                        f"Retry with fresh session also failed: {retry_error}"
+                    ) from e
+
+            # Re-raise non-context-overflow errors
+            raise
 
     async def answer_async(
         self,

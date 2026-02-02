@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 # File extensions that need special handling (binary formats)
 EXCEL_EXTENSIONS = {".xlsx", ".xls"}
 
+# Safety limits for grep_file to prevent context overflow
+MAX_GREP_RESULTS_HARD_CAP = 50  # Never return more than 50 matches
+MAX_GREP_OUTPUT_CHARS = 100_000  # 100K character limit per grep output
+MAX_CONTEXT_LINES_CAP = 5  # Maximum context lines allowed
+
 
 _http_retry = retry(
     stop=stop_after_attempt(3),
@@ -294,6 +299,10 @@ def grep_file(
     logger.info(f"Grep {file_path} for: {pattern}")
 
     try:
+        # Enforce hard caps to prevent context overflow
+        max_results = min(max_results, MAX_GREP_RESULTS_HARD_CAP)
+        context_lines = min(context_lines, MAX_CONTEXT_LINES_CAP)
+
         if not os.path.exists(file_path):
             return {
                 "status": "error",
@@ -349,12 +358,43 @@ def grep_file(
                 "message": f"No matches found for: {', '.join(patterns)}",
             }
 
-        return {
+        # Build result and check output size
+        result = {
             "status": "success",
             "matches": matches,
             "total_matches": len(matches),
             "patterns": patterns,
         }
+
+        # Truncate output if it exceeds character limit
+        result_str = str(result)
+        if len(result_str) > MAX_GREP_OUTPUT_CHARS:
+            logger.warning(
+                f"Grep output too large ({len(result_str):,} chars), truncating to {MAX_GREP_OUTPUT_CHARS:,} chars"
+            )
+
+            # Keep only matches that fit within the limit
+            truncated_matches = []
+            current_size = len(str({"status": "success", "patterns": patterns, "total_matches": 0, "matches": []}))
+
+            for match in matches:
+                match_size = len(str(match))
+                if current_size + match_size > MAX_GREP_OUTPUT_CHARS * 0.9:  # 90% threshold for safety
+                    break
+                truncated_matches.append(match)
+                current_size += match_size
+
+            result = {
+                "status": "success",
+                "matches": truncated_matches,
+                "total_matches": len(matches),
+                "patterns": patterns,
+                "truncated": True,
+                "matches_returned": len(truncated_matches),
+                "message": f"Output truncated: showing {len(truncated_matches)}/{len(matches)} matches (char limit: {MAX_GREP_OUTPUT_CHARS:,})",
+            }
+
+        return result
 
     except Exception as e:
         logger.exception(f"Error in grep_file {file_path}")
