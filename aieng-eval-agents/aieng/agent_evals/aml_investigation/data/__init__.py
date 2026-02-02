@@ -1,3 +1,5 @@
+"""Data models and utilities for AML investigation agent."""
+
 from .cases import AnalystOutput, CaseFile, CaseRecord, GroundTruth, LaunderingPattern, build_cases, parse_patterns_file
 from .utils import apply_lookback_window, download_dataset_file, normalize_transactions_data
 
