@@ -84,7 +84,8 @@ async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
     str
         The agent's response text.
     """
-    question = item.input
+    # Handle both dict (LocalExperimentItem) and object (DatasetItemClient) formats
+    question = item["input"] if isinstance(item, dict) else item.input
 
     logger.info(f"Running agent on: {question[:80]}...")
 
@@ -196,7 +197,7 @@ async def deepsearchqa_evaluator(
         ]
 
 
-def get_completed_item_ids(langfuse: Any, run_name: str) -> set[str]:
+def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set[str]:
     """Get dataset item IDs that have already been evaluated in a run.
 
     Parameters
@@ -204,7 +205,9 @@ def get_completed_item_ids(langfuse: Any, run_name: str) -> set[str]:
     langfuse : Langfuse
         The Langfuse client.
     run_name : str
-        Name of the experiment run.
+        Name of the experiment run (the dataset run name).
+    dataset_id : str
+        ID of the dataset.
 
     Returns
     -------
@@ -212,26 +215,41 @@ def get_completed_item_ids(langfuse: Any, run_name: str) -> set[str]:
         Set of dataset item IDs that have completed evaluations.
     """
     try:
-        # Fetch traces with matching run_name
+        # Use dataset_run_items API to get items for this specific run
         logger.info(f"Checking for existing evaluations in run '{run_name}'...")
 
-        # Use the fetch_traces API to get traces with this run_name
-        traces = langfuse.fetch_traces(
-            name=run_name,
-            limit=1000,  # Adjust if needed
-        )
-
         completed_ids = set()
-        for trace in traces.data:
-            # Check if this trace has completed evaluations
-            metadata = trace.metadata or {}
-            trace_run_name = metadata.get("run_name")
-            item_id = metadata.get("dataset_item_id")
+        page = 1
+        limit = 50
 
-            # Only count traces from this specific run that have evaluation scores
-            if trace_run_name == run_name and item_id and hasattr(trace, "scores") and trace.scores:
-                completed_ids.add(item_id)
-                logger.debug(f"Found completed evaluation for item {item_id}")
+        while True:
+            # Query dataset run items for this specific run
+            run_items_response = langfuse.api.dataset_run_items.list(
+                dataset_id=dataset_id,
+                run_name=run_name,
+                limit=limit,
+                page=page,
+            )
+
+            if not run_items_response.data:
+                break
+
+            for run_item in run_items_response.data:
+                # Check if this item has a trace with evaluation scores
+                if run_item.trace_id:
+                    try:
+                        trace = langfuse.api.trace.get(run_item.trace_id)
+                        if hasattr(trace, "scores") and trace.scores:
+                            completed_ids.add(run_item.dataset_item_id)
+                            logger.debug(f"Found completed evaluation for item {run_item.dataset_item_id}")
+                    except Exception as e:
+                        logger.debug(f"Could not fetch trace {run_item.trace_id}: {e}")
+
+            # Check if we've fetched all items
+            if len(run_items_response.data) < limit:
+                break
+
+            page += 1
 
         logger.info(f"Found {len(completed_ids)} completed evaluations")
         return completed_ids
@@ -275,7 +293,7 @@ async def run_evaluation(
     # Handle resume: filter out already-completed items
     items_to_process = dataset.items
     if resume:
-        completed_ids = get_completed_item_ids(langfuse, experiment_name)
+        completed_ids = get_completed_item_ids(langfuse, experiment_name, dataset.id)
 
         if completed_ids:
             items_to_process = [item for item in dataset.items if item.id not in completed_ids]
