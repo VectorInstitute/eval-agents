@@ -35,6 +35,10 @@ from .agent import (
     EnhancedGroundedResponse,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
+    ResearchPlan,
+    ResearchStep,
+    StepExecution,
+    StepStatus,
 )
 from .evaluation import (
     DeepSearchQADataset,
@@ -59,13 +63,6 @@ from .metrics import (
     MetricsAggregator,
 )
 from .notebook import run_with_display
-from .planner import (
-    ResearchPlan,
-    ResearchPlanner,
-    ResearchStep,
-    StepExecution,
-    StepStatus,
-)
 from .tracing import flush_traces, init_tracing, is_tracing_enabled
 
 
@@ -81,8 +78,7 @@ __all__ = [
     "format_response_with_citations",
     "GroundedResponse",
     "GroundingChunk",
-    # Planning
-    "ResearchPlanner",
+    # Planning (data models)
     "ResearchPlan",
     "ResearchStep",
     "StepExecution",

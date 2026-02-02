@@ -18,11 +18,15 @@ from functools import lru_cache
 from typing import Any
 
 import httpx
+import pandas as pd
 from google.adk.tools.function_tool import FunctionTool
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
+
+# File extensions that need special handling (binary formats)
+EXCEL_EXTENSIONS = {".xlsx", ".xls"}
 
 
 _http_retry = retry(
@@ -54,6 +58,72 @@ def _fetch_with_retry(client: httpx.Client, url: str) -> httpx.Response:
     response = client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
     response.raise_for_status()
     return response
+
+
+def _is_excel_file(file_path: str) -> bool:
+    """Check if file is an Excel file based on extension."""
+    return any(file_path.lower().endswith(ext) for ext in EXCEL_EXTENSIONS)
+
+
+def _read_excel_as_text(file_path: str) -> list[str]:
+    """Read Excel file and convert to text lines.
+
+    Reads all sheets and converts each row to a tab-separated line.
+    Sheet names are included as headers.
+    """
+    lines: list[str] = []
+    try:
+        xlsx = pd.ExcelFile(file_path)
+        for sheet_name in xlsx.sheet_names:
+            df = pd.read_excel(xlsx, sheet_name=sheet_name, header=None)
+            lines.append(f"=== Sheet: {sheet_name} ===")
+            for _, row in df.iterrows():
+                # Convert row to tab-separated string, handling NaN values
+                row_str = "\t".join(str(v) if pd.notna(v) else "" for v in row)
+                lines.append(row_str)
+            lines.append("")  # Empty line between sheets
+    except Exception as e:
+        logger.warning(f"Error reading Excel file {file_path}: {e}")
+        raise
+    return lines
+
+
+def _read_csv_as_text(file_path: str) -> list[str]:
+    """Read CSV file using pandas for better encoding/parsing handling."""
+    lines: list[str] = []
+    try:
+        df = pd.read_csv(file_path, header=None, encoding="utf-8", on_bad_lines="skip")
+        for _, row in df.iterrows():
+            row_str = ",".join(str(v) if pd.notna(v) else "" for v in row)
+            lines.append(row_str)
+    except UnicodeDecodeError:
+        # Try with latin-1 encoding as fallback
+        df = pd.read_csv(file_path, header=None, encoding="latin-1", on_bad_lines="skip")
+        for _, row in df.iterrows():
+            row_str = ",".join(str(v) if pd.notna(v) else "" for v in row)
+            lines.append(row_str)
+    return lines
+
+
+def _read_file_lines(file_path: str) -> list[str]:
+    """Read file lines, handling text, CSV, and Excel formats."""
+    if _is_excel_file(file_path):
+        return _read_excel_as_text(file_path)
+
+    # Try CSV if it's a CSV file
+    if file_path.lower().endswith(".csv"):
+        try:
+            return _read_csv_as_text(file_path)
+        except Exception as e:
+            logger.warning(f"Pandas CSV read failed, falling back to text: {e}")
+
+    # Default: read as text with encoding fallback
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            return f.readlines()
+    except UnicodeDecodeError:
+        with open(file_path, encoding="latin-1") as f:
+            return f.readlines()
 
 
 def _detect_extension(content_type: str, url: str) -> str:
@@ -230,8 +300,7 @@ def grep_file(
                 "error": f"File not found: {file_path}. Use fetch_file first to download.",
             }
 
-        with open(file_path, encoding="utf-8") as f:
-            lines = f.readlines()
+        lines = _read_file_lines(file_path)
 
         patterns = [p.strip().lower() for p in pattern.split(",") if p.strip()]
         if not patterns:
@@ -258,7 +327,8 @@ def grep_file(
 
             used_ranges.update(range(start, end))
 
-            context_text = "".join(lines[start:end]).strip()
+            # Join lines with newlines (Excel/CSV lines don't have trailing newlines)
+            context_text = "\n".join(line.rstrip("\n\r") for line in lines[start:end])
             matches.append(
                 {
                     "line_number": line_num + 1,
@@ -334,15 +404,15 @@ def read_file(
                 "error": f"File not found: {file_path}. Use fetch_file first to download.",
             }
 
-        with open(file_path, encoding="utf-8") as f:
-            lines = f.readlines()
+        lines = _read_file_lines(file_path)
 
         total_lines = len(lines)
 
         start_idx = max(0, start_line - 1)
         end_idx = min(total_lines, start_idx + num_lines)
 
-        content = "".join(lines[start_idx:end_idx])
+        # Join lines with newlines (Excel/CSV lines don't have trailing newlines)
+        content = "\n".join(line.rstrip("\n\r") for line in lines[start_idx:end_idx])
 
         return {
             "status": "success",

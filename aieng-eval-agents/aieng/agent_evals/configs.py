@@ -23,7 +23,7 @@ class Configs(BaseSettings):
     'gemini-2.5-flash'
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_ignore_empty=True, extra="ignore")
 
     # === Core LLM Settings ===
     openai_base_url: str = Field(
@@ -33,10 +33,6 @@ class Configs(BaseSettings):
     openai_api_key: str = Field(
         validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
         description="API key for OpenAI-compatible API (accepts OPENAI_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY).",
-    )
-    default_planner_model: str = Field(
-        default="gemini-2.5-pro",
-        description="Model name for planning/complex reasoning tasks.",
     )
     default_worker_model: str = Field(
         default="gemini-2.5-flash",

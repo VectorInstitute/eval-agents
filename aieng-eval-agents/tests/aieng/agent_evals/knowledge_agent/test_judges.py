@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from aieng.agent_evals.knowledge_agent.agent import ResearchPlan, ResearchStep
 from aieng.agent_evals.knowledge_agent.judges import (
     BaseJudge,
     CausalChainJudge,
@@ -16,7 +17,6 @@ from aieng.agent_evals.knowledge_agent.judges import (
     SourceQualityJudge,
     _parse_judge_response,
 )
-from aieng.agent_evals.knowledge_agent.planner import ResearchPlan, ResearchStep
 
 
 class TestJudgeResult:
@@ -354,7 +354,6 @@ class TestPlanQualityJudge:
 
         plan = ResearchPlan(
             original_question="What caused the 2008 crisis?",
-            complexity_assessment="complex",
             steps=[
                 ResearchStep(step_id=1, description="Research subprime", step_type="research"),
                 ResearchStep(step_id=2, description="Look up regulations", step_type="research"),

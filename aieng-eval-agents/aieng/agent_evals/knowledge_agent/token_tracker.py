@@ -48,15 +48,15 @@ class TokenUsage(BaseModel):
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     total_tokens: int = 0
-    context_limit: int = 1_000_000  # Default for Gemini 2.0 Flash
+    context_limit: int = 1_000_000  # Default for Gemini 2.5 Flash
 
     @property
     def uncached_prompt_tokens(self) -> int:
-        """Current context tokens excluding cached content.
+        """Prompt tokens excluding cached content (for cost estimation).
 
-        Uses the LATEST prompt tokens since each API call includes the
-        full conversation history. Cached tokens are stored separately
-        and don't count against the active context window.
+        Cached tokens are billed at a lower rate, so this property is useful
+        for cost tracking. Note: cached tokens still count against the context
+        window limit - use latest_prompt_tokens for context window calculations.
         """
         return max(0, self.latest_prompt_tokens - self.latest_cached_tokens)
 
@@ -64,12 +64,13 @@ class TokenUsage(BaseModel):
     def context_used_percent(self) -> float:
         """Calculate percentage of context window currently used.
 
-        Uses the latest prompt tokens (minus cached) since that reflects
-        the actual current conversation context size.
+        Uses the latest prompt tokens (total, including cached) since cached
+        tokens still occupy space in the context window. Caching only affects
+        processing speed and billing, not the context window limit.
         """
         if self.context_limit == 0:
             return 0.0
-        return (self.uncached_prompt_tokens / self.context_limit) * 100
+        return (self.latest_prompt_tokens / self.context_limit) * 100
 
     @property
     def context_remaining_percent(self) -> float:

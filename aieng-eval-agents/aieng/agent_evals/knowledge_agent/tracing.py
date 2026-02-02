@@ -143,3 +143,101 @@ def is_tracing_enabled() -> bool:
         True if tracing has been initialized, False otherwise.
     """
     return AsyncClientManager.get_instance().otel_instrumented
+
+
+def log_deepsearchqa_scores(
+    trace_name: str,
+    example_id: int,
+    outcome: str,
+    precision: float,
+    recall: float,
+    f1_score: float,
+    question: str | None = None,
+    answer: str | None = None,
+    ground_truth: str | None = None,
+) -> str | None:
+    """Log DeepSearchQA evaluation scores to Langfuse.
+
+    This function creates a trace with scores for the DeepSearchQA benchmark
+    evaluation, including the categorical outcome and continuous metrics.
+
+    Parameters
+    ----------
+    trace_name : str
+        Name for the trace (e.g., "deepsearchqa_eval").
+    example_id : int
+        The example ID from the dataset.
+    outcome : str
+        Categorical outcome: "fully_correct", "correct_with_extraneous",
+        "partially_correct", or "fully_incorrect".
+    precision : float
+        Precision score (0-1).
+    recall : float
+        Recall score (0-1).
+    f1_score : float
+        F1 score (0-1).
+    question : str, optional
+        The question that was evaluated.
+    answer : str, optional
+        The agent's answer.
+    ground_truth : str, optional
+        The expected ground truth answer.
+
+    Returns
+    -------
+    str or None
+        The trace ID if successful, None if tracing is not enabled.
+
+    Examples
+    --------
+    >>> trace_id = log_deepsearchqa_scores(
+    ...     trace_name="eval_run_001",
+    ...     example_id=123,
+    ...     outcome="fully_correct",
+    ...     precision=1.0,
+    ...     recall=1.0,
+    ...     f1_score=1.0,
+    ... )
+    """
+    manager = AsyncClientManager.get_instance()
+
+    try:
+        langfuse = manager.langfuse_client
+    except Exception as e:
+        logger.warning(f"Could not get Langfuse client: {e}")
+        return None
+
+    try:
+        # Create a trace for this evaluation using start_span
+        with langfuse.start_as_current_span(
+            name=trace_name,
+            input={"question": question, "example_id": example_id} if question else {"example_id": example_id},
+            metadata={
+                "example_id": example_id,
+                "benchmark": "DeepSearchQA",
+            },
+        ) as span:
+            # Update with output
+            span.update(
+                output={"answer": answer, "ground_truth": ground_truth} if answer or ground_truth else None,
+            )
+
+            # Log categorical outcome as a score
+            span.score(
+                name="outcome",
+                value=outcome,
+                data_type="CATEGORICAL",
+            )
+
+            # Log continuous metrics
+            span.score(name="precision", value=precision, data_type="NUMERIC")
+            span.score(name="recall", value=recall, data_type="NUMERIC")
+            span.score(name="f1_score", value=f1_score, data_type="NUMERIC")
+
+            trace_id = langfuse.get_current_trace_id()
+            logger.info(f"Logged DeepSearchQA scores to Langfuse: trace_id={trace_id}")
+            return trace_id
+
+    except Exception as e:
+        logger.warning(f"Failed to log scores to Langfuse: {e}")
+        return None

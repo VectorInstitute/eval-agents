@@ -145,8 +145,24 @@ def deepsearchqa_evaluator(
 
         comment = "\n".join(comment_parts)
 
+        # Map outcome to categorical value for Langfuse
+        # These match the paper's four disjoint categories
+        outcome_display = {
+            "fully_correct": "Fully Correct",
+            "correct_with_extraneous": "Correct with Extraneous",
+            "partially_correct": "Partially Correct",
+            "fully_incorrect": "Fully Incorrect",
+        }
+
         # Return multiple evaluations for better visibility in Langfuse
         return [
+            # Categorical outcome - the primary classification from the paper
+            Evaluation(
+                name="Outcome",
+                value=outcome_display.get(result.outcome, result.outcome),
+                comment=result.explanation,
+            ),
+            # Continuous metrics
             Evaluation(name="F1", value=result.f1_score, comment=comment),
             Evaluation(name="Precision", value=result.precision, comment=comment),
             Evaluation(name="Recall", value=result.recall, comment=comment),

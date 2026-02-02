@@ -8,8 +8,13 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 from aieng.agent_evals.tools.file import (
+    _is_excel_file,
+    _read_csv_as_text,
+    _read_excel_as_text,
+    _read_file_lines,
     create_fetch_file_tool,
     create_grep_file_tool,
     create_read_file_tool,
@@ -17,6 +22,181 @@ from aieng.agent_evals.tools.file import (
     grep_file,
     read_file,
 )
+
+
+class TestIsExcelFile:
+    """Tests for the _is_excel_file helper function."""
+
+    def test_xlsx_extension(self):
+        """Test that .xlsx files are detected as Excel."""
+        assert _is_excel_file("/path/to/file.xlsx") is True
+        assert _is_excel_file("/path/to/file.XLSX") is True
+
+    def test_xls_extension(self):
+        """Test that .xls files are detected as Excel."""
+        assert _is_excel_file("/path/to/file.xls") is True
+        assert _is_excel_file("/path/to/file.XLS") is True
+
+    def test_non_excel_extensions(self):
+        """Test that non-Excel files are not detected."""
+        assert _is_excel_file("/path/to/file.csv") is False
+        assert _is_excel_file("/path/to/file.txt") is False
+        assert _is_excel_file("/path/to/file.json") is False
+
+
+class TestReadExcelAsText:
+    """Tests for the _read_excel_as_text helper function."""
+
+    def test_single_sheet_excel(self):
+        """Test reading a single-sheet Excel file."""
+        # Create a temp Excel file
+        df = pd.DataFrame({"Name": ["Alice", "Bob"], "Value": [100, 200]})
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            temp_path = f.name
+        df.to_excel(temp_path, index=False, sheet_name="Data")
+
+        try:
+            lines = _read_excel_as_text(temp_path)
+
+            assert len(lines) > 0
+            # Should have sheet header
+            assert any("Sheet: Data" in line for line in lines)
+            # Should have data
+            combined = "\n".join(lines)
+            assert "Alice" in combined
+            assert "Bob" in combined
+            assert "100" in combined
+        finally:
+            os.remove(temp_path)
+
+    def test_multi_sheet_excel(self):
+        """Test reading a multi-sheet Excel file."""
+        df1 = pd.DataFrame({"A": [1, 2]})
+        df2 = pd.DataFrame({"B": [3, 4]})
+
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            temp_path = f.name
+
+        with pd.ExcelWriter(temp_path) as writer:
+            df1.to_excel(writer, sheet_name="Sheet1", index=False)
+            df2.to_excel(writer, sheet_name="Sheet2", index=False)
+
+        try:
+            lines = _read_excel_as_text(temp_path)
+            combined = "\n".join(lines)
+
+            # Should have both sheet headers
+            assert "Sheet: Sheet1" in combined
+            assert "Sheet: Sheet2" in combined
+        finally:
+            os.remove(temp_path)
+
+    def test_excel_with_nan_values(self):
+        """Test that NaN values are handled gracefully."""
+        df = pd.DataFrame({"A": [1, None, 3], "B": [None, "test", None]})
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            temp_path = f.name
+        df.to_excel(temp_path, index=False)
+
+        try:
+            lines = _read_excel_as_text(temp_path)
+            # Should not raise an error and should have content
+            assert len(lines) > 0
+        finally:
+            os.remove(temp_path)
+
+
+class TestReadCsvAsText:
+    """Tests for the _read_csv_as_text helper function."""
+
+    def test_basic_csv(self):
+        """Test reading a basic CSV file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write("name,value\n")
+            f.write("Alice,100\n")
+            f.write("Bob,200\n")
+            temp_path = f.name
+
+        try:
+            lines = _read_csv_as_text(temp_path)
+
+            assert len(lines) == 3
+            assert "name" in lines[0]
+            assert "Alice" in lines[1]
+        finally:
+            os.remove(temp_path)
+
+    def test_csv_with_special_characters(self):
+        """Test CSV with quoted fields and commas."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write("name,description\n")
+            f.write('"Smith, John","A description, with commas"\n')
+            temp_path = f.name
+
+        try:
+            lines = _read_csv_as_text(temp_path)
+            assert len(lines) >= 1
+        finally:
+            os.remove(temp_path)
+
+
+class TestReadFileLines:
+    """Tests for the _read_file_lines helper function."""
+
+    def test_reads_text_file(self):
+        """Test reading a plain text file."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("Line 1\n")
+            f.write("Line 2\n")
+            temp_path = f.name
+
+        try:
+            lines = _read_file_lines(temp_path)
+            assert len(lines) == 2
+            assert "Line 1" in lines[0]
+        finally:
+            os.remove(temp_path)
+
+    def test_reads_excel_file(self):
+        """Test that Excel files are read via pandas."""
+        df = pd.DataFrame({"Col1": ["data1", "data2"]})
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            temp_path = f.name
+        df.to_excel(temp_path, index=False)
+
+        try:
+            lines = _read_file_lines(temp_path)
+            combined = "\n".join(lines)
+            assert "data1" in combined
+            assert "data2" in combined
+        finally:
+            os.remove(temp_path)
+
+    def test_reads_csv_file(self):
+        """Test that CSV files are read via pandas."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write("col1,col2\n")
+            f.write("val1,val2\n")
+            temp_path = f.name
+
+        try:
+            lines = _read_file_lines(temp_path)
+            assert len(lines) >= 1
+        finally:
+            os.remove(temp_path)
+
+    def test_handles_encoding_fallback(self):
+        """Test that latin-1 encoding is used as fallback."""
+        # Create a file with latin-1 specific character
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as f:
+            f.write("Café résumé\n".encode("latin-1"))
+            temp_path = f.name
+
+        try:
+            lines = _read_file_lines(temp_path)
+            assert len(lines) >= 1
+        finally:
+            os.remove(temp_path)
 
 
 class TestFetchFile:
@@ -143,6 +323,47 @@ class TestGrepFile:
         finally:
             os.remove(temp_path)
 
+    def test_search_excel_file(self):
+        """Test grep_file works with Excel files."""
+        df = pd.DataFrame(
+            {
+                "Category": ["Revenue", "Expenses", "Profit"],
+                "Q1": [1000, 500, 500],
+                "Q2": [1200, 600, 600],
+            }
+        )
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            temp_path = f.name
+        df.to_excel(temp_path, index=False)
+
+        try:
+            result = grep_file(temp_path, "revenue, profit")
+
+            assert result["status"] == "success"
+            assert result["total_matches"] >= 1
+            # Check that we found the content
+            combined_context = " ".join(m["context"] for m in result["matches"])
+            assert "revenue" in combined_context.lower() or "profit" in combined_context.lower()
+        finally:
+            os.remove(temp_path)
+
+    def test_search_csv_file(self):
+        """Test grep_file works with CSV files."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write("Category,Value\n")
+            f.write("Revenue,1000\n")
+            f.write("Expenses,500\n")
+            f.write("Profit,500\n")
+            temp_path = f.name
+
+        try:
+            result = grep_file(temp_path, "revenue, profit")
+
+            assert result["status"] == "success"
+            assert result["total_matches"] >= 1
+        finally:
+            os.remove(temp_path)
+
 
 class TestReadFile:
     """Tests for the read_file function."""
@@ -171,6 +392,44 @@ class TestReadFile:
 
         assert result["status"] == "error"
         assert "File not found" in result["error"]
+
+    def test_read_excel_file(self):
+        """Test read_file works with Excel files."""
+        df = pd.DataFrame(
+            {
+                "Name": ["Alice", "Bob", "Charlie", "David", "Eve"],
+                "Score": [85, 90, 78, 92, 88],
+            }
+        )
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+            temp_path = f.name
+        df.to_excel(temp_path, index=False)
+
+        try:
+            result = read_file(temp_path, start_line=1, num_lines=10)
+
+            assert result["status"] == "success"
+            assert "content" in result
+            # Should contain data from the Excel file
+            assert "Alice" in result["content"] or "Bob" in result["content"]
+        finally:
+            os.remove(temp_path)
+
+    def test_read_csv_file(self):
+        """Test read_file works with CSV files."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write("Name,Score\n")
+            f.write("Alice,85\n")
+            f.write("Bob,90\n")
+            temp_path = f.name
+
+        try:
+            result = read_file(temp_path, start_line=1, num_lines=10)
+
+            assert result["status"] == "success"
+            assert "Alice" in result["content"] or "Name" in result["content"]
+        finally:
+            os.remove(temp_path)
 
 
 class TestCreateFetchFileTool:

@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import io
 import logging
+import re
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -65,13 +66,13 @@ def _get_model_config() -> tuple[str, str]:
     Returns
     -------
     tuple[str, str]
-        (worker_model, planner_model) names from config.
+        The worker model and evaluator model names from config.
     """
     from aieng.agent_evals.configs import Configs  # noqa: PLC0415
 
     try:
         config = Configs()  # type: ignore[call-arg]
-        return config.default_worker_model, config.default_planner_model
+        return config.default_worker_model, config.default_evaluator_model
     except Exception:
         return "gemini-2.5-flash", "gemini-2.5-pro"
 
@@ -79,10 +80,9 @@ def _get_model_config() -> tuple[str, str]:
 def display_banner() -> None:
     """Display the CLI banner with version and model info."""
     ver = get_version()
-    worker_model, planner_model = _get_model_config()
+    worker_model, evaluator_model = _get_model_config()
 
     # Robot face with magnifying glass
-    # 🔍 emoji is 2 cells wide, so we adjust spacing to align
     line0 = Text()
     line0.append("  ◯─◯    ", style=f"{VECTOR_CYAN} bold")
     line0.append("knowledge-agent ", style="white bold")
@@ -90,13 +90,13 @@ def display_banner() -> None:
 
     line1 = Text()
     line1.append(" ╱ 🔍 ╲   ", style=f"{VECTOR_CYAN} bold")
-    line1.append("Worker:  ", style="dim")
+    line1.append("Agent: ", style="dim")
     line1.append(worker_model, style="cyan")
 
     line2 = Text()
     line2.append(" │    │   ", style=f"{VECTOR_CYAN} bold")
-    line2.append("Planner: ", style="dim")
-    line2.append(planner_model, style="magenta")
+    line2.append("Evaluator: ", style="dim")
+    line2.append(evaluator_model, style="yellow")
 
     line3 = Text()
     line3.append("  ╲__╱   ", style=f"{VECTOR_CYAN} bold")
@@ -127,6 +127,72 @@ def display_tools_info() -> None:
         console.print(f"  [{color}]{name:<16}[/{color}] {desc}")
 
     console.print()
+
+
+def _parse_structured_answer(text: str) -> dict[str, str] | None:
+    """Parse structured answer format (ANSWER/SOURCES/REASONING).
+
+    Parameters
+    ----------
+    text : str
+        The raw response text.
+
+    Returns
+    -------
+    dict[str, str] | None
+        Parsed sections or None if parsing fails.
+    """
+    if not text:
+        return None
+
+    # Check if text contains our structured format
+    text_upper = text.upper()
+    if "ANSWER:" not in text_upper:
+        return None
+
+    result = {"answer": "", "sources": "", "reasoning": ""}
+
+    # Find positions of each section (case-insensitive)
+    import re  # noqa: PLC0415
+
+    # Match ANSWER:, SOURCES:, REASONING: with flexible spacing
+    answer_match = re.search(r"ANSWER:\s*", text, re.IGNORECASE)
+    sources_match = re.search(r"SOURCES:\s*", text, re.IGNORECASE)
+    reasoning_match = re.search(r"REASONING:\s*", text, re.IGNORECASE)
+
+    if answer_match:
+        start = answer_match.end()
+        # Find end - next section or end of text
+        end = len(text)
+        if sources_match and sources_match.start() > start:
+            end = min(end, sources_match.start())
+        if reasoning_match and reasoning_match.start() > start:
+            end = min(end, reasoning_match.start())
+        result["answer"] = text[start:end].strip()
+
+    if sources_match:
+        start = sources_match.end()
+        end = len(text)
+        if reasoning_match and reasoning_match.start() > start:
+            end = min(end, reasoning_match.start())
+        if answer_match and answer_match.start() > start:
+            end = min(end, answer_match.start())
+        result["sources"] = text[start:end].strip()
+
+    if reasoning_match:
+        start = reasoning_match.end()
+        end = len(text)
+        if sources_match and sources_match.start() > start:
+            end = min(end, sources_match.start())
+        if answer_match and answer_match.start() > start:
+            end = min(end, answer_match.start())
+        result["reasoning"] = text[start:end].strip()
+
+    # Return None if we didn't extract any meaningful content
+    if not result["answer"]:
+        return None
+
+    return result
 
 
 class ToolCallHandler(logging.Handler):
@@ -169,6 +235,42 @@ class ToolCallHandler(logging.Handler):
         self.tool_calls = []
 
 
+def _parse_markdown_bold(text: str, base_style: str) -> Text:
+    """Parse markdown-style **bold** markers and return styled Rich Text.
+
+    Parameters
+    ----------
+    text : str
+        Text that may contain **bold** markers.
+    base_style : str
+        The base style to apply to non-bold text.
+
+    Returns
+    -------
+    Text
+        Rich Text object with bold sections properly styled.
+    """
+    result = Text()
+    # Match **text** patterns
+    pattern = r"\*\*([^*]+)\*\*"
+    last_end = 0
+
+    for match in re.finditer(pattern, text):
+        # Add text before the match with base style
+        if match.start() > last_end:
+            result.append(text[last_end : match.start()], style=base_style)
+        # Add the bold text (combine bold with base style)
+        bold_style = f"bold {base_style}" if base_style else "bold"
+        result.append(match.group(1), style=bold_style)
+        last_end = match.end()
+
+    # Add remaining text after last match
+    if last_end < len(text):
+        result.append(text[last_end:], style=base_style)
+
+    return result
+
+
 def _create_plan_display(plan) -> Panel:
     """Create a rich panel showing the research plan checklist.
 
@@ -182,7 +284,7 @@ def _create_plan_display(plan) -> Panel:
     Panel
         A rich panel with the plan checklist.
     """
-    from .planner import StepStatus  # noqa: PLC0415
+    from .agent import StepStatus  # noqa: PLC0415
 
     lines = []
 
@@ -209,18 +311,16 @@ def _create_plan_display(plan) -> Panel:
         line.append("  ")
         line.append(icon, style=icon_style)
         line.append(f" {step.step_id}. ", style="bold")
-        line.append(step.description, style=desc_style)
+        # Parse markdown bold markers in description
+        styled_desc = _parse_markdown_bold(step.description, desc_style)
+        line.append_text(styled_desc)
         lines.append(line)
-
-    # Add complexity badge
-    complexity = plan.complexity_assessment
-    complexity_style = {"simple": "green", "moderate": "yellow", "complex": "red"}.get(complexity, "white")
 
     content = Group(*lines) if lines else Text("No plan steps", style="dim")
 
     return Panel(
         content,
-        title=f"[bold magenta]📋 Research Plan[/bold magenta] [{complexity_style}]{complexity}[/{complexity_style}]",
+        title="[bold magenta]📋 Research Plan[/bold magenta]",
         subtitle=f"[dim]{len(plan.steps)} steps[/dim]",
         border_style="magenta",
         padding=(0, 1),
@@ -644,15 +744,47 @@ async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = Fals
     display_tool_usage(response.tool_calls)
 
     console.print()
-    console.print(
-        Panel(
-            response.text,
-            title="[bold cyan]🤖 Answer[/bold cyan]",
-            subtitle=f"[dim]Sources: {len(response.sources)} | Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
-            border_style="cyan",
-            padding=(1, 2),
+
+    # Parse structured answer format (ANSWER/SOURCES/REASONING)
+    answer_text = response.text
+    parsed_answer = _parse_structured_answer(answer_text)
+
+    if parsed_answer:
+        # Display formatted answer with sections
+        answer_content = Text()
+        if parsed_answer.get("answer"):
+            answer_content.append(parsed_answer["answer"], style="white")
+
+        console.print(
+            Panel(
+                answer_content,
+                title="[bold cyan]🤖 Answer[/bold cyan]",
+                subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
         )
-    )
+
+        if parsed_answer.get("reasoning"):
+            console.print(
+                Panel(
+                    parsed_answer["reasoning"],
+                    title="[bold dim]💭 Reasoning[/bold dim]",
+                    border_style="dim",
+                    padding=(0, 1),
+                )
+            )
+    else:
+        # Fallback to raw display if parsing fails
+        console.print(
+            Panel(
+                answer_text,
+                title="[bold cyan]🤖 Answer[/bold cyan]",
+                subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
 
     if response.sources:
         console.print("\n[bold]Sources:[/bold]")
@@ -721,15 +853,45 @@ def _display_example_result(example, response, idx: int, total: int) -> dict[str
     console.print()
     tool_counts = display_tool_usage(response.tool_calls)
     console.print()
-    console.print(
-        Panel(
-            response.text,
-            title="[bold cyan]🤖 Agent Response[/bold cyan]",
-            subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
-            border_style="cyan",
-            padding=(1, 2),
+
+    # Parse structured answer format (ANSWER/SOURCES/REASONING)
+    parsed_answer = _parse_structured_answer(response.text)
+
+    if parsed_answer and parsed_answer.get("answer"):
+        # Display formatted answer
+        console.print(
+            Panel(
+                parsed_answer["answer"],
+                title="[bold cyan]🤖 Answer[/bold cyan]",
+                subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
         )
-    )
+
+        # Display reasoning if present
+        if parsed_answer.get("reasoning"):
+            console.print()
+            console.print(
+                Panel(
+                    parsed_answer["reasoning"],
+                    title="[bold dim]💭 Reasoning[/bold dim]",
+                    border_style="dim",
+                    padding=(0, 1),
+                )
+            )
+    else:
+        # Fallback to raw display if parsing fails
+        console.print(
+            Panel(
+                response.text,
+                title="[bold cyan]🤖 Agent Response[/bold cyan]",
+                subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
+                border_style="cyan",
+                padding=(1, 2),
+            )
+        )
+
     return tool_counts
 
 
@@ -984,6 +1146,7 @@ async def cmd_eval(
 
     for i, example in enumerate(examples, 1):
         tool_handler.clear()
+        agent.reset()  # Clear session state between examples
 
         try:
             response = await run_agent_with_display(

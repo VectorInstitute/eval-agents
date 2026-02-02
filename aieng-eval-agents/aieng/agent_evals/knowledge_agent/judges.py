@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 
 if TYPE_CHECKING:
-    from .planner import ResearchPlan
+    from .agent import ResearchPlan
 
 
 logger = logging.getLogger(__name__)
@@ -1075,7 +1075,6 @@ Score on a 1-5 scale:
 - 1: Poor plan - inappropriate for the question, missing key steps
 
 ## What to Evaluate
-- Is the complexity assessment accurate?
 - Are the steps logical and well-ordered?
 - Are dependencies correctly identified?
 - Are the right tools suggested for each step?
@@ -1122,7 +1121,6 @@ Return a JSON object:
 {question}
 
 ## Plan
-Complexity Assessment: {plan.complexity_assessment}
 Reasoning: {plan.reasoning}
 
 Steps:
@@ -1151,7 +1149,6 @@ Steps:
 {question}
 
 ## Plan
-Complexity Assessment: {plan.complexity_assessment}
 Reasoning: {plan.reasoning}
 
 Steps:
