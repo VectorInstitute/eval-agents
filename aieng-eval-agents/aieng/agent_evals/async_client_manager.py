@@ -123,7 +123,7 @@ class AsyncClientManager:
             The OpenAI async client instance.
         """
         if self._openai_client is None:
-            api_key = self.configs.openai_api_key
+            api_key: str | None = self.configs.openai_api_key
             if "googleapis" in self.configs.openai_base_url:
                 # Use Gemini API key if the base URL is for Google API requests
                 api_key = self.configs.gemini_api_key

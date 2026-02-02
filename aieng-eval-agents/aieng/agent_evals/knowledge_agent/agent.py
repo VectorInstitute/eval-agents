@@ -10,18 +10,15 @@ import logging
 import time
 import uuid
 import warnings
-from datetime import datetime, timezone
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
-    GroundingChunk,
     create_fetch_file_tool,
     create_google_search_tool,
     create_grep_file_tool,
     create_read_file_tool,
     create_web_fetch_tool,
-    resolve_redirect_urls_async,
 )
 from google.adk.agents import Agent
 from google.adk.agents.context_cache_config import ContextCacheConfig
@@ -33,7 +30,6 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from google.genai.errors import ClientError
-from pydantic import BaseModel, Field
 from tenacity import (
     before_sleep_log,
     retry,
@@ -42,7 +38,55 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from .event_extraction import (
+    extract_event_text,
+    extract_final_response,
+    extract_grounding_queries,
+    extract_grounding_sources,
+    extract_search_queries_from_tool_calls,
+    extract_sources_from_responses,
+    extract_thoughts_from_event,
+    extract_tool_calls,
+    resolve_source_urls,
+)
+from .models import (
+    AgentResponse,
+    ResearchPlan,
+    ResearchStep,
+    StepExecution,
+    StepStatus,
+)
+from .plan_parsing import (
+    PLANNING_TAG,
+    REPLANNING_TAG,
+    extract_final_answer_text,
+    extract_plan_text,
+    extract_reasoning_text,
+    parse_plan_steps_from_text,
+)
+from .retry import (
+    API_RETRY_INITIAL_WAIT,
+    API_RETRY_JITTER,
+    API_RETRY_MAX_ATTEMPTS,
+    API_RETRY_MAX_WAIT,
+    MAX_EMPTY_RESPONSE_RETRIES,
+    is_context_overflow_error,
+    is_retryable_api_error,
+)
+from .system_instructions import build_system_instructions
 from .token_tracker import TokenTracker
+
+
+# Re-export models for backward compatibility
+__all__ = [
+    "AgentResponse",
+    "KnowledgeAgentManager",
+    "KnowledgeGroundedAgent",
+    "ResearchPlan",
+    "ResearchStep",
+    "StepExecution",
+    "StepStatus",
+]
 
 
 # Suppress experimental warnings from ADK
@@ -50,807 +94,6 @@ warnings.filterwarnings("ignore", message=r".*EXPERIMENTAL.*ContextCacheConfig.*
 warnings.filterwarnings("ignore", message=r".*EXPERIMENTAL.*EventsCompactionConfig.*")
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# Data Models for Research Plans
-# =============================================================================
-
-
-class StepStatus:
-    """Status constants for research steps."""
-
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
-
-
-class ResearchStep(BaseModel):
-    """A single step in a research plan.
-
-    Attributes
-    ----------
-    step_id : int
-        Unique identifier for the step within the plan.
-    description : str
-        Clear description of what this step accomplishes.
-    step_type : str
-        Type of step: "research" (uses tools to gather info) or "synthesis"
-        (combines findings without tools).
-    depends_on : list[int]
-        IDs of steps that must complete before this one.
-    expected_output : str
-        Description of what this step is expected to produce.
-    status : str
-        Current execution status: "pending", "in_progress", "completed", "failed",
-        or "skipped".
-    actual_output : str
-        What was actually found/produced by this step.
-    attempts : int
-        Number of times this step has been attempted.
-    failure_reason : str
-        Reason for failure if the step failed.
-    """
-
-    step_id: int
-    description: str
-    step_type: str = "research"  # "research" or "synthesis"
-    depends_on: list[int] = Field(default_factory=list)
-    expected_output: str = ""
-    # Dynamic tracking fields
-    status: str = Field(default=StepStatus.PENDING)
-    actual_output: str = ""
-    attempts: int = 0
-    failure_reason: str = ""
-
-
-class ResearchPlan(BaseModel):
-    """A complete research plan for answering a complex question.
-
-    This model represents an observable, evaluable research plan that
-    decomposes a question into executable steps with clear dependencies.
-
-    Attributes
-    ----------
-    original_question : str
-        The original question being answered.
-    steps : list[ResearchStep]
-        Ordered list of research steps to execute.
-    reasoning : str
-        Explanation of why this plan was chosen.
-    """
-
-    original_question: str
-    steps: list[ResearchStep] = Field(default_factory=list)
-    reasoning: str = ""
-
-    def get_step(self, step_id: int) -> ResearchStep | None:
-        """Get a step by its ID.
-
-        Parameters
-        ----------
-        step_id : int
-            The step ID to find.
-
-        Returns
-        -------
-        ResearchStep | None
-            The step if found, None otherwise.
-        """
-        for step in self.steps:
-            if step.step_id == step_id:
-                return step
-        return None
-
-    def update_step(
-        self,
-        step_id: int,
-        status: str | None = None,
-        actual_output: str | None = None,
-        failure_reason: str | None = None,
-        increment_attempts: bool = False,
-        description: str | None = None,
-        expected_output: str | None = None,
-    ) -> bool:
-        """Update a step's fields.
-
-        Parameters
-        ----------
-        step_id : int
-            The step ID to update.
-        status : str, optional
-            New status for the step.
-        actual_output : str, optional
-            What was actually found/produced.
-        failure_reason : str, optional
-            Reason for failure if applicable.
-        increment_attempts : bool
-            Whether to increment the attempts counter.
-        description : str, optional
-            New description for the step (for plan refinement).
-        expected_output : str, optional
-            New expected output for the step (for plan refinement).
-
-        Returns
-        -------
-        bool
-            True if the step was found and updated, False otherwise.
-        """
-        step = self.get_step(step_id)
-        if step is None:
-            return False
-
-        if status is not None:
-            step.status = status
-        if actual_output is not None:
-            step.actual_output = actual_output
-        if failure_reason is not None:
-            step.failure_reason = failure_reason
-        if increment_attempts:
-            step.attempts += 1
-        if description is not None:
-            step.description = description
-        if expected_output is not None:
-            step.expected_output = expected_output
-
-        return True
-
-    def get_pending_steps(self) -> list[ResearchStep]:
-        """Get steps that are ready to execute (pending with no unmet dependencies).
-
-        Returns
-        -------
-        list[ResearchStep]
-            Steps that can be executed now.
-        """
-        completed_ids = {s.step_id for s in self.steps if s.status == StepStatus.COMPLETED}
-        pending = []
-
-        for step in self.steps:
-            if step.status != StepStatus.PENDING:
-                continue
-            # Check if all dependencies are completed
-            if all(dep_id in completed_ids for dep_id in step.depends_on):
-                pending.append(step)
-
-        return pending
-
-    def get_steps_by_status(self, status: str) -> list[ResearchStep]:
-        """Get all steps with a specific status.
-
-        Parameters
-        ----------
-        status : str
-            The status to filter by.
-
-        Returns
-        -------
-        list[ResearchStep]
-            Steps matching the status.
-        """
-        return [s for s in self.steps if s.status == status]
-
-    def is_complete(self) -> bool:
-        """Check if all steps are either completed, failed, or skipped.
-
-        Returns
-        -------
-        bool
-            True if no steps are pending or in progress.
-        """
-        terminal_statuses = {StepStatus.COMPLETED, StepStatus.FAILED, StepStatus.SKIPPED}
-        return all(s.status in terminal_statuses for s in self.steps)
-
-
-class StepExecution(BaseModel):
-    """Record of executing a single research step.
-
-    This model captures the execution trace for evaluation purposes.
-
-    Attributes
-    ----------
-    step_id : int
-        The step ID that was executed.
-    tool_used : str
-        The actual tool that was used.
-    input_query : str
-        The query or input provided to the tool.
-    output_summary : str
-        Summary of what the step produced.
-    sources_found : int
-        Number of sources discovered in this step.
-    duration_ms : int
-        Execution time in milliseconds.
-    raw_output : str
-        Raw output from the tool for debugging.
-    """
-
-    step_id: int
-    tool_used: str
-    input_query: str
-    output_summary: str = ""
-    sources_found: int = 0
-    duration_ms: int = 0
-    raw_output: str = ""
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-
-def _extract_tool_calls(event: Any) -> list[dict[str, Any]]:
-    """Extract tool calls from event function calls.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        List of tool call dictionaries with 'name' and 'args' keys.
-    """
-    if not hasattr(event, "get_function_calls"):
-        return []
-    function_calls = event.get_function_calls()
-    if not function_calls:
-        return []
-
-    tool_calls = []
-    for fc in function_calls:
-        tool_call_info = {
-            "name": getattr(fc, "name", "unknown"),
-            "args": getattr(fc, "args", {}),
-        }
-        tool_calls.append(tool_call_info)
-        logger.info(f"Tool call: {tool_call_info['name']}({tool_call_info['args']})")
-    return tool_calls
-
-
-def _extract_search_queries_from_tool_calls(tool_calls: list[dict[str, Any]]) -> list[str]:
-    """Extract search queries from tool calls.
-
-    Parameters
-    ----------
-    tool_calls : list[dict[str, Any]]
-        List of tool call dictionaries.
-
-    Returns
-    -------
-    list[str]
-        Search queries found in the tool calls.
-    """
-    queries = []
-    for tool_call in tool_calls:
-        tool_name = str(tool_call.get("name", ""))
-        tool_args = tool_call.get("args", {})
-        if "search" in tool_name.lower() and isinstance(tool_args, dict):
-            # google_search_agent uses "request", other tools may use "query"
-            query = tool_args.get("request") or tool_args.get("query") or ""
-            if query:
-                queries.append(query)
-    return queries
-
-
-def _extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
-    """Extract sources from event function responses.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[GroundingChunk]
-        Sources extracted from the function responses (raw URLs, not resolved).
-    """
-    if not hasattr(event, "get_function_responses"):
-        return []
-    function_responses = event.get_function_responses()
-    if not function_responses:
-        return []
-
-    sources = []
-    for fr in function_responses:
-        # Log tool response for CLI display tracking
-        tool_name = getattr(fr, "name", None) or getattr(fr, "id", "unknown")
-        logger.info(f"Tool response: {tool_name} completed")
-        response_data = getattr(fr, "response", {})
-        if not isinstance(response_data, dict):
-            continue
-        # Extract sources from search tool response
-        for src in response_data.get("sources", []):
-            if isinstance(src, dict):
-                sources.append(
-                    GroundingChunk(
-                        title=src.get("title", ""),
-                        uri=src.get("uri") or src.get("url") or "",
-                    )
-                )
-        # Extract grounding_chunks if present
-        for chunk in response_data.get("grounding_chunks", []):
-            if isinstance(chunk, dict) and "web" in chunk:
-                sources.append(
-                    GroundingChunk(
-                        title=chunk["web"].get("title", ""),
-                        uri=chunk["web"].get("uri", ""),
-                    )
-                )
-    return sources
-
-
-def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
-    """Extract sources from grounding metadata.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[GroundingChunk]
-        Sources extracted from the grounding metadata (raw URLs, not resolved).
-    """
-    gm = getattr(event, "grounding_metadata", None)
-    if not gm and hasattr(event, "content") and event.content:
-        gm = getattr(event.content, "grounding_metadata", None)
-    if not gm:
-        return []
-
-    sources = []
-    if hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
-        for chunk in gm.grounding_chunks:
-            if hasattr(chunk, "web") and chunk.web:
-                sources.append(
-                    GroundingChunk(
-                        title=getattr(chunk.web, "title", "") or "",
-                        uri=getattr(chunk.web, "uri", "") or "",
-                    )
-                )
-    return sources
-
-
-async def _resolve_source_urls(sources: list[GroundingChunk]) -> list[GroundingChunk]:
-    """Resolve redirect URLs in sources to actual URLs (in parallel).
-
-    Parameters
-    ----------
-    sources : list[GroundingChunk]
-        Sources with potentially redirect URLs.
-
-    Returns
-    -------
-    list[GroundingChunk]
-        Sources with resolved URLs.
-    """
-    if not sources:
-        return sources
-
-    # Extract URIs and resolve in parallel
-    uris = [s.uri for s in sources]
-    resolved_uris = await resolve_redirect_urls_async(uris)
-
-    # Create new sources with resolved URIs
-    return [GroundingChunk(title=s.title, uri=resolved) for s, resolved in zip(sources, resolved_uris)]
-
-
-def _extract_grounding_queries(event: Any) -> list[str]:
-    """Extract search queries from grounding metadata.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[str]
-        Search queries from the grounding metadata.
-    """
-    gm = getattr(event, "grounding_metadata", None)
-    if not gm and hasattr(event, "content") and event.content:
-        gm = getattr(event.content, "grounding_metadata", None)
-    if not gm:
-        return []
-
-    queries = []
-    if hasattr(gm, "web_search_queries") and gm.web_search_queries:
-        for q in gm.web_search_queries:
-            if q:
-                queries.append(q)
-    return queries
-
-
-def _extract_final_response(event: Any) -> str | None:
-    """Extract final response text from event if it's a final response.
-
-    Filters out thought parts (internal reasoning) and returns only the
-    actual response text intended for the user.
-
-    Returns
-    -------
-    str | None
-        The response text if found, None if no non-thought content exists.
-        Returns None (not empty string) when the event has only thought parts,
-        to avoid overwriting previously captured valid responses.
-    """
-    if not hasattr(event, "is_final_response") or not event.is_final_response():
-        return None
-    if not hasattr(event, "content") or not event.content:
-        return None
-    if not hasattr(event.content, "parts") or not event.content.parts:
-        return None
-
-    # Collect non-thought text parts only
-    response_parts = []
-    for part in event.content.parts:
-        # Skip thought parts (internal reasoning)
-        if getattr(part, "thought", False):
-            continue
-        if hasattr(part, "text") and part.text:
-            response_parts.append(part.text)
-
-    # Return None instead of empty string to avoid overwriting valid responses
-    # captured from earlier events (e.g., FINAL_ANSWER tags)
-    return "\n".join(response_parts) if response_parts else None
-
-
-def _extract_thoughts_from_event(event: Any) -> str:
-    """Extract thinking/reasoning content from event parts.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    str
-        Combined thinking text from all thought parts.
-    """
-    if not hasattr(event, "content") or not event.content:
-        return ""
-    if not hasattr(event.content, "parts") or not event.content.parts:
-        return ""
-
-    thoughts = []
-    for part in event.content.parts:
-        # Parts with thought=True are thinking content
-        if getattr(part, "thought", False) and hasattr(part, "text") and part.text:
-            thoughts.append(part.text)
-    return "\n".join(thoughts)
-
-
-# Max retries for empty model responses
-MAX_EMPTY_RESPONSE_RETRIES = 2
-
-# API retry configuration for rate limit and quota exhaustion
-API_RETRY_MAX_ATTEMPTS = 5
-API_RETRY_INITIAL_WAIT = 1  # seconds
-API_RETRY_MAX_WAIT = 60  # seconds
-API_RETRY_JITTER = 5  # seconds
-
-
-def _is_retryable_api_error(exception: BaseException) -> bool:
-    """Check if an exception is a retryable API error (rate limit/quota exhaustion).
-
-    Does NOT retry context overflow errors - those need session reset instead.
-
-    Parameters
-    ----------
-    exception : BaseException
-        The exception to check.
-
-    Returns
-    -------
-    bool
-        True if the exception should trigger a retry (429/RESOURCE_EXHAUSTED errors).
-    """
-    if isinstance(exception, ClientError):
-        error_str = str(exception).lower()
-
-        # Don't retry context overflow - needs session reset, not retry
-        if "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str):
-            return False
-
-        # Check for rate limit indicators
-        if "429" in error_str or "resource_exhausted" in error_str or "quota" in error_str:
-            return True
-    return False
-
-
-def _is_context_overflow_error(exception: BaseException) -> bool:
-    """Check if an exception is a context overflow error.
-
-    Parameters
-    ----------
-    exception : BaseException
-        The exception to check.
-
-    Returns
-    -------
-    bool
-        True if the exception is due to context window overflow.
-    """
-    if isinstance(exception, ClientError):
-        error_str = str(exception).lower()
-        return "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str)
-    return False
-
-
-# PlanReActPlanner tag constants (from google.adk.planners.plan_re_act_planner)
-PLANNING_TAG = "/*PLANNING*/"
-REPLANNING_TAG = "/*REPLANNING*/"
-REASONING_TAG = "/*REASONING*/"
-ACTION_TAG = "/*ACTION*/"
-FINAL_ANSWER_TAG = "/*FINAL_ANSWER*/"
-
-
-def _extract_plan_text(text: str) -> str | None:
-    """Extract plan text from PLANNING or REPLANNING tags.
-
-    Parameters
-    ----------
-    text : str
-        Text that may contain planning tags.
-
-    Returns
-    -------
-    str | None
-        The plan text if found, None otherwise.
-    """
-    # Check for REPLANNING first (updated plan takes precedence)
-    for tag in [REPLANNING_TAG, PLANNING_TAG]:
-        if tag in text:
-            start = text.find(tag) + len(tag)
-            # Find the end - next tag or end of text
-            end = len(text)
-            for end_tag in [REASONING_TAG, ACTION_TAG, FINAL_ANSWER_TAG, PLANNING_TAG, REPLANNING_TAG]:
-                if end_tag in text[start:]:
-                    tag_pos = text.find(end_tag, start)
-                    if tag_pos != -1 and tag_pos < end:
-                        end = tag_pos
-            plan_text = text[start:end].strip()
-            if plan_text:
-                return plan_text
-    return None
-
-
-def _parse_plan_steps_from_text(plan_text: str) -> list[ResearchStep]:
-    """Parse numbered steps from plan text.
-
-    Parameters
-    ----------
-    plan_text : str
-        Raw plan text, typically with numbered steps.
-
-    Returns
-    -------
-    list[ResearchStep]
-        Parsed research steps.
-    """
-    import re  # noqa: PLC0415
-
-    steps = []
-    # Match numbered steps: "1. Description", "1) Description", or "Step 1: Description"
-    patterns = [
-        r"^\s*(\d+)[.\)]\s*(.+?)(?=\n\s*\d+[.\)]|\n\s*Step\s+\d+|\Z)",  # "1. desc" or "1) desc"
-        r"^\s*Step\s+(\d+)[:\.]?\s*(.+?)(?=\n\s*Step\s+\d+|\n\s*\d+[.\)]|\Z)",  # "Step 1: desc"
-        r"^\s*[-*]\s*(.+?)(?=\n\s*[-*]|\Z)",  # Bullet points
-    ]
-
-    # Try numbered patterns first
-    for pattern in patterns[:2]:
-        matches = re.findall(pattern, plan_text, re.MULTILINE | re.DOTALL)
-        if matches:
-            for i, match in enumerate(matches[:10]):  # Max 10 steps
-                step_num = int(match[0]) if len(match) > 1 else i + 1
-                description = match[1] if len(match) > 1 else match[0]
-                description = description.strip()
-                # Clean up description - remove trailing newlines and extra whitespace
-                description = " ".join(description.split())
-                if description and len(description) > 5:
-                    steps.append(
-                        ResearchStep(
-                            step_id=step_num,
-                            description=description[:200],
-                            step_type="research",
-                            status=StepStatus.PENDING,
-                        )
-                    )
-            if steps:
-                return steps
-
-    # Try bullet pattern
-    matches = re.findall(patterns[2], plan_text, re.MULTILINE | re.DOTALL)
-    if matches:
-        for i, desc in enumerate(matches[:10], 1):
-            description = " ".join(desc.strip().split())
-            if description and len(description) > 5:
-                steps.append(
-                    ResearchStep(
-                        step_id=i,
-                        description=description[:200],
-                        step_type="research",
-                        status=StepStatus.PENDING,
-                    )
-                )
-        if steps:
-            return steps
-
-    # Fallback: split by newlines if no pattern matched
-    lines = [line.strip() for line in plan_text.split("\n") if line.strip() and len(line.strip()) > 10]
-    for i, line in enumerate(lines[:10], 1):
-        # Skip lines that look like headers
-        if line.endswith(":") or line.startswith("#"):
-            continue
-        steps.append(
-            ResearchStep(
-                step_id=i,
-                description=line[:200],
-                step_type="research",
-                status=StepStatus.PENDING,
-            )
-        )
-
-    return steps
-
-
-def _extract_reasoning_text(text: str) -> str | None:
-    """Extract reasoning text from REASONING tag.
-
-    Parameters
-    ----------
-    text : str
-        Text that may contain reasoning tag.
-
-    Returns
-    -------
-    str | None
-        The reasoning text if found, None otherwise.
-    """
-    if REASONING_TAG not in text:
-        return None
-
-    start = text.find(REASONING_TAG) + len(REASONING_TAG)
-    end = len(text)
-    for end_tag in [ACTION_TAG, FINAL_ANSWER_TAG, PLANNING_TAG, REPLANNING_TAG]:
-        if end_tag in text[start:]:
-            tag_pos = text.find(end_tag, start)
-            if tag_pos != -1 and tag_pos < end:
-                end = tag_pos
-    return text[start:end].strip() or None
-
-
-def _extract_final_answer_text(text: str) -> str | None:
-    """Extract final answer text from FINAL_ANSWER tag.
-
-    Parameters
-    ----------
-    text : str
-        Text that may contain final answer tag.
-
-    Returns
-    -------
-    str | None
-        The final answer text if found, None if tag missing or content empty.
-    """
-    if not text or FINAL_ANSWER_TAG not in text:
-        return None
-
-    start = text.find(FINAL_ANSWER_TAG) + len(FINAL_ANSWER_TAG)
-    answer_text = text[start:].strip()
-
-    # Return None for empty/whitespace-only content
-    if not answer_text:
-        return None
-
-    # Handle case where FINAL_ANSWER is followed by another tag with no content between
-    for end_tag in [PLANNING_TAG, REPLANNING_TAG, REASONING_TAG, ACTION_TAG]:
-        if answer_text.startswith(end_tag):
-            return None
-
-    return answer_text
-
-
-class AgentResponse(BaseModel):
-    """Response from the knowledge agent with execution trace.
-
-    Contains the answer text along with metadata about how the agent
-    arrived at the answer: the research plan, tool calls, sources, and reasoning.
-
-    Attributes
-    ----------
-    text : str
-        The generated response text.
-    plan : ResearchPlan
-        The research plan created for the question.
-    execution_trace : list[StepExecution]
-        Record of each step's execution.
-    sources : list[GroundingChunk]
-        Web sources used in the response.
-    search_queries : list[str]
-        Search queries executed.
-    reasoning_chain : list[str]
-        Step-by-step reasoning trace.
-    tool_calls : list[dict]
-        Raw tool calls made during execution.
-    total_duration_ms : int
-        Total execution time in milliseconds.
-    """
-
-    text: str
-    plan: ResearchPlan
-    execution_trace: list[StepExecution] = Field(default_factory=list)
-    sources: list[GroundingChunk] = Field(default_factory=list)
-    search_queries: list[str] = Field(default_factory=list)
-    reasoning_chain: list[str] = Field(default_factory=list)
-    tool_calls: list[dict] = Field(default_factory=list)
-    total_duration_ms: int = 0
-
-
-SYSTEM_INSTRUCTIONS_TEMPLATE = """\
-You are a research assistant that finds accurate answers by exploring sources and verifying facts.
-
-Today's date: {current_date}
-
-## Tools
-
-**google_search**: Find URLs related to a topic. Search results include brief snippets—use these to identify promising sources, then fetch pages for complete information.
-
-**web_fetch**: Read the full content of a web page. Use this to verify facts and find detailed information.
-
-**fetch_file**: Download data files (CSV, XLSX, JSON) for structured data like statistics or datasets.
-
-**grep_file**: Search within a downloaded file to locate specific information.
-
-**read_file**: Read sections of a downloaded file to examine data in detail.
-
-## Search Strategy
-
-**Search for the answer, not just context.** If a question asks "what are the three categories of X?", search for those categories directly rather than first identifying what X is and then searching within X.
-
-**Keep key terms together.** Include the core question terms in your search query. A search combining the key concepts often finds the answer more directly than breaking it into separate searches.
-
-**Recognize direct answers.** If search results directly answer what was asked, use that answer. Don't ignore a valid answer just because you haven't identified every detail mentioned in the question.
-
-**Avoid premature commitment.** Don't lock onto an interpretation early. If you assume something is "Game A" and search for answers within "Game A", you may miss the correct answer if your assumption was wrong. Stay open until you have confirming evidence.
-
-## Adapting Your Plan
-
-If your initial approach doesn't yield the needed information:
-- Reformulate your search with different terms
-- Search for the answer more directly rather than adding intermediate steps
-- Look for alternative sources (official reports, databases, different websites)
-- Use /*REPLANNING*/ to revise your strategy
-
-Don't give up or guess—adapt and try another approach.
-
-## Final Answer
-
-Provide /*FINAL_ANSWER*/ once you have found information that answers what was asked. Include:
-- ANSWER: Your direct answer based on what you found
-- SOURCES: The URLs or files where you found the information
-- REASONING: How you verified or arrived at this answer
-"""
-
-
-def _build_system_instructions() -> str:
-    """Build system instructions with current date context."""
-    now = datetime.now(timezone.utc)
-    return SYSTEM_INSTRUCTIONS_TEMPLATE.format(
-        current_date=now.strftime("%B %d, %Y"),
-    )
-
-
-# For backwards compatibility (static snapshot at import time)
-SYSTEM_INSTRUCTIONS = _build_system_instructions()
 
 
 class KnowledgeGroundedAgent:
@@ -935,13 +178,13 @@ class KnowledgeGroundedAgent:
         # Create ADK agent with built-in planner
         # Configure thinking for models that support it (gemini-2.5-*, gemini-3-*)
         thinking_config = None
-        if thinking_budget > 0 and KnowledgeGroundedAgent._supports_thinking(self.model):
+        if thinking_budget > 0 and self._supports_thinking(self.model):
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
 
         self._agent = Agent(
             name="knowledge_agent",
             model=self.model,
-            instruction=_build_system_instructions(),
+            instruction=build_system_instructions(),
             tools=[
                 self._search_tool,
                 self._web_fetch_tool,
@@ -966,32 +209,9 @@ class KnowledgeGroundedAgent:
         self._session_service = InMemorySessionService()
 
         # Create App and Runner based on enabled features
+        self._app: App | None
         if enable_caching or enable_compaction:
-            app_kwargs: dict[str, Any] = {
-                "name": "knowledge_agent",
-                "root_agent": self._agent,
-            }
-
-            if enable_caching:
-                app_kwargs["context_cache_config"] = ContextCacheConfig(
-                    min_tokens=2048,
-                    ttl_seconds=600,
-                    cache_intervals=10,
-                )
-
-            if enable_compaction:
-                summarizer = LlmEventSummarizer(llm=Gemini(model=config.default_worker_model))
-                app_kwargs["events_compaction_config"] = EventsCompactionConfig(
-                    compaction_interval=compaction_interval,
-                    overlap_size=1,
-                    summarizer=summarizer,
-                )
-
-            self._app: App | None = App(**app_kwargs)
-            self._runner = Runner(
-                app=self._app,
-                session_service=self._session_service,
-            )
+            self._app, self._runner = self._create_app_and_runner(config, enable_caching, enable_compaction)
         else:
             self._app = None
             self._runner = Runner(
@@ -1003,21 +223,45 @@ class KnowledgeGroundedAgent:
         # Track active sessions
         self._sessions: dict[str, str] = {}
 
+    def _create_app_and_runner(
+        self,
+        config: Configs,
+        enable_caching: bool,
+        enable_compaction: bool,
+    ) -> tuple[App, Runner]:
+        """Create App and Runner with caching/compaction config."""
+        app_kwargs: dict[str, Any] = {
+            "name": "knowledge_agent",
+            "root_agent": self._agent,
+        }
+
+        if enable_caching:
+            app_kwargs["context_cache_config"] = ContextCacheConfig(
+                min_tokens=2048,
+                ttl_seconds=600,
+                cache_intervals=10,
+            )
+
+        if enable_compaction:
+            summarizer = LlmEventSummarizer(llm=Gemini(model=config.default_worker_model))
+            app_kwargs["events_compaction_config"] = EventsCompactionConfig(
+                compaction_interval=self._compaction_interval,
+                overlap_size=1,
+                summarizer=summarizer,
+            )
+
+        app = App(**app_kwargs)
+        runner = Runner(
+            app=app,
+            session_service=self._session_service,
+        )
+        return app, runner
+
     @staticmethod
     def _supports_thinking(model: str) -> bool:
         """Check if a model supports thinking configuration.
 
         Thinking is supported by gemini-2.5-* and gemini-3-* models.
-
-        Parameters
-        ----------
-        model : str
-            The model identifier.
-
-        Returns
-        -------
-        bool
-            True if the model supports thinking configuration.
         """
         model_lower = model.lower()
         return "gemini-2.5" in model_lower or "gemini-3" in model_lower
@@ -1049,13 +293,7 @@ class KnowledgeGroundedAgent:
 
     @property
     def current_plan(self) -> ResearchPlan | None:
-        """Get the current research plan if one exists.
-
-        Returns
-        -------
-        ResearchPlan or None
-            The current research plan, or None if no plan is active.
-        """
+        """Get the current research plan if one exists."""
         return self._current_plan
 
     @property
@@ -1069,16 +307,6 @@ class KnowledgeGroundedAgent:
         Creates an empty plan that will be populated from the model's
         PLANNING output during answer_async(). The actual plan steps
         are extracted from the model's first response.
-
-        Parameters
-        ----------
-        question : str
-            The question to plan for.
-
-        Returns
-        -------
-        ResearchPlan or None
-            An empty plan ready for population, or None if planning is disabled.
         """
         if not self.enable_planning:
             return None
@@ -1107,27 +335,12 @@ class KnowledgeGroundedAgent:
         return self._sessions[session_id]
 
     def _update_plan_from_text(self, text: str, question: str, is_replan: bool = False) -> bool:
-        """Update the current plan from PLANNING or REPLANNING tagged text.
-
-        Parameters
-        ----------
-        text : str
-            Text containing PLANNING or REPLANNING tags.
-        question : str
-            The original question.
-        is_replan : bool
-            Whether this is a replan (updates existing plan).
-
-        Returns
-        -------
-        bool
-            True if plan was updated, False otherwise.
-        """
-        plan_text = _extract_plan_text(text)
+        """Update the current plan from PLANNING or REPLANNING tagged text."""
+        plan_text = extract_plan_text(text)
         if not plan_text:
             return False
 
-        steps = _parse_plan_steps_from_text(plan_text)
+        steps = parse_plan_steps_from_text(plan_text)
         if not steps:
             return False
 
@@ -1159,15 +372,7 @@ class KnowledgeGroundedAgent:
         return True
 
     def _process_event_text_for_plan(self, text: str, question: str) -> None:
-        """Process event text to extract and update plan.
-
-        Parameters
-        ----------
-        text : str
-            Text from event that may contain plan tags.
-        question : str
-            The original question.
-        """
+        """Process event text to extract and update plan."""
         if not text or not self._current_plan:
             return
 
@@ -1179,13 +384,7 @@ class KnowledgeGroundedAgent:
             self._update_plan_from_text(text, question, is_replan=False)
 
     def _update_plan_step_from_tool_call(self, tool_name: str) -> None:
-        """Record tool call against current plan step.
-
-        Parameters
-        ----------
-        tool_name : str
-            Name of the tool that was called.
-        """
+        """Record tool call against current plan step."""
         if not self._current_plan or not self._current_plan.steps:
             return
 
@@ -1200,11 +399,7 @@ class KnowledgeGroundedAgent:
                 break
 
     def _advance_plan_step_on_reasoning(self) -> None:
-        """Advance to next plan step when reasoning is detected.
-
-        This is called when a REASONING tag is found, indicating the agent
-        has reflected on progress and may be moving to the next step.
-        """
+        """Advance to next plan step when reasoning is detected."""
         if not self._current_plan or not self._current_plan.steps:
             return
 
@@ -1236,15 +431,6 @@ class KnowledgeGroundedAgent:
             for i, tc in enumerate(tool_calls)
         ]
 
-    def _extract_event_text(self, event: Any) -> str:
-        """Extract text content from event parts."""
-        if not (
-            hasattr(event, "content") and event.content and hasattr(event.content, "parts") and event.content.parts
-        ):
-            return ""
-        parts = [part.text for part in event.content.parts if hasattr(part, "text") and part.text]
-        return "\n".join(parts)
-
     def _process_event(
         self,
         event: Any,
@@ -1256,42 +442,42 @@ class KnowledgeGroundedAgent:
         Updates results dict in place with extracted information.
         """
         self._token_tracker.add_from_event(event)
-        event_text = self._extract_event_text(event)
+        event_text = extract_event_text(event)
 
         # Extract thoughts for reasoning chain
-        thoughts = _extract_thoughts_from_event(event)
+        thoughts = extract_thoughts_from_event(event)
         if thoughts:
             results["reasoning_chain"].append(thoughts[:300])
 
         # Process plan tags and reasoning
         if event_text:
             self._process_event_text_for_plan(event_text, question)
-            reasoning_text = _extract_reasoning_text(event_text)
+            reasoning_text = extract_reasoning_text(event_text)
             if reasoning_text:
                 results["reasoning_chain"].append(reasoning_text[:300])
                 self._advance_plan_step_on_reasoning()
 
         # Extract tool calls
-        new_tool_calls = _extract_tool_calls(event)
+        new_tool_calls = extract_tool_calls(event)
         results["tool_calls"].extend(new_tool_calls)
-        results["search_queries"].extend(_extract_search_queries_from_tool_calls(new_tool_calls))
+        results["search_queries"].extend(extract_search_queries_from_tool_calls(new_tool_calls))
         for tc in new_tool_calls:
             self._update_plan_step_from_tool_call(tc.get("name", ""))
 
         # Extract sources
-        results["sources"].extend(_extract_sources_from_responses(event))
-        results["sources"].extend(_extract_grounding_sources(event))
-        for q in _extract_grounding_queries(event):
+        results["sources"].extend(extract_sources_from_responses(event))
+        results["sources"].extend(extract_grounding_sources(event))
+        for q in extract_grounding_queries(event):
             if q not in results["search_queries"]:
                 results["search_queries"].append(q)
 
         # Extract final response - prefer tagged answer, fall back to final response
         # Only overwrite with non-empty content to avoid losing valid responses
-        final_answer = _extract_final_answer_text(event_text) if event_text else None
+        final_answer = extract_final_answer_text(event_text) if event_text else None
         if final_answer:
             results["final_response"] = final_answer
         else:
-            text = _extract_final_response(event)
+            text = extract_final_response(event)
             if text:  # Only set if non-empty (don't overwrite valid response with empty)
                 results["final_response"] = text
 
@@ -1300,21 +486,7 @@ class KnowledgeGroundedAgent:
         question: str,
         adk_session_id: str,
     ) -> dict[str, Any]:
-        """Run the agent once and collect results (inner implementation).
-
-        Parameters
-        ----------
-        question : str
-            The question to answer.
-        adk_session_id : str
-            The ADK session ID.
-
-        Returns
-        -------
-        dict[str, Any]
-            Results dictionary with tool_calls, sources, search_queries,
-            reasoning_chain, and final_response.
-        """
+        """Run the agent once and collect results (inner implementation)."""
         content = types.Content(role="user", parts=[types.Part(text=question)])
 
         # Collect results in a mutable dict for _process_event
@@ -1348,31 +520,11 @@ class KnowledgeGroundedAgent:
         Wraps _run_agent_once_inner with exponential backoff retry for
         429/RESOURCE_EXHAUSTED errors from the Gemini API. If a context overflow
         error occurs, resets the session and retries once with fresh context.
-
-        Parameters
-        ----------
-        question : str
-            The question to answer.
-        adk_session_id : str
-            The ADK session ID.
-
-        Returns
-        -------
-        dict[str, Any]
-            Results dictionary with tool_calls, sources, search_queries,
-            reasoning_chain, and final_response.
-
-        Raises
-        ------
-        ClientError
-            If all retry attempts fail due to persistent API errors.
-        RuntimeError
-            If context overflow occurs and retry with fresh session also fails.
         """
 
         # Create a retry-wrapped version of the inner method
         @retry(
-            retry=retry_if_exception(_is_retryable_api_error),
+            retry=retry_if_exception(is_retryable_api_error),
             wait=wait_exponential_jitter(
                 initial=API_RETRY_INITIAL_WAIT,
                 max=API_RETRY_MAX_WAIT,
@@ -1389,7 +541,7 @@ class KnowledgeGroundedAgent:
             return await _run_with_retry()
         except ClientError as e:
             # Handle context overflow by resetting session
-            if _is_context_overflow_error(e):
+            if is_context_overflow_error(e):
                 logger.warning(f"Context overflow detected: {e}")
                 logger.warning("Resetting session and retrying with fresh context...")
 
@@ -1494,7 +646,7 @@ class KnowledgeGroundedAgent:
                     step.status = StepStatus.COMPLETED
 
         # Resolve redirect URLs and build response
-        resolved_sources = await _resolve_source_urls(results.get("sources", []))
+        resolved_sources = await resolve_source_urls(results.get("sources", []))
         plan = self._current_plan or ResearchPlan(original_question=question, steps=[], reasoning="No planning enabled")
         execution_trace = self._create_execution_trace(results.get("tool_calls", []), total_duration_ms)
         self._current_plan = None
@@ -1612,26 +764,14 @@ class KnowledgeAgentManager:
 
     @property
     def config(self) -> Configs:
-        """Get or create the config instance.
-
-        Returns
-        -------
-        Configs
-            The configuration settings.
-        """
+        """Get or create the config instance."""
         if self._config is None:
             self._config = Configs()  # type: ignore[call-arg]
         return self._config
 
     @property
     def agent(self) -> KnowledgeGroundedAgent:
-        """Get or create the knowledge-grounded agent.
-
-        Returns
-        -------
-        KnowledgeGroundedAgent
-            The knowledge-grounded QA agent.
-        """
+        """Get or create the knowledge-grounded agent."""
         if self._agent is None:
             self._agent = KnowledgeGroundedAgent(
                 config=self.config,
@@ -1648,11 +788,5 @@ class KnowledgeAgentManager:
         self._initialized = False
 
     def is_initialized(self) -> bool:
-        """Check if any clients have been initialized.
-
-        Returns
-        -------
-        bool
-            True if any clients have been initialized.
-        """
+        """Check if any clients have been initialized."""
         return self._initialized
