@@ -69,7 +69,6 @@ from .retry import (
     API_RETRY_MAX_ATTEMPTS,
     API_RETRY_MAX_WAIT,
     MAX_EMPTY_RESPONSE_RETRIES,
-    is_cache_expiration_error,
     is_context_overflow_error,
     is_retryable_api_error,
 )

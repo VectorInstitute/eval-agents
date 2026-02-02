@@ -1053,6 +1053,90 @@ class DeepSearchQAJudge(BaseJudge):
 
         return judge_result, result
 
+    async def evaluate_with_details_async(
+        self,
+        question: str,
+        answer: str,
+        ground_truth: str,
+        answer_type: str = "Single Answer",
+    ) -> tuple[JudgeResult, DeepSearchQAResult]:
+        """Async version of evaluate_with_details.
+
+        Parameters
+        ----------
+        question : str
+            The original question.
+        answer : str
+            The agent's answer.
+        ground_truth : str
+            The expected ground truth answer.
+        answer_type : str
+            Type of answer.
+
+        Returns
+        -------
+        tuple[JudgeResult, DeepSearchQAResult]
+            Both the standard judge result and detailed metrics.
+        """
+        # Build the grader prompt
+        grader_prompt = DEEPSEARCHQA_GRADER_PROMPT.format(
+            prompt=question,
+            response=answer,
+            answer=ground_truth,
+            prompt_type=answer_type,
+        )
+
+        try:
+            llm_response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=types.Content(
+                    role="user",
+                    parts=[types.Part(text=grader_prompt)],
+                ),
+                config=types.GenerateContentConfig(
+                    temperature=self._temperature,
+                ),
+            )
+            response_text = (llm_response.text or "").strip()
+
+            # Parse JSON
+            if "```json" in response_text:
+                start = response_text.find("```json") + 7
+                end = response_text.find("```", start)
+                response_text = response_text[start:end].strip()
+            elif "```" in response_text:
+                start = response_text.find("```") + 3
+                end = response_text.find("```", start)
+                response_text = response_text[start:end].strip()
+
+            data = json.loads(response_text)
+            grader_result = data.get("Answer Correctness", {})
+
+        except Exception as e:
+            logger.warning(f"Failed to call grader async: {e}")
+            grader_result = {
+                "Explanation": f"Grader error: {e}",
+                "Correctness Details": {},
+                "Excessive Answers": [],
+            }
+
+        result = self._calculate_metrics_from_grader(grader_result)
+        score = 1 + (result.f1_score * 4)
+
+        judge_result = JudgeResult(
+            dimension=self.dimension,
+            score=score,
+            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome}",
+            evidence=[
+                f"Precision: {result.precision:.2f}",
+                f"Recall: {result.recall:.2f}",
+                f"F1 Score: {result.f1_score:.2f}",
+                f"Outcome: {result.outcome}",
+            ],
+        )
+
+        return judge_result, result
+
 
 class PlanQualityJudge(BaseJudge):
     """Evaluates the quality of the research plan.

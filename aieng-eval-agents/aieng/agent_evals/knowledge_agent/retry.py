@@ -20,7 +20,8 @@ API_RETRY_JITTER = 5  # seconds
 def is_retryable_api_error(exception: BaseException) -> bool:
     """Check if an exception is a retryable API error (rate limit/quota exhaustion).
 
-    Does NOT retry context overflow or cache expiration - those need session reset instead.
+    Does NOT retry context overflow or cache expiration - those need session
+    reset instead.
 
     Parameters
     ----------
