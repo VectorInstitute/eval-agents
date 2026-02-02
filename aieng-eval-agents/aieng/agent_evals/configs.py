@@ -42,6 +42,10 @@ class Configs(BaseSettings):
         default="gemini-2.5-flash",
         description="Model name for worker/simple tasks.",
     )
+    default_evaluator_model: str = Field(
+        default="gemini-2.5-pro",
+        description="Model name for LLM-as-judge evaluation tasks.",
+    )
 
     # === Tracing (Langfuse) ===
     langfuse_public_key: str | None = Field(
@@ -71,64 +75,6 @@ class Configs(BaseSettings):
     embedding_model_name: str = Field(
         default="@cf/baai/bge-m3",
         description="Name of the embedding model.",
-    )
-
-    # === Weaviate Vector Database ===
-    weaviate_collection_name: str = Field(
-        default="enwiki_20250520",
-        description="Name of the Weaviate collection to use.",
-    )
-    weaviate_api_key: str | None = Field(
-        default=None,
-        description="API key for Weaviate cloud instance.",
-    )
-    weaviate_http_host: str | None = Field(
-        default=None,
-        pattern=r"^.*\.weaviate\.cloud$|^localhost$",
-        description="Weaviate HTTP host (must end with .weaviate.cloud or be 'localhost').",
-    )
-    weaviate_grpc_host: str | None = Field(
-        default=None,
-        pattern=r"^grpc-.*\.weaviate\.cloud$|^localhost$",
-        description="Weaviate gRPC host (must start with 'grpc-' and end with .weaviate.cloud, or be 'localhost').",
-    )
-    weaviate_http_port: int = Field(
-        default=443,
-        description="Port for Weaviate HTTP connections.",
-    )
-    weaviate_grpc_port: int = Field(
-        default=443,
-        description="Port for Weaviate gRPC connections.",
-    )
-    weaviate_http_secure: bool = Field(
-        default=True,
-        description="Use secure HTTP connection for Weaviate.",
-    )
-    weaviate_grpc_secure: bool = Field(
-        default=True,
-        description="Use secure gRPC connection for Weaviate.",
-    )
-
-    # === Vertex AI / Google Cloud ===
-    vertex_ai_project: str | None = Field(
-        default=None,
-        validation_alias="VERTEX_AI_PROJECT",
-        description="Google Cloud project ID for Vertex AI.",
-    )
-    vertex_ai_location: str = Field(
-        default="us-central1",
-        validation_alias="VERTEX_AI_LOCATION",
-        description="Google Cloud region for Vertex AI.",
-    )
-    vector_search_index_endpoint: str | None = Field(
-        default=None,
-        validation_alias="VECTOR_SEARCH_INDEX_ENDPOINT",
-        description="Vertex AI Vector Search index endpoint.",
-    )
-    vector_search_index_id: str | None = Field(
-        default=None,
-        validation_alias="VECTOR_SEARCH_INDEX_ID",
-        description="Vertex AI Vector Search index ID.",
     )
 
     # === E2B Code Interpreter ===
