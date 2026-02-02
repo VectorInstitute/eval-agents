@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .utils import (
     _canonicalize_numeric,
@@ -67,165 +67,51 @@ _FALSE_POSITIVE_TRIGGER_LABELS = ["ANOMALOUS_BEHAVIOR_ALERT", "LAW_ENFORCEMENT_R
 class CaseFile(BaseModel):
     """Metadata for a laundering case file."""
 
-    case_id: str
-    """Unique identifier for the case."""
-    seed_transaction_id: str
-    """The transaction ID that seeded the laundering attempt. This is typically the last
-    transaction in the pattern."""
-    seed_timestamp: str
-    """The timestamp of the seed transaction."""
-    window_start: str
-    """The start timestamp of the case window."""
-    trigger_label: str
-    """Upstream alert/review trigger label or heuristic hint for this case."""
+    case_id: str = Field(..., description="Unique identifier for the case.")
+    seed_transaction_id: str = Field(
+        ...,
+        description=(
+            "The transaction ID that seeded the laundering attempt. This is typically the last "
+            "transaction in the pattern."
+        ),
+    )
+    seed_timestamp: str = Field(..., description="The timestamp of the seed transaction.")
+    window_start: str = Field(..., description="The start timestamp of the case window.")
+    trigger_label: str = Field(..., description="Upstream alert/review trigger label or heuristic hint for this case.")
 
 
 class GroundTruth(BaseModel):
     """Ground truth information for a laundering case."""
 
-    is_laundering: bool
-    """Whether the case involves money laundering."""
-    pattern_type: LaunderingPattern
-    """The type of laundering pattern in the case."""
-    pattern_description: str
-    """A short description of the laundering pattern."""
-    attempt_transaction_ids: str
-    """Comma-separated list of transaction IDs involved in the laundering attempt."""
+    is_laundering: bool = Field(..., description="Whether the case involves money laundering.")
+    pattern_type: LaunderingPattern = Field(..., description="The type of laundering pattern in the case.")
+    pattern_description: str = Field(..., description="A short description of the laundering pattern.")
+    attempt_transaction_ids: str = Field(
+        ..., description="Comma-separated list of transaction IDs involved in the laundering attempt."
+    )
 
 
 class AnalystOutput(BaseModel):
     """Analyst notes for a laundering case."""
 
-    summary_narrative: str
-    """Analyst's reasoning/evidence summary."""
-    is_laundering: bool
-    """Whether the case involves money laundering."""
-    pattern_type: LaunderingPattern
-    """The type of laundering pattern in the case."""
-    pattern_description: str
-    """A short description of the laundering pattern."""
-    flagged_transaction_ids: list[str]
-    """A comma-separated list of transaction IDs flagged by the analyst as suspicious.
-    """
+    summary_narrative: str = Field(..., description="Analyst's reasoning/evidence summary.")
+    is_laundering: bool = Field(..., description="Whether the case involves money laundering.")
+    pattern_type: LaunderingPattern = Field(..., description="The type of laundering pattern in the case.")
+    pattern_description: str = Field(..., description="A short description of the laundering pattern.")
+    flagged_transaction_ids: str = Field(
+        ..., description="A comma-separated list of transaction IDs flagged by the analyst as suspicious."
+    )
 
 
 class CaseRecord(BaseModel):
     """Combined case file and ground truth record."""
 
-    case: CaseFile
-    """Metadata for the laundering case."""
-    groundtruth: GroundTruth
-    """Ground truth information for the laundering case."""
-    analysis: AnalystOutput | None = None
-    """Optional analyst output for the laundering case. Typically populated after \
-    investigation."""
-
-
-def _validate_patterns_parse_inputs(path: str | Path, lookback_days: int, min_timestamp: str | None) -> Path:
-    """Validate parse_patterns_file inputs and return the normalized patterns path."""
-    if lookback_days < 0:
-        raise ValueError("lookback_days must be >= 0")
-
-    patterns_path = Path(path)
-    if not patterns_path.exists():
-        raise FileNotFoundError(f"Patterns file not found: {patterns_path}")
-
-    if min_timestamp:
-        _parse_timestamp(min_timestamp)
-
-    return patterns_path
-
-
-def _start_attempt_block(header: str) -> dict[str, Any]:
-    """Create a new in-memory attempt block state from a BEGIN header line."""
-    pattern_type, pattern_description = _parse_pattern_header(header)
-    return {
-        "pattern_type": pattern_type,
-        "pattern_description": pattern_description,
-        "transactions": [],
-    }
-
-
-def _parse_attempt_transaction_line(line: str, line_number: int) -> dict[str, str]:
-    """Parse a single transaction line into a canonicalized transaction dict."""
-    row = next(csv.reader([line]))
-    if len(row) < 11:
-        raise ValueError(f"Malformed transaction row at line {line_number}: {line}")
-
-    txn = {
-        "timestamp": _canonicalize_timestamp(row[0]),
-        "from_bank": _canonicalize_numeric(row[1]),
-        "from_account": _canonicalize_text(row[2]),
-        "to_bank": _canonicalize_numeric(row[3]),
-        "to_account": _canonicalize_text(row[4]),
-        "amount_received": _canonicalize_numeric(row[5]),
-        "receiving_currency": _canonicalize_text(row[6]),
-        "amount_paid": _canonicalize_numeric(row[7]),
-        "payment_currency": _canonicalize_text(row[8]),
-        "payment_format": _canonicalize_text(row[9]),
-    }
-    txn_str = "|".join(txn[col] for col in _TRANSACTION_ID_COLUMNS)
-    txn["transaction_id"] = _create_id(txn_str)
-    return txn
-
-
-def _compute_attempt_window_start(
-    *,
-    txns_sorted: list[dict[str, str]],
-    seed_timestamp: str,
-    lookback_days: int,
-    min_timestamp: str | None,
-) -> str:
-    """Compute an attempt window start and avoid zero-width windows when possible."""
-    window_start = apply_lookback_window(txns_sorted[0]["timestamp"], lookback_days, min_timestamp=min_timestamp)
-
-    if lookback_days != 0 or window_start != seed_timestamp:
-        return window_start
-
-    candidate_start = _date_window_start(seed_timestamp)
-    if not min_timestamp:
-        return candidate_start
-
-    candidate_dt = _parse_timestamp(candidate_start)
-    min_dt = _parse_timestamp(min_timestamp)
-    if candidate_dt < min_dt:
-        return min_dt.strftime("%Y-%m-%dT%H:%M:%S")
-    return candidate_start
-
-
-def _finalize_attempt_block(
-    current: dict[str, Any], lookback_days: int, min_timestamp: str | None
-) -> CaseRecord | None:
-    """Convert an in-progress attempt block into a CaseRecord if it has transactions."""
-    txns: list[dict[str, str]] = current.get("transactions") or []
-    if not txns:
-        return None
-
-    txns_sorted = sorted(txns, key=lambda t: _parse_timestamp(t["timestamp"]))
-    seed_txn = txns_sorted[-1]
-    seed_timestamp = seed_txn["timestamp"]
-    window_start = _compute_attempt_window_start(
-        txns_sorted=txns_sorted,
-        seed_timestamp=seed_timestamp,
-        lookback_days=lookback_days,
-        min_timestamp=min_timestamp,
+    case: CaseFile = Field(..., description="Metadata for the laundering case.")
+    groundtruth: GroundTruth = Field(..., description="Ground truth information for the laundering case.")
+    analysis: AnalystOutput | None = Field(
+        default=None,
+        description="Optional analyst output for the laundering case. Typically populated after investigation.",
     )
-    attempt_ids = _serialize_attempt_ids([txn["transaction_id"] for txn in txns_sorted])
-
-    case_file = CaseFile(
-        case_id=_create_id(json.dumps(txns_sorted)),
-        seed_transaction_id=seed_txn["transaction_id"],
-        seed_timestamp=seed_timestamp,
-        window_start=window_start,
-        trigger_label=current["pattern_type"],
-    )
-    groundtruth = GroundTruth(
-        is_laundering=True,
-        pattern_type=current["pattern_type"],
-        pattern_description=current["pattern_description"],
-        attempt_transaction_ids=attempt_ids,
-    )
-    return CaseRecord(case=case_file, groundtruth=groundtruth)
 
 
 def parse_patterns_file(path: str | Path, lookback_days: int = 0, min_timestamp: str | None = None) -> list[CaseRecord]:
@@ -371,6 +257,113 @@ def build_cases(
     normal_cases = _build_normal_cases(transactions, num_normal_cases, fp_seed_ids, lookback_days, min_timestamp)
 
     return laundering_cases + false_negative_cases + false_positive_cases + normal_cases
+
+
+def _validate_patterns_parse_inputs(path: str | Path, lookback_days: int, min_timestamp: str | None) -> Path:
+    """Validate parse_patterns_file inputs and return the normalized patterns path."""
+    if lookback_days < 0:
+        raise ValueError("lookback_days must be >= 0")
+
+    patterns_path = Path(path)
+    if not patterns_path.exists():
+        raise FileNotFoundError(f"Patterns file not found: {patterns_path}")
+
+    if min_timestamp:
+        _parse_timestamp(min_timestamp)
+
+    return patterns_path
+
+
+def _start_attempt_block(header: str) -> dict[str, Any]:
+    """Create a new in-memory attempt block state from a BEGIN header line."""
+    pattern_type, pattern_description = _parse_pattern_header(header)
+    return {
+        "pattern_type": pattern_type,
+        "pattern_description": pattern_description,
+        "transactions": [],
+    }
+
+
+def _parse_attempt_transaction_line(line: str, line_number: int) -> dict[str, str]:
+    """Parse a single transaction line into a canonicalized transaction dict."""
+    row = next(csv.reader([line]))
+    if len(row) < 11:
+        raise ValueError(f"Malformed transaction row at line {line_number}: {line}")
+
+    txn = {
+        "timestamp": _canonicalize_timestamp(row[0]),
+        "from_bank": _canonicalize_numeric(row[1]),
+        "from_account": _canonicalize_text(row[2]),
+        "to_bank": _canonicalize_numeric(row[3]),
+        "to_account": _canonicalize_text(row[4]),
+        "amount_received": _canonicalize_numeric(row[5]),
+        "receiving_currency": _canonicalize_text(row[6]),
+        "amount_paid": _canonicalize_numeric(row[7]),
+        "payment_currency": _canonicalize_text(row[8]),
+        "payment_format": _canonicalize_text(row[9]),
+    }
+    txn_str = "|".join(txn[col] for col in _TRANSACTION_ID_COLUMNS)
+    txn["transaction_id"] = _create_id(txn_str)
+    return txn
+
+
+def _compute_attempt_window_start(
+    *,
+    txns_sorted: list[dict[str, str]],
+    seed_timestamp: str,
+    lookback_days: int,
+    min_timestamp: str | None,
+) -> str:
+    """Compute an attempt window start and avoid zero-width windows when possible."""
+    window_start = apply_lookback_window(txns_sorted[0]["timestamp"], lookback_days, min_timestamp=min_timestamp)
+
+    if lookback_days != 0 or window_start != seed_timestamp:
+        return window_start
+
+    candidate_start = _date_window_start(seed_timestamp)
+    if not min_timestamp:
+        return candidate_start
+
+    candidate_dt = _parse_timestamp(candidate_start)
+    min_dt = _parse_timestamp(min_timestamp)
+    if candidate_dt < min_dt:
+        return min_dt.strftime("%Y-%m-%dT%H:%M:%S")
+    return candidate_start
+
+
+def _finalize_attempt_block(
+    current: dict[str, Any], lookback_days: int, min_timestamp: str | None
+) -> CaseRecord | None:
+    """Convert an in-progress attempt block into a CaseRecord if it has transactions."""
+    txns: list[dict[str, str]] = current.get("transactions") or []
+    if not txns:
+        return None
+
+    txns_sorted = sorted(txns, key=lambda t: _parse_timestamp(t["timestamp"]))
+    seed_txn = txns_sorted[-1]
+    seed_timestamp = seed_txn["timestamp"]
+    window_start = _compute_attempt_window_start(
+        txns_sorted=txns_sorted,
+        seed_timestamp=seed_timestamp,
+        lookback_days=lookback_days,
+        min_timestamp=min_timestamp,
+    )
+    attempt_ids = _serialize_attempt_ids([txn["transaction_id"] for txn in txns_sorted])
+
+    case_file = CaseFile(
+        case_id=_create_id(json.dumps(txns_sorted)),
+        seed_transaction_id=seed_txn["transaction_id"],
+        seed_timestamp=seed_timestamp,
+        window_start=window_start,
+        trigger_label=current["pattern_type"],
+    )
+    groundtruth = GroundTruth(
+        is_laundering=True,
+        pattern_type=current["pattern_type"],
+        pattern_description=current["pattern_description"],
+        attempt_transaction_ids=attempt_ids,
+    )
+    return CaseRecord(case=case_file, groundtruth=groundtruth)
 
 
 def _build_false_negative_cases(
