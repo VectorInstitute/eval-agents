@@ -92,9 +92,9 @@ uv run --env-file .env python -m implementations.report_generation.evaluate --da
 ```
 
 This script will run the Report Generation Agent against each element of the dataset
-and then use an LLM-as-a-judge Evaluator Agent to evaluate each result. The evaluator
-will check the data generated to produce the report against the ground truth and
-produce a True/False score along with a reasoning.
+and then use LLM-as-a-judge Evaluator Agents to evaluate each result. The evaluator
+will check the data generated to produce the report and also the trajectory the
+agent used against the ground truth and produce True/False scores along with a reasoning.
 
 At the end of the run, an evaluation report will be displayed along with a link
 to check details about the evaluation in Langfuse.
