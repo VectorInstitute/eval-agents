@@ -85,7 +85,10 @@ async def upload_dataset_to_langfuse(dataset_path: str, dataset_name: str):
     Parameters
     ----------
     dataset_path : str
-        Path to the dataset to upload.
+        Path to the dataset to upload. The dataset must be a json file
+        containing a list of dictionaries. Each dictionary must contain a
+        `input` and `expected_output` keys. Additionally, it can include
+        an `id` key that will be added to the metadata of the dataset item.
     dataset_name : str
         Name of the dataset to upload.
     """

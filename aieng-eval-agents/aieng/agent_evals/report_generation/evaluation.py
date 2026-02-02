@@ -4,15 +4,12 @@ Evaluate the report generation agent against a Langfuse dataset.
 Example
 -------
 >>> from aieng.agent_evals.report_generation.evaluation import evaluate
->>> from aieng.agent_evals.report_generation.agent import get_report_generation_agent
->>> from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
->>> agent = get_report_generation_agent(
->>>     instructions=MAIN_AGENT_INSTRUCTIONS,
+>>> evaluate(
+>>>     dataset_name="OnlineRetailReportEval",
 >>>     sqlite_db_path=Path("data/OnlineRetail.db"),
 >>>     reports_output_path=Path("reports/"),
 >>>     langfuse_project_name="Report Generation",
 >>> )
->>> evaluate(agent, "OnlineRetailReportEval")
 """
 
 import logging
