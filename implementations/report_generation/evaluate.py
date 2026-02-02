@@ -2,13 +2,13 @@
 
 import asyncio
 import logging
+from typing import Any
 
 import agents
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from dotenv import load_dotenv
-from langfuse._client.datasets import DatasetItemClient
-from langfuse.experiment import Evaluation
+from langfuse.experiment import Evaluation, ExperimentItem
 from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -92,12 +92,12 @@ async def evaluate(dataset_name: str):
         logger.warning(f"Client manager services not closed successfully: {e}")
 
 
-async def agent_task(*, item: DatasetItemClient, **kwargs) -> str | None:
+async def agent_task(*, item: ExperimentItem, **kwargs: Any) -> str | None:
     """Run the report generation agent against an item from a Langfuse dataset.
 
     Parameters
     ----------
-    item : DatasetItemClient
+    item : ExperimentItem
         The item from the Langfuse dataset to evaluate against.
 
     Returns
@@ -108,7 +108,10 @@ async def agent_task(*, item: DatasetItemClient, **kwargs) -> str | None:
     """
     # Define and run the report generation agent
     report_generation_agent = get_report_generation_agent(enable_trace=True)
-    result = await run_agent_with_retry(report_generation_agent, item.input)
+
+    # Handle both LocalExperimentItem (TypedDict) and DatasetItemClient
+    item_input = item["input"] if isinstance(item, dict) else item.input
+    result = await run_agent_with_retry(report_generation_agent, item_input)
 
     # Extract the report data from the result by returning the
     # arguments to the write_report_to_file function call

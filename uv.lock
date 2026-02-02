@@ -148,11 +148,13 @@ web-search = [
 
 [[package]]
 name = "aieng-eval-agents"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "aieng-eval-agents" }
 dependencies = [
     { name = "google-adk" },
     { name = "google-genai" },
+    { name = "html-to-markdown" },
+    { name = "httpx" },
     { name = "kagglehub" },
     { name = "langfuse" },
     { name = "openinference-instrumentation-google-adk" },
@@ -161,7 +163,10 @@ dependencies = [
     { name = "pandas" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pypdf" },
+    { name = "python-dotenv" },
     { name = "rich" },
+    { name = "tenacity" },
 ]
 
 [package.dev-dependencies]
@@ -174,6 +179,8 @@ dev = [
 requires-dist = [
     { name = "google-adk", specifier = ">=1.23.0" },
     { name = "google-genai", specifier = ">=1.52.0" },
+    { name = "html-to-markdown", specifier = ">=2.24.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "kagglehub", specifier = ">=0.4.1" },
     { name = "langfuse", specifier = ">=3.10.3" },
     { name = "openinference-instrumentation-google-adk", specifier = ">=0.1.0" },
@@ -182,7 +189,10 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "pypdf" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.9.0" },
+    { name = "tenacity", specifier = ">=8.2.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2267,6 +2277,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2c/48/71de9ed269fdae9c8057e5a4c0aa7402e8bb16f2c6e90b3aa53327b113f8/hpack-4.1.0.tar.gz", hash = "sha256:ec5eca154f7056aa06f196a557655c5b009b382873ac8d1e66e79e87535f1dca", size = 51276 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/c6/80c95b1b2b94682a72cbdbfb85b81ae2daffa4291fbfa1b1464502ede10d/hpack-4.1.0-py3-none-any.whl", hash = "sha256:157ac792668d995c657d93111f46b4535ed114f0c9c8d672271bbec7eae1b496", size = 34357 },
+]
+
+[[package]]
+name = "html-to-markdown"
+version = "2.24.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/90/f77a624499fd7f95dcd10e3d56fd20f7312f6c9987064a75e1da4fb7e2b4/html_to_markdown-2.24.5.tar.gz", hash = "sha256:05459e635bca56c31bdb5bbc684a54947e83d7ed4c30da3a98485ce2b60153b6", size = 293423 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a6/03/c4562d06e9b3dda55d7d5cfa5ea8d38efad500c5aa51d0028b684483a388/html_to_markdown-2.24.5-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:cb7e74839d01ee397dc5662e3474004a4baddbc5d3f94aa3c517f1cba735708a", size = 8850237 },
+    { url = "https://files.pythonhosted.org/packages/93/20/b5942e47a6de5f662f629db0bf8b7206e2c9352a7123914225a4d26e0a4b/html_to_markdown-2.24.5-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c7b4903aeb38795cec2e7a6f9b8e5b5d2d874e367935e9ef7ba9f60d76505066", size = 9673130 },
+    { url = "https://files.pythonhosted.org/packages/e9/26/03ef12d72f0a5fbc7838f02988865e9f62ab6084bebb8a4de0ba55ae5986/html_to_markdown-2.24.5-cp310-abi3-win_amd64.whl", hash = "sha256:66d7369ee721e5e5eb043e71e104eda829da6c9f72deaa86241653c5cd00f7a2", size = 9266646 },
 ]
 
 [[package]]
@@ -4851,6 +4872,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/bb/22/f1129e69d94ffff626bdb5c835506b3a5b4f3d070f17ea295e12c2c6f60f/pyparsing-3.2.3.tar.gz", hash = "sha256:b9c13f1ab8b3b542f72e28f634bad4de758ab3ce4546e4301970ad6fa77c38be", size = 1088608 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/05/e7/df2285f3d08fee213f2d041540fa4fc9ca6c2d44cf36d3a035bf2a8d2bcc/pyparsing-3.2.3-py3-none-any.whl", hash = "sha256:a749938e02d6fd0b59b356ca504a24982314bb090c383e3cf201c95ef7e2bfcf", size = 111120 },
+]
+
+[[package]]
+name = "pypdf"
+version = "6.6.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/bb/a44bab1ac3c54dbcf653d7b8bcdee93dddb2d3bf025a3912cacb8149a2f2/pypdf-6.6.2.tar.gz", hash = "sha256:0a3ea3b3303982333404e22d8f75d7b3144f9cf4b2970b96856391a516f9f016", size = 5281850 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/be/549aaf1dfa4ab4aed29b09703d2fb02c4366fc1f05e880948c296c5764b9/pypdf-6.6.2-py3-none-any.whl", hash = "sha256:44c0c9811cfb3b83b28f1c3d054531d5b8b81abaedee0d8cb403650d023832ba", size = 329132 },
 ]
 
 [[package]]

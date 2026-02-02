@@ -9,6 +9,7 @@ from .search import (
     GroundingChunk,
     create_google_search_tool,
     format_response_with_citations,
+    google_search,
 )
 
 
@@ -16,6 +17,7 @@ __all__ = [
     # Search tools
     "create_google_search_tool",
     "format_response_with_citations",
+    "google_search",
     "GroundedResponse",
     "GroundingChunk",
 ]
