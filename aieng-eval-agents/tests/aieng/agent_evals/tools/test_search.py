@@ -1,9 +1,9 @@
-"""Tests for Google Search grounding tool."""
+"""Tests for Google Search tool."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aieng.agent_evals.knowledge_agent.grounding_tool import (
+from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
     create_google_search_tool,
@@ -81,7 +81,7 @@ class TestGroundedResponse:
 class TestCreateGoogleSearchTool:
     """Tests for the create_google_search_tool function."""
 
-    @patch("aieng.agent_evals.knowledge_agent.grounding_tool.GoogleSearchTool")
+    @patch("aieng.agent_evals.tools.search.GoogleSearchTool")
     def test_creates_tool_with_bypass_flag(self, mock_tool_class):
         """Test that the tool is created with bypass_multi_tools_limit=True."""
         mock_tool = MagicMock()

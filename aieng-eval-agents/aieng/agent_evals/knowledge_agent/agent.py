@@ -10,16 +10,15 @@ import uuid
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
-from google.adk.agents import Agent
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
-
-from .grounding_tool import (
+from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
     create_google_search_tool,
 )
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
 
 logger = logging.getLogger(__name__)
