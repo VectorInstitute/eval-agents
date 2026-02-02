@@ -4,7 +4,7 @@ import hashlib
 import math
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 import kagglehub
 import pandas as pd
@@ -20,11 +20,15 @@ _TRANSACTION_ID_TEXT_COLUMNS = [
     "payment_format",
 ]
 
+IllicitRatios = Literal["HI", "LI"]
+TransactionsSizes = Literal["Small", "Medium", "Large"]
+Filenames = Literal["Trans.csv", "accounts.csv", "Patterns.txt"]
+
 
 def download_dataset_file(
-    illicit_ratio: Literal["HI", "LI"] = "HI",
-    transactions_size: Literal["Small", "Medium", "Large"] = "Small",
-    filename: Literal["Trans.csv", "accounts.csv", "Patterns.txt"] = "Trans.csv",
+    illicit_ratio: IllicitRatios = "HI",
+    transactions_size: TransactionsSizes = "Small",
+    filename: Filenames = "Trans.csv",
 ) -> str:
     """Download a specific file from the Kaggle AML dataset.
 
@@ -47,15 +51,12 @@ def download_dataset_file(
     ValueError
         If any option is not a supported value.
     """
-    valid_ratio = {"HI", "LI"}
-    valid_size = {"Small", "Medium", "Large"}
-    valid_filename = {"Trans.csv", "accounts.csv", "Patterns.txt"}
-    if illicit_ratio not in valid_ratio:
-        raise ValueError(f"illicit_ratio must be one of {sorted(valid_ratio)}")
-    if transactions_size not in valid_size:
-        raise ValueError(f"transactions_size must be one of {sorted(valid_size)}")
-    if filename not in valid_filename:
-        raise ValueError(f"filename must be one of {sorted(valid_filename)}")
+    if illicit_ratio not in get_args(IllicitRatios):
+        raise ValueError(f"illicit_ratio must be one of {sorted(get_args(IllicitRatios))}")
+    if transactions_size not in get_args(TransactionsSizes):
+        raise ValueError(f"transactions_size must be one of {sorted(get_args(TransactionsSizes))}")
+    if filename not in get_args(Filenames):
+        raise ValueError(f"filename must be one of {sorted(get_args(Filenames))}")
 
     dataset_path = f"{illicit_ratio}-{transactions_size}_{filename}"
     return kagglehub.dataset_download(

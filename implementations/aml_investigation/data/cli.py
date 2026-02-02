@@ -20,12 +20,14 @@ import functools
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, get_args
 
 import click
 import pandas as pd
 from aieng.agent_evals.aml_investigation.data import (
     CaseRecord,
+    IllicitRatios,
+    TransactionsSizes,
     build_cases,
     download_dataset_file,
     normalize_transactions_data,
@@ -83,14 +85,14 @@ def _dataset_options(fn: Callable[..., Any]) -> Callable[..., Any]:
 
     @click.option(
         "--illicit-ratio",
-        type=click.Choice(["HI", "LI"], case_sensitive=False),
+        type=click.Choice(get_args(IllicitRatios), case_sensitive=False),
         default="HI",
         show_default=True,
         help="Illicit transaction ratio.",
     )
     @click.option(
         "--transactions-size",
-        type=click.Choice(["Small", "Medium", "Large"], case_sensitive=False),
+        type=click.Choice(get_args(TransactionsSizes), case_sensitive=False),
         default="Small",
         show_default=True,
         help="Size of the transactions dataset.",
@@ -100,6 +102,14 @@ def _dataset_options(fn: Callable[..., Any]) -> Callable[..., Any]:
         return fn(*args, **kwargs)
 
     return wrapper
+
+
+def _validate_dataset_options(illicit_ratio: str, transactions_size: str) -> None:
+    """Validate dataset option values."""
+    if illicit_ratio not in get_args(IllicitRatios):
+        raise ValueError(f"illicit_ratio must be one of {sorted(get_args(IllicitRatios))}")
+    if transactions_size not in get_args(TransactionsSizes):
+        raise ValueError(f"transactions_size must be one of {sorted(get_args(TransactionsSizes))}")
 
 
 @click.group()
@@ -149,12 +159,7 @@ def create_db(illicit_ratio: str, transactions_size: str, ddl_file_path: Path, d
     FileNotFoundError
         If the DDL file does not exist.
     """
-    valid_ratio = {"HI", "LI"}
-    valid_size = {"Small", "Medium", "Large"}
-    if illicit_ratio not in valid_ratio:
-        raise ValueError(f"illicit_ratio must be one of {sorted(valid_ratio)}")
-    if transactions_size not in valid_size:
-        raise ValueError(f"transactions_size must be one of {sorted(valid_size)}")
+    _validate_dataset_options(illicit_ratio, transactions_size)
     if not ddl_file_path.exists():
         raise FileNotFoundError(f"DDL file not found: {ddl_file_path}")
 
@@ -251,12 +256,7 @@ def create_cases(
     ValueError
         If any numeric argument is negative or option values are invalid.
     """
-    valid_ratio = {"HI", "LI"}
-    valid_size = {"Small", "Medium", "Large"}
-    if illicit_ratio not in valid_ratio:
-        raise ValueError(f"illicit_ratio must be one of {sorted(valid_ratio)}")
-    if transactions_size not in valid_size:
-        raise ValueError(f"transactions_size must be one of {sorted(valid_size)}")
+    _validate_dataset_options(illicit_ratio, transactions_size)
     for name, value in [
         ("num_laundering_cases", num_laundering_cases),
         ("num_normal_cases", num_normal_cases),
