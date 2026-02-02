@@ -1,6 +1,11 @@
 """AML Investigation Agent Implementation.
 
-Run with: uv run --env-file .env implementations/aml_investigation/agent.py
+Examples
+--------
+Run the agent on AML cases from JSONL file:
+    uv run --env-file .env implementations/aml_investigation/agent.py
+Run with adk web:
+    uv run adk web --port 8000 --reload --reload_agents implementations/
 """
 
 import asyncio
