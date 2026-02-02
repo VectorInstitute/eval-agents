@@ -31,7 +31,7 @@ from typing import Any
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.knowledge_agent.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_agent.judges import DeepSearchQAJudge
+from aieng.agent_evals.knowledge_agent.judges import DeepSearchQAJudge, TrajectoryQualityJudge
 from dotenv import load_dotenv
 from langfuse.experiment import Evaluation
 
@@ -51,7 +51,9 @@ class EvaluationContext:
     def __init__(self) -> None:
         self._agent: KnowledgeGroundedAgent | None = None
         self._judge: DeepSearchQAJudge | None = None
+        self._trajectory_judge: TrajectoryQualityJudge | None = None
         self.completed_item_ids: set[str] = set()
+        self.agent_responses: dict[str, Any] = {}  # item_id -> AgentResponse
 
     @property
     def agent(self) -> KnowledgeGroundedAgent:
@@ -67,9 +69,17 @@ class EvaluationContext:
             self._judge = DeepSearchQAJudge()
         return self._judge
 
+    @property
+    def trajectory_judge(self) -> TrajectoryQualityJudge:
+        """Get or create the Trajectory Quality Judge instance."""
+        if self._trajectory_judge is None:
+            self._trajectory_judge = TrajectoryQualityJudge()
+        return self._trajectory_judge
+
     def reset_completed_ids(self) -> None:
         """Reset the completed item IDs for a new evaluation run."""
         self.completed_item_ids.clear()
+        self.agent_responses.clear()
 
 
 # Shared context for the evaluation run
@@ -107,6 +117,10 @@ async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
         agent = KnowledgeGroundedAgent(enable_planning=True)
         response = await agent.answer_async(question)
         logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
+
+        # Store response for trajectory evaluation
+        _context.agent_responses[item_id] = response
+
         return response.text
     except Exception as e:
         logger.error(f"Agent failed: {e}")
@@ -213,6 +227,134 @@ async def deepsearchqa_evaluator(
         ]
 
 
+def _build_trajectory_comment(result: Any) -> str:
+    """Build detailed comment for trajectory evaluation."""
+    comment_parts = [
+        f"Efficiency: {result.efficiency_score:.1f}/5",
+        f"Coherence: {result.coherence_score:.1f}/5",
+        f"Tool Appropriateness: {result.tool_appropriateness_score:.1f}/5",
+        f"Overall: {result.overall_score:.1f}/5",
+    ]
+
+    if result.explanation:
+        comment_parts.append(f"\n{result.explanation}")
+
+    if result.strengths:
+        comment_parts.append("\n✓ Strengths:")
+        comment_parts.extend(f"  • {s}" for s in result.strengths)
+
+    if result.efficiency_issues:
+        comment_parts.append("\n⚠ Efficiency issues:")
+        comment_parts.extend(f"  • {i}" for i in result.efficiency_issues)
+
+    if result.coherence_issues:
+        comment_parts.append("\n⚠ Coherence issues:")
+        comment_parts.extend(f"  • {i}" for i in result.coherence_issues)
+
+    if result.tool_issues:
+        comment_parts.append("\n⚠ Tool usage issues:")
+        comment_parts.extend(f"  • {i}" for i in result.tool_issues)
+
+    if result.replanning_assessment:
+        comment_parts.append(f"\n🔄 Replanning: {result.replanning_assessment}")
+
+    return "\n".join(comment_parts)
+
+
+async def trajectory_evaluator(
+    *,
+    input: str,  # noqa: A002
+    output: str,  # noqa: ARG001
+    **kwargs: Any,
+) -> list[Evaluation]:
+    """Evaluate the agent's trajectory quality using process supervision.
+
+    This evaluator assesses the agent's reasoning path, tool usage, and
+    execution efficiency without relying on ground truth answers.
+
+    Parameters
+    ----------
+    input : str
+        The original question.
+    output : str
+        The agent's response (unused for trajectory evaluation).
+    **kwargs : dict
+        Additional arguments, may contain agent_response or item for
+        accessing stored response.
+
+    Returns
+    -------
+    list[Evaluation]
+        List of Langfuse Evaluations with trajectory quality metrics.
+    """
+    # Skip evaluation for items marked as already completed
+    if output == "__SKIP__":
+        logger.debug("Skipping trajectory evaluation for already-completed item")
+        return []
+
+    # Try to get agent response from kwargs or context
+    agent_response = kwargs.get("agent_response")
+    if not agent_response:
+        item = kwargs.get("item")
+        if item and hasattr(item, "id"):
+            agent_response = _context.agent_responses.get(item.id)
+
+    if not agent_response:
+        logger.warning("No agent_response available, skipping trajectory evaluation")
+        return []
+
+    logger.info("Evaluating trajectory quality...")
+
+    try:
+        result = await _context.trajectory_judge.evaluate_async(
+            question=input,
+            plan=agent_response.plan,
+            tool_calls=agent_response.tool_calls,
+            search_queries=agent_response.search_queries,
+        )
+
+        logger.info(f"Trajectory evaluation complete: {result.overall_score:.1f}/5")
+
+        comment = _build_trajectory_comment(result)
+        has_efficiency_issues = bool(result.efficiency_issues)
+
+        # Return multiple evaluations for different aspects
+        return [
+            Evaluation(
+                name="Trajectory Overall",
+                value=result.overall_score,
+                comment=comment,
+            ),
+            Evaluation(
+                name="Trajectory Efficiency",
+                value=result.efficiency_score,
+                comment=f"Efficiency score. {len(result.efficiency_issues)} issues found."
+                if has_efficiency_issues
+                else "Efficient trajectory.",
+            ),
+            Evaluation(
+                name="Trajectory Coherence",
+                value=result.coherence_score,
+                comment=f"Logical coherence score. {len(result.coherence_issues)} issues found."
+                if result.coherence_issues
+                else "Coherent progression.",
+            ),
+            Evaluation(
+                name="Trajectory Tool Usage",
+                value=result.tool_appropriateness_score,
+                comment=f"Tool appropriateness score. {len(result.tool_issues)} issues found."
+                if result.tool_issues
+                else "Appropriate tool selection.",
+            ),
+        ]
+
+    except Exception as e:
+        logger.error(f"Trajectory evaluation failed: {e}")
+        return [
+            Evaluation(name="Trajectory Overall", value=3.0, comment=f"Trajectory evaluation error: {e}"),
+        ]
+
+
 def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set[str]:
     """Get dataset item IDs that have already been evaluated in a run.
 
@@ -297,24 +439,32 @@ async def process_single_item(item: Any, experiment_name: str) -> None:
 
             logger.info(f"Agent completed: {len(output)} chars, {len(response.tool_calls)} tool calls")
 
-            # Run evaluation
-            evaluations = await deepsearchqa_evaluator(
+            # Run evaluations
+            outcome_evaluations = await deepsearchqa_evaluator(
                 input=item.input,
                 output=output,
                 expected_output=item.expected_output,
                 metadata=item.metadata,
             )
 
+            trajectory_evaluations = await trajectory_evaluator(
+                input=item.input,
+                output=output,
+                agent_response=response,
+            )
+
+            all_evaluations = outcome_evaluations + trajectory_evaluations
+
             # Add scores to the trace using root_span.score_trace()
             # This properly links scores to the dataset run item
-            for evaluation in evaluations:
+            for evaluation in all_evaluations:
                 root_span.score_trace(
                     name=evaluation.name,
                     value=evaluation.value,
                     comment=evaluation.comment,
                 )
 
-            logger.info(f"Item {item.id} complete with {len(evaluations)} evaluations")
+            logger.info(f"Item {item.id} complete with {len(all_evaluations)} evaluations")
 
     except Exception as e:
         logger.error(f"Item {item.id} failed: {e}")
@@ -408,9 +558,9 @@ async def run_evaluation(
         # No resume, use the convenient run_experiment API
         result = dataset.run_experiment(
             name=experiment_name,
-            description="Knowledge Agent evaluation using DeepSearchQA benchmark with LLM-as-judge",
+            description="Knowledge Agent evaluation with outcome (DeepSearchQA) and trajectory (process supervision) judges",
             task=agent_task,
-            evaluators=[deepsearchqa_evaluator],
+            evaluators=[deepsearchqa_evaluator, trajectory_evaluator],
             max_concurrency=max_concurrency,
         )
         logger.info("Experiment complete!")

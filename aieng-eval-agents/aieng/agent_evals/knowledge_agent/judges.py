@@ -154,458 +154,6 @@ class BaseJudge:
         return response.text or ""
 
 
-class ComprehensivenessJudge(BaseJudge):
-    """Evaluates if the answer covers all aspects of the question.
-
-    This judge assesses whether the response addresses all parts of
-    the question and provides sufficient depth of coverage.
-    """
-
-    dimension = "comprehensiveness"
-    system_prompt = """\
-You are an expert evaluator assessing the comprehensiveness of answers to research questions.
-
-## Evaluation Criteria
-
-Score on a 1-5 scale:
-- 5: Exceptionally comprehensive - covers all aspects with depth and nuance
-- 4: Very comprehensive - covers all major aspects thoroughly
-- 3: Moderately comprehensive - covers main points but misses some aspects
-- 2: Somewhat incomplete - covers only basic aspects, misses important details
-- 1: Very incomplete - fails to address significant parts of the question
-
-## Output Format
-
-Return a JSON object:
-{
-    "score": <1-5>,
-    "explanation": "<detailed explanation of the score>",
-    "evidence": ["<specific example 1>", "<specific example 2>"]
-}
-"""
-
-    def evaluate(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str | None = None,
-    ) -> JudgeResult:
-        """Evaluate the comprehensiveness of an answer.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        answer : str
-            The agent's answer.
-        ground_truth : str, optional
-            The expected ground truth answer.
-
-        Returns
-        -------
-        JudgeResult
-            The evaluation result.
-        """
-        prompt = f"""Evaluate the comprehensiveness of this answer.
-
-## Question
-{question}
-
-## Answer
-{answer}
-"""
-        if ground_truth:
-            prompt += f"""
-## Expected Answer (Ground Truth)
-{ground_truth}
-"""
-
-        response = self._call_llm(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-    async def evaluate_async(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str | None = None,
-    ) -> JudgeResult:
-        """Async version of evaluate."""
-        prompt = f"""Evaluate the comprehensiveness of this answer.
-
-## Question
-{question}
-
-## Answer
-{answer}
-"""
-        if ground_truth:
-            prompt += f"""
-## Expected Answer (Ground Truth)
-{ground_truth}
-"""
-
-        response = await self._call_llm_async(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-
-class CausalChainJudge(BaseJudge):
-    """Evaluates logical flow and causal reasoning.
-
-    This judge assesses whether the reasoning chain is logically
-    connected and the causal arguments are sound.
-    """
-
-    dimension = "causal_chain"
-    system_prompt = """\
-You are an expert evaluator assessing the logical flow and causal reasoning in research answers.
-
-## Evaluation Criteria
-
-Score on a 1-5 scale:
-- 5: Excellent causal reasoning - clear logical flow, well-supported claims, strong connections
-- 4: Good causal reasoning - mostly logical, minor gaps in reasoning
-- 3: Adequate causal reasoning - basic logic present but some unsupported leaps
-- 2: Weak causal reasoning - significant logical gaps, unsupported claims
-- 1: Poor causal reasoning - illogical, contradictory, or no clear reasoning
-
-## What to Evaluate
-- Are claims supported by evidence?
-- Is the logical flow clear and coherent?
-- Are causal relationships explained, not just asserted?
-- Are there any logical fallacies or unsupported leaps?
-
-## Output Format
-
-Return a JSON object:
-{
-    "score": <1-5>,
-    "explanation": "<detailed explanation of the score>",
-    "evidence": ["<specific example 1>", "<specific example 2>"]
-}
-"""
-
-    def evaluate(
-        self,
-        question: str,
-        reasoning_chain: list[str],
-        answer: str | None = None,
-    ) -> JudgeResult:
-        """Evaluate the causal reasoning in the response.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        reasoning_chain : list[str]
-            The step-by-step reasoning trace.
-        answer : str, optional
-            The final answer.
-
-        Returns
-        -------
-        JudgeResult
-            The evaluation result.
-        """
-        reasoning_text = (
-            "\n".join(f"- {step}" for step in reasoning_chain) if reasoning_chain else "No reasoning chain provided"
-        )
-
-        prompt = f"""Evaluate the causal reasoning in this response.
-
-## Question
-{question}
-
-## Reasoning Chain
-{reasoning_text}
-"""
-        if answer:
-            prompt += f"""
-## Final Answer
-{answer}
-"""
-
-        response = self._call_llm(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-    async def evaluate_async(
-        self,
-        question: str,
-        reasoning_chain: list[str],
-        answer: str | None = None,
-    ) -> JudgeResult:
-        """Async version of evaluate."""
-        reasoning_text = (
-            "\n".join(f"- {step}" for step in reasoning_chain) if reasoning_chain else "No reasoning chain provided"
-        )
-
-        prompt = f"""Evaluate the causal reasoning in this response.
-
-## Question
-{question}
-
-## Reasoning Chain
-{reasoning_text}
-"""
-        if answer:
-            prompt += f"""
-## Final Answer
-{answer}
-"""
-
-        response = await self._call_llm_async(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-
-class ExhaustivenessJudge(BaseJudge):
-    """Evaluates completeness for list-type answers.
-
-    This judge assesses precision and recall for answers that
-    should enumerate multiple items.
-    """
-
-    dimension = "exhaustiveness"
-    system_prompt = """\
-You are an expert evaluator assessing the exhaustiveness of list-type answers.
-
-## Evaluation Criteria
-
-Score on a 1-5 scale based on:
-- Precision: What fraction of items in the answer are correct?
-- Recall: What fraction of expected items are covered?
-
-Scoring:
-- 5: Excellent - high precision AND high recall (>90% both)
-- 4: Very good - good precision and recall (>75% both)
-- 3: Adequate - moderate precision or recall (>50% both)
-- 2: Weak - low precision or recall (<50% on one)
-- 1: Poor - very low precision and recall
-
-## Output Format
-
-Return a JSON object:
-{
-    "score": <1-5>,
-    "explanation": "<detailed explanation including precision/recall analysis>",
-    "evidence": ["<items correctly included>", "<items incorrectly included>", "<items missed>"]
-}
-"""
-
-    def evaluate(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str,
-        answer_type: str = "List",
-    ) -> JudgeResult:
-        """Evaluate the exhaustiveness of a list-type answer.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        answer : str
-            The agent's answer.
-        ground_truth : str
-            The expected ground truth answer.
-        answer_type : str
-            The type of answer (used to verify this is a list question).
-
-        Returns
-        -------
-        JudgeResult
-            The evaluation result.
-        """
-        prompt = f"""Evaluate the exhaustiveness of this list-type answer.
-
-## Question
-{question}
-
-## Answer
-{answer}
-
-## Expected Answer (Ground Truth)
-{ground_truth}
-
-## Answer Type
-{answer_type}
-
-Compare the items in the answer with the ground truth. Identify:
-1. Items correctly included (true positives)
-2. Items incorrectly included (false positives)
-3. Items missed (false negatives)
-"""
-
-        response = self._call_llm(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-    async def evaluate_async(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str,
-        answer_type: str = "List",
-    ) -> JudgeResult:
-        """Async version of evaluate."""
-        prompt = f"""Evaluate the exhaustiveness of this list-type answer.
-
-## Question
-{question}
-
-## Answer
-{answer}
-
-## Expected Answer (Ground Truth)
-{ground_truth}
-
-## Answer Type
-{answer_type}
-
-Compare the items in the answer with the ground truth. Identify:
-1. Items correctly included (true positives)
-2. Items incorrectly included (false positives)
-3. Items missed (false negatives)
-"""
-
-        response = await self._call_llm_async(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-
-class SourceQualityJudge(BaseJudge):
-    """Evaluates appropriateness of sources used.
-
-    This judge assesses whether the agent used the right mix of
-    web sources and internal knowledge base sources.
-    """
-
-    dimension = "source_quality"
-    system_prompt = """\
-You are an expert evaluator assessing the quality and appropriateness of sources used in a research answer.
-
-## Evaluation Criteria
-
-Score on a 1-5 scale:
-- 5: Excellent source selection - appropriate mix of authoritative sources, right source type for question
-- 4: Good source selection - mostly appropriate sources, minor improvements possible
-- 3: Adequate sources - sources generally relevant but could be better targeted
-- 2: Weak sources - inappropriate source types or low quality sources
-- 1: Poor sources - irrelevant, unreliable, or missing key sources
-
-## What to Consider
-- Were internal knowledge base sources used for regulatory/conceptual questions?
-- Were web sources used for current events/recent data?
-- Are the sources authoritative and relevant?
-- Is the number of sources appropriate for the question complexity?
-
-## Output Format
-
-Return a JSON object:
-{
-    "score": <1-5>,
-    "explanation": "<detailed explanation of source appropriateness>",
-    "evidence": ["<good source choice>", "<questionable source choice>"]
-}
-"""
-
-    def evaluate(
-        self,
-        question: str,
-        web_sources: list[Any],
-        internal_sources: list[Any],
-    ) -> JudgeResult:
-        """Evaluate the quality of sources used.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        web_sources : list
-            Web sources used (list of GroundingChunk or dicts).
-        internal_sources : list
-            Internal knowledge base sources used.
-
-        Returns
-        -------
-        JudgeResult
-            The evaluation result.
-        """
-        web_source_text = (
-            "\n".join(
-                f"- {getattr(s, 'title', s.get('title', 'Unknown')) if hasattr(s, 'title') or isinstance(s, dict) else str(s)}"
-                for s in web_sources
-            )
-            if web_sources
-            else "No web sources used"
-        )
-
-        internal_source_text = (
-            "\n".join(
-                f"- {getattr(s, 'title', s.get('title', 'Unknown')) if hasattr(s, 'title') or isinstance(s, dict) else str(s)} ({getattr(s, 'category', s.get('category', 'unknown')) if hasattr(s, 'category') or isinstance(s, dict) else 'unknown'})"
-                for s in internal_sources
-            )
-            if internal_sources
-            else "No internal sources used"
-        )
-
-        prompt = f"""Evaluate the source quality for this research question.
-
-## Question
-{question}
-
-## Web Sources Used ({len(web_sources)} sources)
-{web_source_text}
-
-## Internal Knowledge Base Sources Used ({len(internal_sources)} sources)
-{internal_source_text}
-
-Consider whether the right types of sources were used for this question.
-"""
-
-        response = self._call_llm(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-    async def evaluate_async(
-        self,
-        question: str,
-        web_sources: list[Any],
-        internal_sources: list[Any],
-    ) -> JudgeResult:
-        """Async version of evaluate."""
-        web_source_text = (
-            "\n".join(
-                f"- {getattr(s, 'title', s.get('title', 'Unknown')) if hasattr(s, 'title') or isinstance(s, dict) else str(s)}"
-                for s in web_sources
-            )
-            if web_sources
-            else "No web sources used"
-        )
-
-        internal_source_text = (
-            "\n".join(
-                f"- {getattr(s, 'title', s.get('title', 'Unknown')) if hasattr(s, 'title') or isinstance(s, dict) else str(s)} ({getattr(s, 'category', s.get('category', 'unknown')) if hasattr(s, 'category') or isinstance(s, dict) else 'unknown'})"
-                for s in internal_sources
-            )
-            if internal_sources
-            else "No internal sources used"
-        )
-
-        prompt = f"""Evaluate the source quality for this research question.
-
-## Question
-{question}
-
-## Web Sources Used ({len(web_sources)} sources)
-{web_source_text}
-
-## Internal Knowledge Base Sources Used ({len(internal_sources)} sources)
-{internal_source_text}
-
-Consider whether the right types of sources were used for this question.
-"""
-
-        response = await self._call_llm_async(prompt)
-        return _parse_judge_response(response, self.dimension)
-
-
 class DeepSearchQAResult(BaseModel):
     """Result from DeepSearchQA evaluation with IR metrics.
 
@@ -1138,107 +686,268 @@ class DeepSearchQAJudge(BaseJudge):
         return judge_result, result
 
 
-class PlanQualityJudge(BaseJudge):
-    """Evaluates the quality of the research plan.
+class TrajectoryQualityResult(BaseModel):
+    """Result from trajectory quality evaluation.
 
-    This judge assesses whether the plan was appropriate for
-    the question complexity and requirements.
+    Attributes
+    ----------
+    efficiency_score : float
+        Score for trajectory efficiency (1-5).
+    coherence_score : float
+        Score for logical coherence of steps (1-5).
+    tool_appropriateness_score : float
+        Score for appropriateness of tool usage (1-5).
+    overall_score : float
+        Overall trajectory quality score (1-5).
+    explanation : str
+        Detailed explanation of the evaluation.
+    efficiency_issues : list[str]
+        Specific efficiency problems found.
+    coherence_issues : list[str]
+        Specific coherence problems found.
+    tool_issues : list[str]
+        Specific tool usage problems found.
+    strengths : list[str]
+        Positive aspects of the trajectory.
+    replanning_assessment : str
+        Assessment of replanning decisions (if any).
     """
 
-    dimension = "plan_quality"
+    efficiency_score: float
+    coherence_score: float
+    tool_appropriateness_score: float
+    overall_score: float
+    explanation: str = ""
+    efficiency_issues: list[str] = Field(default_factory=list)
+    coherence_issues: list[str] = Field(default_factory=list)
+    tool_issues: list[str] = Field(default_factory=list)
+    strengths: list[str] = Field(default_factory=list)
+    replanning_assessment: str = ""
+
+
+class TrajectoryQualityJudge(BaseJudge):
+    """Evaluates the quality of the agent's execution trajectory.
+
+    This judge implements process supervision principles, evaluating
+    the agent's reasoning path and tool usage without access to ground truth.
+    Based on research from:
+    - "Let's Verify Step by Step" (2025)
+    - Process Supervision vs Outcome Supervision literature
+    - Agent-as-a-Judge methodologies
+
+    The evaluator assesses:
+    1. Efficiency: Are there redundant searches or unnecessary steps?
+    2. Coherence: Do steps follow a logical progression?
+    3. Tool Appropriateness: Are the right tools used at the right time?
+    4. Replanning: Were plan adaptations justified and helpful?
+    """
+
+    dimension = "trajectory_quality"
     system_prompt = """\
-You are an expert evaluator assessing the quality of research plans.
+You are an expert evaluator assessing the quality of an AI agent's research trajectory using process supervision principles.
 
-## Evaluation Criteria
+## Evaluation Framework
 
-Score on a 1-5 scale:
-- 5: Excellent plan - appropriate complexity, well-structured steps, right tool selection
-- 4: Good plan - mostly appropriate, minor improvements possible
-- 3: Adequate plan - gets the job done but not optimal
-- 2: Weak plan - over/under-engineered, wrong tool choices
-- 1: Poor plan - inappropriate for the question, missing key steps
+Evaluate the agent's execution path across three dimensions:
 
-## What to Evaluate
-- Are the steps logical and well-ordered?
-- Are dependencies correctly identified?
-- Are the right tools suggested for each step?
-- Is the plan efficient (not over-engineered)?
+### 1. EFFICIENCY (1-5)
+- **5**: Optimal path with no redundancy, direct progress toward answer
+- **4**: Mostly efficient, 1-2 minor redundancies that don't significantly impact progress
+- **3**: Moderate efficiency, some redundant searches or unnecessary detours
+- **2**: Inefficient, multiple redundant operations or significant wasted effort
+- **1**: Highly inefficient, excessive redundancy or thrashing behavior
+
+Consider:
+- Are there duplicate or near-duplicate searches?
+- Are files fetched but never used?
+- Are there unnecessary tool calls?
+- Is there evidence of "thrashing" (repeatedly trying same approach)?
+
+### 2. LOGICAL COHERENCE (1-5)
+- **5**: Perfect logical flow, each step clearly builds on previous findings
+- **4**: Generally coherent with minor logical gaps
+- **3**: Mostly coherent but some steps seem disconnected or out of sequence
+- **2**: Weak coherence, unclear why certain steps were taken
+- **1**: Incoherent, steps don't follow from each other
+
+Consider:
+- Does each step logically follow from previous findings?
+- Are steps well-sequenced (e.g., search before fetch, fetch before grep)?
+- Is there clear progression toward answering the question?
+- Do intermediate findings inform subsequent actions?
+
+### 3. TOOL APPROPRIATENESS (1-5)
+- **5**: Perfect tool selection for each sub-task
+- **4**: Mostly appropriate with minor suboptimal choices
+- **3**: Adequate tool usage but some missed opportunities
+- **2**: Several poor tool choices (e.g., searching when should grep, fetching unnecessary files)
+- **1**: Consistently inappropriate tool usage
+
+Expected patterns:
+- `google_search` → `web_fetch` (search to find URLs, then fetch content)
+- `fetch_file` → `grep_file` (download data files, then search within them)
+- `web_fetch` for articles/pages, `fetch_file` for structured data (CSV, XLSX, JSON)
+
+### 4. REPLANNING ASSESSMENT (if applicable)
+If replanning occurred (presence of /*REPLANNING*/ tag):
+- Was replanning necessary? (e.g., initial plan insufficient, new information revealed gaps)
+- Did the new plan address deficiencies in the original?
+- Was replanning done at an appropriate time?
+- Did replanning improve trajectory quality?
 
 ## Output Format
 
-Return a JSON object:
+Return a JSON object with this exact structure:
 {
-    "score": <1-5>,
-    "explanation": "<detailed explanation of plan quality>",
-    "evidence": ["<good planning decision>", "<questionable planning decision>"]
+    "efficiency_score": <1-5>,
+    "coherence_score": <1-5>,
+    "tool_appropriateness_score": <1-5>,
+    "overall_score": <1-5>,
+    "explanation": "<2-3 sentence summary of trajectory quality>",
+    "efficiency_issues": ["<specific issue 1>", "<specific issue 2>"],
+    "coherence_issues": ["<specific issue 1>"],
+    "tool_issues": ["<specific issue 1>"],
+    "strengths": ["<positive aspect 1>", "<positive aspect 2>"],
+    "replanning_assessment": "<assessment of replanning if occurred, empty string otherwise>"
 }
+
+## Important Notes
+- Be objective and evidence-based
+- The agent doesn't have ground truth, so don't penalize for incorrect paths unless they're illogical
+- Focus on process quality, not outcome quality
+- Consider question complexity when assessing efficiency
 """
 
-    def evaluate(
+    def _format_trajectory(
         self,
-        question: str,
-        plan: "ResearchPlan",
-    ) -> JudgeResult:
-        """Evaluate the quality of a research plan.
+        plan: "ResearchPlan | None",
+        tool_calls: list[dict[str, Any]],
+        search_queries: list[str],
+    ) -> str:
+        """Format trajectory information for evaluation."""
+        parts = []
 
-        Parameters
-        ----------
-        question : str
-            The original question.
-        plan : ResearchPlan
-            The research plan to evaluate.
+        # Format initial plan
+        if plan and plan.steps:
+            parts.append("### Initial Research Plan")
+            parts.append(f"Reasoning: {plan.reasoning}\n")
+            parts.append("Steps:")
+            for step in plan.steps:
+                status_marker = "✓" if step.status == "completed" else "✗" if step.status == "failed" else "○"
+                parts.append(
+                    f"  {status_marker} Step {step.step_id}: {step.description} "
+                    f"(type: {step.step_type}, depends_on: {step.depends_on})"
+                )
+            parts.append("")
 
-        Returns
-        -------
-        JudgeResult
-            The evaluation result.
-        """
-        steps_text = (
-            "\n".join(f"  {s.step_id}. {s.description} (depends_on: {s.depends_on})" for s in plan.steps)
-            if plan.steps
-            else "No steps defined"
-        )
+        # Format tool call sequence
+        parts.append("### Actual Execution Trace")
+        parts.append(f"Total tool calls: {len(tool_calls)}")
+        parts.append(f"Unique search queries: {len(set(search_queries))}/{len(search_queries)}\n")
 
-        prompt = f"""Evaluate the quality of this research plan.
+        # Show tool sequence with details
+        for i, tc in enumerate(tool_calls, 1):
+            tool_name = tc.get("name", "unknown")
+            args = tc.get("arguments", {})
 
-## Question
-{question}
+            # Format based on tool type
+            if tool_name == "google_search":
+                query = args.get("query", "")
+                parts.append(f"{i}. google_search('{query[:80]}')")
+            elif tool_name == "web_fetch":
+                url = args.get("url", "")[:80]
+                parts.append(f"{i}. web_fetch('{url}')")
+            elif tool_name == "fetch_file":
+                url = args.get("url", "")[:80]
+                parts.append(f"{i}. fetch_file('{url}')")
+            elif tool_name == "grep_file":
+                pattern = args.get("pattern", "")[:50]
+                file_id = args.get("file_id", "")
+                parts.append(f"{i}. grep_file(pattern='{pattern}', file_id={file_id})")
+            elif tool_name == "read_file":
+                file_id = args.get("file_id", "")
+                parts.append(f"{i}. read_file(file_id={file_id})")
+            else:
+                parts.append(f"{i}. {tool_name}(...)")
 
-## Plan
-Reasoning: {plan.reasoning}
+        return "\n".join(parts)
 
-Steps:
-{steps_text}
+    def _parse_trajectory_response(self, response_text: str) -> TrajectoryQualityResult:
+        """Parse judge response into TrajectoryQualityResult."""
+        try:
+            text = response_text.strip()
 
-"""
+            # Handle markdown code blocks
+            if "```json" in text:
+                start = text.find("```json") + 7
+                end = text.find("```", start)
+                text = text[start:end].strip()
+            elif "```" in text:
+                start = text.find("```") + 3
+                end = text.find("```", start)
+                text = text[start:end].strip()
 
-        response = self._call_llm(prompt)
-        return _parse_judge_response(response, self.dimension)
+            data = json.loads(text)
+
+            return TrajectoryQualityResult(
+                efficiency_score=float(data.get("efficiency_score", 3.0)),
+                coherence_score=float(data.get("coherence_score", 3.0)),
+                tool_appropriateness_score=float(data.get("tool_appropriateness_score", 3.0)),
+                overall_score=float(data.get("overall_score", 3.0)),
+                explanation=data.get("explanation", ""),
+                efficiency_issues=data.get("efficiency_issues", []),
+                coherence_issues=data.get("coherence_issues", []),
+                tool_issues=data.get("tool_issues", []),
+                strengths=data.get("strengths", []),
+                replanning_assessment=data.get("replanning_assessment", ""),
+            )
+
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+            logger.warning(f"Failed to parse trajectory evaluation response: {e}")
+            return TrajectoryQualityResult(
+                efficiency_score=3.0,
+                coherence_score=3.0,
+                tool_appropriateness_score=3.0,
+                overall_score=3.0,
+                explanation=f"Parse error: {e}",
+            )
 
     async def evaluate_async(
         self,
         question: str,
-        plan: "ResearchPlan",
-    ) -> JudgeResult:
-        """Async version of evaluate."""
-        steps_text = (
-            "\n".join(f"  {s.step_id}. {s.description} (depends_on: {s.depends_on})" for s in plan.steps)
-            if plan.steps
-            else "No steps defined"
-        )
+        plan: "ResearchPlan | None",
+        tool_calls: list[dict[str, Any]],
+        search_queries: list[str],
+    ) -> TrajectoryQualityResult:
+        """Evaluate the quality of the agent's trajectory.
 
-        prompt = f"""Evaluate the quality of this research plan.
+        Parameters
+        ----------
+        question : str
+            The original research question.
+        plan : ResearchPlan | None
+            The research plan (if planning was used).
+        tool_calls : list[dict]
+            Sequence of tool calls made during execution.
+        search_queries : list[str]
+            All search queries executed.
+
+        Returns
+        -------
+        TrajectoryQualityResult
+            Comprehensive trajectory evaluation.
+        """
+        trajectory_text = self._format_trajectory(plan, tool_calls, search_queries)
+
+        prompt = f"""Evaluate the quality of this agent's research trajectory.
 
 ## Question
 {question}
 
-## Plan
-Reasoning: {plan.reasoning}
+## Trajectory
+{trajectory_text}
 
-Steps:
-{steps_text}
-
-"""
+Provide your evaluation following the framework in the system prompt."""
 
         response = await self._call_llm_async(prompt)
-        return _parse_judge_response(response, self.dimension)
+        return self._parse_trajectory_response(response)
