@@ -45,6 +45,7 @@ dev = [
     "jupyter>=1.1.1",
     "jupyterlab>=4.4.8",
     "nbqa>=1.9.1",
+    "pip>=26.0", # Pinning version to address vulnerability GHSA-6vgw-5pg2-w6jp
     "pip-audit>=2.9.0",
     "pre-commit>=4.2.0",
     "pytest>=8.3.4",
