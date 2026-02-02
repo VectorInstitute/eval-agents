@@ -51,10 +51,18 @@ jobs:
         with:
           python-version-file: ".python-version"
 
-      - name: Install dependencies and check code
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run tests with coverage
         run: |
           cd aieng-eval-agents
-          uv venv .venv
-          source .venv/bin/activate
-          uv sync --all-extras --dev
-          uv run pytest -m "not integration_test" tests
+          uv run pytest -m "not integration_test" --cov aieng/agent_evals --cov-report=xml tests
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: VectorInstitute/eval-agents
+          fail_ci_if_error: false
+          verbose: true
