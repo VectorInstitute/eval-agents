@@ -5,8 +5,8 @@ This module provides Click commands to:
 - create and populate the SQLite database, and
 - generate case files for downstream evaluation.
 
-Typical usage
--------------
+Examples
+--------
 Create the database:
     python implementations/aml_investigation/data/cli.py create-db \
         --illicit-ratio HI --transactions-size Small
