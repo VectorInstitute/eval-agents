@@ -245,7 +245,11 @@ def build_cases(
 
     laundering_attempt_txn_ids: set[str] = set()
     for case in laundering_cases:
-        laundering_attempt_txn_ids.update(_deserialize_attempt_ids(case.groundtruth.attempt_transaction_ids))
+        attempt_ids_list = []
+        attempt_ids_str = case.groundtruth.attempt_transaction_ids
+        if attempt_ids_str:
+            attempt_ids_list = [item.strip() for item in attempt_ids_str.split(",") if item.strip()]
+        laundering_attempt_txn_ids.update(attempt_ids_list)
 
     false_negative_cases = _build_false_negative_cases(
         remaining_attempts, num_false_negative_cases, laundering_attempt_txn_ids
@@ -348,7 +352,7 @@ def _finalize_attempt_block(
         lookback_days=lookback_days,
         min_timestamp=min_timestamp,
     )
-    attempt_ids = _serialize_attempt_ids([txn["transaction_id"] for txn in txns_sorted])
+    attempt_ids = ",".join([txn["transaction_id"] for txn in txns_sorted])
 
     case_file = CaseFile(
         case_id=_create_id(json.dumps(txns_sorted)),
@@ -506,15 +510,3 @@ def _date_window_start(date_value: Any) -> str:
         return f"{date_value.isoformat()}T00:00:00"
     parsed = _parse_timestamp(str(date_value))
     return parsed.strftime("%Y-%m-%dT00:00:00")
-
-
-def _serialize_attempt_ids(ids: list[str]) -> str:
-    """Serialize attempt transaction IDs as a comma-separated string."""
-    return ",".join(ids)
-
-
-def _deserialize_attempt_ids(value: str) -> list[str]:
-    """Parse a comma-separated attempt transaction ID string."""
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
