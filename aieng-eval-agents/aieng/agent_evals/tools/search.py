@@ -1,4 +1,4 @@
-"""Google Search grounding tool for knowledge-grounded QA using ADK.
+"""Google Search tool for knowledge-grounded QA using ADK.
 
 This module provides the GoogleSearchTool configuration for use with
 Google ADK agents, enabling explicit and traceable web search capabilities.
@@ -70,9 +70,7 @@ def create_google_search_tool() -> GoogleSearchTool:
 
     Examples
     --------
-    >>> from aieng.agent_evals.knowledge_agent.grounding_tool import (
-    ...     create_google_search_tool,
-    ... )
+    >>> from aieng.agent_evals.tools import create_google_search_tool
     >>> search_tool = create_google_search_tool()
     >>> # Use with an ADK agent
     >>> agent = Agent(tools=[search_tool])

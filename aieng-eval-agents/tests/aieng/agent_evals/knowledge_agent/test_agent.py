@@ -8,7 +8,7 @@ from aieng.agent_evals.knowledge_agent.agent import (
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
 )
-from aieng.agent_evals.knowledge_agent.grounding_tool import GroundedResponse
+from aieng.agent_evals.tools import GroundedResponse
 
 
 class TestKnowledgeGroundedAgent:

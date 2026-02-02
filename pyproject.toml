@@ -27,7 +27,7 @@ dependencies = [
     "filelock>=3.20.3",
     "pyasn1>=0.6.2",
     "virtualenv>=20.36.1",
-    "google-adk>=1.23.0",
+    "tenacity>=9.1.2",
 ]
 
 [dependency-groups]

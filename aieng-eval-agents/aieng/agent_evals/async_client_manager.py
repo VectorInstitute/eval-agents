@@ -1,8 +1,7 @@
 """Async client lifecycle manager for Gradio applications.
 
 Provides idempotent initialization and proper cleanup of async clients
-like Weaviate and OpenAI to prevent event loop conflicts during Gradio's
-hot-reload process.
+like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
 import sqlite3
@@ -111,7 +110,7 @@ class AsyncClientManager:
             The configuration instance.
         """
         if self._configs is None:
-            self._configs = Configs()  # pyright: ignore[reportCallIssue]
+            self._configs = Configs()  # type: ignore[call-arg]
         return self._configs
 
     @property
@@ -124,7 +123,9 @@ class AsyncClientManager:
             The OpenAI async client instance.
         """
         if self._openai_client is None:
-            self._openai_client = AsyncOpenAI()
+            api_key = self.configs.openai_api_key.get_secret_value()
+
+            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
             self._initialized = True
         return self._openai_client
 
