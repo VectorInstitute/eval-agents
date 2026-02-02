@@ -53,71 +53,6 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Custom Planner with Improved Search Strategy
-# =============================================================================
-
-
-class ResearchPlanner(PlanReActPlanner):
-    """Custom PlanReActPlanner with research-optimized planning instructions.
-
-    This planner extends PlanReActPlanner with guidance that encourages:
-    - Searching for answers directly rather than decomposing into many steps
-    - Keeping key question terms together in searches
-    - Avoiding premature commitment to intermediate conclusions
-    - Recognizing direct answers when found
-    """
-
-    def _build_nl_planner_instruction(self) -> str:
-        """Build optimized planning instruction for research tasks."""
-        return """
-When answering the question, use the available tools to find information rather than relying on memorized knowledge.
-
-Follow this process: (1) Create a plan to answer the question. (2) Execute the plan using tools, with reasoning between steps. (3) Provide the final answer.
-
-Use these tags in your response:
-- /*PLANNING*/ for your initial plan
-- /*ACTION*/ for tool calls
-- /*REASONING*/ for your analysis between actions
-- /*REPLANNING*/ when revising your approach
-- /*FINAL_ANSWER*/ for your final response
-
-## Planning Guidelines
-
-Write your plan as a numbered list of steps, like:
-1. Search for [specific terms]
-2. Verify findings from [source type]
-3. Synthesize the answer
-
-**Focus on the actual question.** Identify what is specifically being asked. If the question asks for "categories" or "names" or "values", your plan should aim to find those directly.
-
-**Search for answers, not just context.** Rather than planning to "first identify X, then find Y within X", consider searching for Y directly with context from the question. Combining key terms in one search often finds the answer faster than sequential searches.
-
-**Keep plans flexible.** Your initial plan is a starting point. If early searches reveal the answer directly, you can conclude early. If they reveal your approach won't work, revise the plan.
-
-## Reasoning Guidelines
-
-**Evaluate what you've found.** After each tool use, assess: Does this answer what was asked? Does this change my understanding of the question?
-
-**Recognize direct answers.** If search results or fetched content directly answer the question, acknowledge this and move toward your final answer. Don't ignore valid answers because other details are uncertain.
-
-**Avoid premature commitment.** Don't lock onto an assumption early. If you assume the answer involves "X" and search within "X", you may miss the correct answer. Stay open to what the evidence shows.
-
-## Replanning Guidelines
-
-If your approach isn't working:
-- Try searching for the answer more directly
-- Reformulate with different terms
-- Consider whether your initial assumptions were wrong
-
-Use /*REPLANNING*/ to revise your strategy when needed.
-
-## Final Answer Guidelines
-
-Provide /*FINAL_ANSWER*/ when you have found information that answers what was asked. The answer should be precise and directly address the question. If the question cannot be answered with available information, explain why.
-"""
-
-
-# =============================================================================
 # Data Models for Research Plans
 # =============================================================================
 
@@ -537,6 +472,13 @@ def _extract_final_response(event: Any) -> str | None:
 
     Filters out thought parts (internal reasoning) and returns only the
     actual response text intended for the user.
+
+    Returns
+    -------
+    str | None
+        The response text if found, None if no non-thought content exists.
+        Returns None (not empty string) when the event has only thought parts,
+        to avoid overwriting previously captured valid responses.
     """
     if not hasattr(event, "is_final_response") or not event.is_final_response():
         return None
@@ -554,7 +496,9 @@ def _extract_final_response(event: Any) -> str | None:
         if hasattr(part, "text") and part.text:
             response_parts.append(part.text)
 
-    return "\n".join(response_parts) if response_parts else ""
+    # Return None instead of empty string to avoid overwriting valid responses
+    # captured from earlier events (e.g., FINAL_ANSWER tags)
+    return "\n".join(response_parts) if response_parts else None
 
 
 def _extract_thoughts_from_event(event: Any) -> str:
@@ -769,20 +713,31 @@ def _extract_final_answer_text(text: str) -> str | None:
     Returns
     -------
     str | None
-        The final answer text if found, None otherwise.
+        The final answer text if found, None if tag missing or content empty.
     """
-    if FINAL_ANSWER_TAG not in text:
+    if not text or FINAL_ANSWER_TAG not in text:
         return None
 
     start = text.find(FINAL_ANSWER_TAG) + len(FINAL_ANSWER_TAG)
-    return text[start:].strip() or None
+    answer_text = text[start:].strip()
+
+    # Return None for empty/whitespace-only content
+    if not answer_text:
+        return None
+
+    # Handle case where FINAL_ANSWER is followed by another tag with no content between
+    for end_tag in [PLANNING_TAG, REPLANNING_TAG, REASONING_TAG, ACTION_TAG]:
+        if answer_text.startswith(end_tag):
+            return None
+
+    return answer_text
 
 
-class EnhancedGroundedResponse(BaseModel):
-    """Response with full execution trace for evaluation.
+class AgentResponse(BaseModel):
+    """Response from the knowledge agent with execution trace.
 
-    This enhanced response model captures planning and execution details
-    for comprehensive evaluation of the agent's reasoning process.
+    Contains the answer text along with metadata about how the agent
+    arrived at the answer: the research plan, tool calls, sources, and reasoning.
 
     Attributes
     ----------
@@ -946,10 +901,10 @@ class KnowledgeGroundedAgent:
         self._grep_file_tool = create_grep_file_tool()
         self._read_file_tool = create_read_file_tool()
 
-        # Create planner if enabled - uses ResearchPlanner for optimized search
+        # Create planner if enabled
         planner = None
         if enable_planning:
-            planner = ResearchPlanner()
+            planner = PlanReActPlanner()
 
         # Create ADK agent with built-in planner
         # Configure thinking for models that support it (gemini-2.5-*, gemini-3-*)
@@ -1304,12 +1259,15 @@ class KnowledgeGroundedAgent:
             if q not in results["search_queries"]:
                 results["search_queries"].append(q)
 
-        # Extract final response
+        # Extract final response - prefer tagged answer, fall back to final response
+        # Only overwrite with non-empty content to avoid losing valid responses
         final_answer = _extract_final_answer_text(event_text) if event_text else None
         if final_answer:
             results["final_response"] = final_answer
-        elif (text := _extract_final_response(event)) is not None:
-            results["final_response"] = text
+        else:
+            text = _extract_final_response(event)
+            if text:  # Only set if non-empty (don't overwrite valid response with empty)
+                results["final_response"] = text
 
     async def _run_agent_once_inner(
         self,
@@ -1342,13 +1300,16 @@ class KnowledgeGroundedAgent:
             "final_response": "",
         }
 
+        event_count = 0
         async for event in self._runner.run_async(
             user_id="user",
             session_id=adk_session_id,
             new_message=content,
         ):
+            event_count += 1
             self._process_event(event, question, results)
 
+        logger.debug(f"Processed {event_count} events. Final response length: {len(results.get('final_response', ''))}")
         return results
 
     async def _run_agent_once(
@@ -1401,7 +1362,7 @@ class KnowledgeGroundedAgent:
         self,
         question: str,
         session_id: str | None = None,
-    ) -> EnhancedGroundedResponse:
+    ) -> AgentResponse:
         """Answer a question using built-in planning and tools.
 
         The agent uses PlanReAct planning to create and execute research steps.
@@ -1416,7 +1377,7 @@ class KnowledgeGroundedAgent:
 
         Returns
         -------
-        EnhancedGroundedResponse
+        AgentResponse
             The response with plan, execution trace, and sources.
         """
         start_time = time.time()
@@ -1455,10 +1416,22 @@ class KnowledgeGroundedAgent:
                 if self.enable_planning:
                     await self.create_plan_async(question)
             else:
+                # All retries exhausted - log detailed diagnostics
+                tool_call_count = len(results.get("tool_calls", []))
+                reasoning_count = len(results.get("reasoning_chain", []))
+                source_count = len(results.get("sources", []))
                 logger.error(
                     f"Empty model response after {MAX_EMPTY_RESPONSE_RETRIES + 1} attempts. "
-                    "The model may have generated thinking tokens but produced no output."
+                    f"Tool calls: {tool_call_count}, Reasoning steps: {reasoning_count}, "
+                    f"Sources: {source_count}. The model may have only produced thinking tokens."
                 )
+                # Try to salvage any useful content from reasoning chain
+                if results.get("reasoning_chain") and not results.get("final_response"):
+                    # Use last reasoning as fallback response
+                    last_reasoning = results["reasoning_chain"][-1]
+                    if last_reasoning and len(last_reasoning) > 20:
+                        logger.warning("Using last reasoning step as fallback response")
+                        results["final_response"] = f"[Partial response from reasoning]: {last_reasoning}"
 
         total_duration_ms = int((time.time() - start_time) * 1000)
 
@@ -1474,7 +1447,7 @@ class KnowledgeGroundedAgent:
         execution_trace = self._create_execution_trace(results.get("tool_calls", []), total_duration_ms)
         self._current_plan = None
 
-        return EnhancedGroundedResponse(
+        return AgentResponse(
             text=results.get("final_response", ""),
             plan=plan,
             execution_trace=execution_trace,
@@ -1489,7 +1462,7 @@ class KnowledgeGroundedAgent:
         self,
         question: str,
         session_id: str | None = None,
-    ) -> EnhancedGroundedResponse:
+    ) -> AgentResponse:
         """Answer a question using built-in planning and tools (sync).
 
         Parameters
@@ -1501,18 +1474,18 @@ class KnowledgeGroundedAgent:
 
         Returns
         -------
-        EnhancedGroundedResponse
+        AgentResponse
             The response with plan, execution trace, and sources.
         """
         logger.info(f"Answering question (sync): {question[:100]}...")
         return asyncio.run(self.answer_async(question, session_id))
 
-    def format_answer(self, response: EnhancedGroundedResponse) -> str:
+    def format_answer(self, response: AgentResponse) -> str:
         """Format an enhanced response for display.
 
         Parameters
         ----------
-        response : EnhancedGroundedResponse
+        response : AgentResponse
             The response to format.
 
         Returns

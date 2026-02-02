@@ -74,7 +74,11 @@ async def agent_task(*, item: Any, **_kwargs: Any) -> str:
     logger.info(f"Running agent on: {question[:80]}...")
 
     try:
-        response = await _context.agent.answer_async(question)
+        # Create a fresh agent for each task to avoid shared state issues
+        # The agent has mutable state (_current_plan, _sessions) that causes
+        # race conditions when shared across concurrent tasks
+        agent = KnowledgeGroundedAgent(enable_planning=True)
+        response = await agent.answer_async(question)
         logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
         return response.text
     except Exception as e:

@@ -32,7 +32,7 @@ from aieng.agent_evals.tools import (
 )
 
 from .agent import (
-    EnhancedGroundedResponse,
+    AgentResponse,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
     ResearchPlan,
@@ -69,7 +69,7 @@ from .tracing import flush_traces, init_tracing, is_tracing_enabled
 __all__ = [
     # Agent
     "KnowledgeGroundedAgent",
-    "EnhancedGroundedResponse",
+    "AgentResponse",
     "KnowledgeAgentManager",
     # Config
     "Configs",

@@ -819,7 +819,7 @@ def _display_example_result(example, response, idx: int, total: int) -> dict[str
     ----------
     example : DSQAExample
         The example that was evaluated.
-    response : EnhancedGroundedResponse
+    response : AgentResponse
         The agent's response.
     idx : int
         Current index (1-based).

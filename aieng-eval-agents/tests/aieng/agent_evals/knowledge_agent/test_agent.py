@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_agent.agent import (
-    EnhancedGroundedResponse,
+    AgentResponse,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
     ResearchPlan,
@@ -354,7 +354,7 @@ class TestKnowledgeGroundedAgent:
         config.default_temperature = 0.0
         return config
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
@@ -373,7 +373,7 @@ class TestKnowledgeGroundedAgent:
         mock_agent_class,
         _mock_session_service,
         _mock_runner_class,
-        mock_research_planner,
+        mock_planner,
         mock_config,
     ):
         """Test initializing the agent with all tools."""
@@ -399,10 +399,10 @@ class TestKnowledgeGroundedAgent:
         assert mock_web_fetch_tool in call_kwargs["tools"]
 
         # Verify BuiltInPlanner was created (planning enabled by default)
-        mock_research_planner.assert_called_once()
+        mock_planner.assert_called_once()
         assert agent.enable_planning is True
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
@@ -421,7 +421,7 @@ class TestKnowledgeGroundedAgent:
         mock_agent_class,
         _mock_session_service,
         _mock_runner_class,
-        mock_research_planner,
+        mock_planner,
         mock_config,
     ):
         """Test initializing the agent without planning."""
@@ -430,14 +430,14 @@ class TestKnowledgeGroundedAgent:
         )
 
         # BuiltInPlanner should not be created when planning disabled
-        mock_research_planner.assert_not_called()
+        mock_planner.assert_not_called()
         assert agent.enable_planning is False
 
         # ADK Agent should be created with planner=None
         call_kwargs = mock_agent_class.call_args[1]
         assert call_kwargs["planner"] is None
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
@@ -456,7 +456,7 @@ class TestKnowledgeGroundedAgent:
         mock_agent_class,
         _mock_session_service,
         _mock_runner_class,
-        _mock_research_planner,
+        _mock_planner,
         mock_config,
     ):
         """Test initializing with a custom model."""
@@ -472,7 +472,7 @@ class TestKnowledgeGroundedAgent:
 class TestKnowledgeAgentManager:
     """Tests for the KnowledgeAgentManager class."""
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
@@ -500,7 +500,7 @@ class TestKnowledgeAgentManager:
             # Now should be initialized
             assert manager.is_initialized()
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.ResearchPlanner")
+    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
     @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
@@ -525,8 +525,8 @@ class TestKnowledgeAgentManager:
             assert not manager.is_initialized()
 
 
-class TestEnhancedGroundedResponse:
-    """Tests for the EnhancedGroundedResponse model."""
+class TestAgentResponse:
+    """Tests for the AgentResponse model."""
 
     def test_response_creation(self):
         """Test creating an enhanced response."""
@@ -536,7 +536,7 @@ class TestEnhancedGroundedResponse:
             reasoning="Test reasoning",
         )
 
-        response = EnhancedGroundedResponse(
+        response = AgentResponse(
             text="Test answer.",
             plan=plan,
             sources=[GroundingChunk(title="Source", uri="https://example.com")],
@@ -576,4 +576,4 @@ class TestKnowledgeGroundedAgentIntegration:
 
         assert response.text
         assert "Paris" in response.text
-        assert isinstance(response, EnhancedGroundedResponse)
+        assert isinstance(response, AgentResponse)

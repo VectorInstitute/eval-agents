@@ -19,7 +19,7 @@ from IPython.display import HTML, clear_output, display
 
 
 if TYPE_CHECKING:
-    from .agent import EnhancedGroundedResponse, KnowledgeGroundedAgent, ResearchPlan
+    from .agent import AgentResponse, KnowledgeGroundedAgent, ResearchPlan
 
 
 logger = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ async def run_with_display(
     agent: "KnowledgeGroundedAgent",
     question: str,
     refresh_rate: float = 0.5,
-) -> "EnhancedGroundedResponse":
+) -> "AgentResponse":
     """Run the agent with live progress display in a Jupyter notebook.
 
     Shows the research plan checklist and tool calls while the agent works,
@@ -175,7 +175,7 @@ async def run_with_display(
 
     Returns
     -------
-    EnhancedGroundedResponse
+    AgentResponse
         The agent's response.
 
     Example
