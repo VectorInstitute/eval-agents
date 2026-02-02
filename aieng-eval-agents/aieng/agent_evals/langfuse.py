@@ -1,11 +1,13 @@
 """Functions and objects pertaining to Langfuse."""
 
 import base64
+import json
 import logging
 import os
 
 import logfire
 import nest_asyncio
+from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.configs import Configs
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -75,3 +77,45 @@ def setup_langfuse_tracer(service_name: str = "aieng-eval-agents") -> "trace.Tra
     # Set the global default tracer provider
     trace.set_tracer_provider(trace_provider)
     return trace.get_tracer(__name__)
+
+
+async def upload_dataset_to_langfuse(dataset_path: str, dataset_name: str):
+    """Upload a dataset to Langfuse.
+
+    Parameters
+    ----------
+    dataset_path : str
+        Path to the dataset to upload.
+    dataset_name : str
+        Name of the dataset to upload.
+    """
+    # Get the client manager singleton instance and langfuse client
+    client_manager = AsyncClientManager.get_instance()
+    langfuse_client = client_manager.langfuse_client
+
+    # Load the ground truth dataset from the file path
+    logger.info(f"Loading dataset from '{dataset_path}'")
+    with open(dataset_path, "r") as file:
+        dataset = json.load(file)
+
+    # Create the dataset in Langfuse
+    langfuse_client.create_dataset(name=dataset_name)
+
+    # Upload each item to the dataset
+    for item in dataset:
+        assert "input" in item, "`input` is required for all items in the dataset"
+        assert "expected_output" in item, "`expected_output` is required for all items in the dataset"
+
+        langfuse_client.create_dataset_item(
+            dataset_name=dataset_name,
+            input=item["input"],
+            expected_output=item["expected_output"],
+            metadata={
+                "id": item.get("id", None),
+            },
+        )
+
+    logger.info(f"Uploaded {len(dataset)} items to dataset '{dataset_name}'")
+
+    # Gracefully close the services
+    await client_manager.close()

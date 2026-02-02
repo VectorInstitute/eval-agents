@@ -1,7 +1,7 @@
 # Report Generation Agent
 
 This code implements an example of a Report Generation Agent for single-table relational
-data source, including a demo agent UI and evaluations with [Langfuse](https://langfuse.com/).
+data source, including a demo agent demo UI and evaluations with [Langfuse](https://langfuse.com/).
 
 The data source implemented here is [SQLite](https://sqlite.org/) which is supported
 natively by Python and saves the data in disk.
@@ -44,7 +44,7 @@ an environment variable named `REPORT_GENERATION_DB_PATH`.
 To run the agent, please execute:
 
 ```bash
-uv run --env-file .env python -m implementations.report_generation.main
+uv run --env-file .env python -m implementations.report_generation.demo
 ```
 
 The agent will be available through a [Gradio](https://www.gradio.app/) web UI under the
