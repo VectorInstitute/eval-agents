@@ -420,13 +420,11 @@ async def run_evaluation(
     if resume and _context.completed_item_ids:
         logger.info("Resume processing complete!")
 
-    # Flush to ensure all data is sent to Langfuse
-    logger.info("Flushing Langfuse data...")
-    langfuse.flush()
-
-    # Cleanup
+    # Cleanup - client_manager.close() will flush Langfuse
+    logger.info("Closing client manager and flushing data...")
     try:
         await client_manager.close()
+        logger.info("Cleanup complete")
     except Exception as e:
         logger.warning(f"Cleanup warning: {e}")
 
