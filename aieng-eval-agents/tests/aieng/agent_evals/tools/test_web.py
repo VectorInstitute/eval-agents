@@ -8,14 +8,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from aieng.agent_evals.tools.web import (
+from aieng.agent_evals.tools._redirect import (
     REDIRECT_URL_PATTERNS,
-    _html_to_markdown,
     _redirect_cache,
-    create_web_fetch_tool,
     resolve_redirect_url,
     resolve_redirect_url_async,
     resolve_redirect_urls_async,
+)
+from aieng.agent_evals.tools.web import (
+    _html_to_markdown,
+    create_web_fetch_tool,
     web_fetch,
 )
 from pypdf import PdfWriter

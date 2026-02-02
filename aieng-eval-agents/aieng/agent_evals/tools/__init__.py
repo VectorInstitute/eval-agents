@@ -10,6 +10,11 @@ Tool Selection Guide:
 - fetch_file(url) + grep_file + read_file: Data files (CSV, XLSX) - download and search
 """
 
+from ._redirect import (
+    resolve_redirect_url,
+    resolve_redirect_url_async,
+    resolve_redirect_urls_async,
+)
 from .file import (
     create_fetch_file_tool,
     create_grep_file_tool,
@@ -27,9 +32,6 @@ from .search import (
 )
 from .web import (
     create_web_fetch_tool,
-    resolve_redirect_url,
-    resolve_redirect_url_async,
-    resolve_redirect_urls_async,
     web_fetch,
 )
 
