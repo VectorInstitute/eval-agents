@@ -18,10 +18,6 @@ from typing import Any
 import pandas as pd
 
 
-# Will use this as default if no path is provided in the REPORTS_OUTPUT_PATH env var
-DEFAULT_REPORTS_OUTPUT_PATH = Path("implementations/report_generation/reports/")
-
-
 class ReportFileWriter:
     """Write reports to an XLSX file."""
 
