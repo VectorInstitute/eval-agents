@@ -6,17 +6,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from aieng.agent_evals.knowledge_agent.judges import (
     BaseJudge,
-    CausalChainJudge,
-    ComprehensivenessJudge,
     DeepSearchQAJudge,
     DeepSearchQAResult,
-    ExhaustivenessJudge,
     JudgeResult,
-    PlanQualityJudge,
-    SourceQualityJudge,
-    _parse_judge_response,
 )
-from aieng.agent_evals.knowledge_agent.models import ResearchPlan, ResearchStep
 
 
 class TestJudgeResult:
@@ -74,50 +67,6 @@ class TestDeepSearchQAResult:
         assert result.extraneous_items == []
 
 
-class TestParseJudgeResponse:
-    """Tests for the _parse_judge_response function."""
-
-    def test_parses_valid_json(self):
-        """Test parsing valid JSON response."""
-        response = json.dumps(
-            {
-                "score": 4,
-                "explanation": "Good answer",
-                "evidence": ["point 1", "point 2"],
-            }
-        )
-        result = _parse_judge_response(response, "test_dimension")
-
-        assert result.dimension == "test_dimension"
-        assert result.score == 4.0
-        assert result.explanation == "Good answer"
-        assert len(result.evidence) == 2
-
-    def test_parses_json_in_markdown_block(self):
-        """Test parsing JSON wrapped in markdown."""
-        response = """Here's my evaluation:
-
-```json
-{
-    "score": 5,
-    "explanation": "Excellent",
-    "evidence": []
-}
-```
-"""
-        result = _parse_judge_response(response, "test")
-        assert result.score == 5.0
-
-    def test_returns_default_on_invalid_json(self):
-        """Test that invalid JSON returns default result."""
-        response = "This is not JSON at all"
-        result = _parse_judge_response(response, "test")
-
-        assert result.dimension == "test"
-        assert result.score == 3.0  # Default middle score
-        assert "Parse error" in result.explanation
-
-
 def _create_mock_config():
     """Create a mock Configs for testing."""
     mock_config = MagicMock()
@@ -152,219 +101,6 @@ class TestBaseJudge:
 
         judge = BaseJudge(config=mock_config)
         assert judge._model == "gemini-2.5-pro"
-
-
-class TestComprehensivenessJudge:
-    """Tests for the ComprehensivenessJudge."""
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate(self, mock_client_class, mock_config_class):
-        """Test comprehensiveness evaluation."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "score": 4,
-                "explanation": "Covers most aspects",
-                "evidence": ["Good coverage of X"],
-            }
-        )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = ComprehensivenessJudge()
-        result = judge.evaluate(
-            question="What are the causes of inflation?",
-            answer="Inflation is caused by monetary policy, supply shocks, and demand.",
-            ground_truth="Monetary expansion, supply shocks, demand-pull factors.",
-        )
-
-        assert result.dimension == "comprehensiveness"
-        assert result.score == 4.0
-        mock_client.models.generate_content.assert_called_once()
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate_without_ground_truth(self, mock_client_class, mock_config_class):
-        """Test evaluation without ground truth."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps({"score": 3, "explanation": "Adequate", "evidence": []})
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = ComprehensivenessJudge()
-        result = judge.evaluate(
-            question="What is GDP?",
-            answer="GDP measures economic output.",
-        )
-
-        assert result.dimension == "comprehensiveness"
-
-
-class TestCausalChainJudge:
-    """Tests for the CausalChainJudge."""
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate(self, mock_client_class, mock_config_class):
-        """Test causal chain evaluation."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "score": 5,
-                "explanation": "Clear logical flow",
-                "evidence": ["Step 1 leads to 2"],
-            }
-        )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = CausalChainJudge()
-        result = judge.evaluate(
-            question="Why does inflation rise?",
-            reasoning_chain=[
-                "Money supply increases",
-                "More money chases same goods",
-                "Prices rise",
-            ],
-        )
-
-        assert result.dimension == "causal_chain"
-        assert result.score == 5.0
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate_empty_chain(self, mock_client_class, mock_config_class):
-        """Test evaluation with empty reasoning chain."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps({"score": 2, "explanation": "No reasoning", "evidence": []})
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = CausalChainJudge()
-        result = judge.evaluate(question="Why?", reasoning_chain=[])
-
-        assert result.dimension == "causal_chain"
-
-
-class TestExhaustivenessJudge:
-    """Tests for the ExhaustivenessJudge."""
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate(self, mock_client_class, mock_config_class):
-        """Test exhaustiveness evaluation."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "score": 4,
-                "explanation": "Good precision and recall",
-                "evidence": ["Found 4/5 items"],
-            }
-        )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = ExhaustivenessJudge()
-        result = judge.evaluate(
-            question="List the G7 countries",
-            answer="USA, UK, France, Germany, Japan",
-            ground_truth="USA, UK, France, Germany, Italy, Canada, Japan",
-            answer_type="List",
-        )
-
-        assert result.dimension == "exhaustiveness"
-
-
-class TestSourceQualityJudge:
-    """Tests for the SourceQualityJudge."""
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate(self, mock_client_class, mock_config_class):
-        """Test source quality evaluation."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "score": 4,
-                "explanation": "Good mix of sources",
-                "evidence": ["Used authoritative sources"],
-            }
-        )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = SourceQualityJudge()
-        result = judge.evaluate(
-            question="What are Basel III requirements?",
-            web_sources=[{"title": "BIS Website", "uri": "https://bis.org"}],
-            internal_sources=[{"title": "Basel III Doc", "category": "regulation"}],
-        )
-
-        assert result.dimension == "source_quality"
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate_empty_sources(self, mock_client_class, mock_config_class):
-        """Test evaluation with no sources."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps({"score": 1, "explanation": "No sources", "evidence": []})
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = SourceQualityJudge()
-        result = judge.evaluate(question="Test?", web_sources=[], internal_sources=[])
-
-        assert result.dimension == "source_quality"
-
-
-class TestPlanQualityJudge:
-    """Tests for the PlanQualityJudge."""
-
-    @patch("aieng.agent_evals.knowledge_agent.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_agent.judges.genai.Client")
-    def test_evaluate(self, mock_client_class, mock_config_class):
-        """Test plan quality evaluation."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "score": 4,
-                "explanation": "Well-structured plan",
-                "evidence": ["Appropriate complexity"],
-            }
-        )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        plan = ResearchPlan(
-            original_question="What caused the 2008 crisis?",
-            steps=[
-                ResearchStep(step_id=1, description="Research subprime", step_type="research"),
-                ResearchStep(step_id=2, description="Look up regulations", step_type="research"),
-            ],
-            reasoning="Complex question needs multiple sources",
-        )
-
-        judge = PlanQualityJudge()
-        result = judge.evaluate(question="What caused the 2008 crisis?", plan=plan)
-
-        assert result.dimension == "plan_quality"
 
 
 class TestDeepSearchQAJudge:
@@ -673,17 +409,6 @@ class TestJudgesIntegration:
 
     These tests require a valid GOOGLE_API_KEY environment variable.
     """
-
-    def test_comprehensiveness_judge_real(self):
-        """Test comprehensiveness judge with real LLM."""
-        judge = ComprehensivenessJudge()
-        result = judge.evaluate(
-            question="What is the capital of France?",
-            answer="Paris is the capital of France, located in the north-central part of the country.",
-        )
-
-        assert result.dimension == "comprehensiveness"
-        assert 1 <= result.score <= 5
 
     def test_deepsearchqa_judge_real(self):
         """Test DeepSearchQA judge with real LLM."""

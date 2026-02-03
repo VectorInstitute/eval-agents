@@ -691,38 +691,26 @@ class TrajectoryQualityResult(BaseModel):
 
     Attributes
     ----------
-    efficiency_score : float
-        Score for trajectory efficiency (1-5).
-    coherence_score : float
-        Score for logical coherence of steps (1-5).
-    tool_appropriateness_score : float
-        Score for appropriateness of tool usage (1-5).
-    overall_score : float
-        Overall trajectory quality score (1-5).
+    quality_category : str
+        Overall quality: "High", "Medium", or "Low".
     explanation : str
-        Detailed explanation of the evaluation.
-    efficiency_issues : list[str]
-        Specific efficiency problems found.
-    coherence_issues : list[str]
-        Specific coherence problems found.
-    tool_issues : list[str]
-        Specific tool usage problems found.
-    strengths : list[str]
-        Positive aspects of the trajectory.
-    replanning_assessment : str
-        Assessment of replanning decisions (if any).
+        Detailed explanation of the rating.
+    efficiency_notes : str
+        Notes on efficiency (redundancy, unnecessary steps).
+    logical_soundness_notes : str
+        Notes on logical flow and causal reasoning.
+    source_quality_notes : str
+        Notes on source verification and appropriateness.
+    replanning_notes : str
+        Notes on replanning frequency and quality of adaptations.
     """
 
-    efficiency_score: float
-    coherence_score: float
-    tool_appropriateness_score: float
-    overall_score: float
+    quality_category: str  # "High", "Medium", or "Low"
     explanation: str = ""
-    efficiency_issues: list[str] = Field(default_factory=list)
-    coherence_issues: list[str] = Field(default_factory=list)
-    tool_issues: list[str] = Field(default_factory=list)
-    strengths: list[str] = Field(default_factory=list)
-    replanning_assessment: str = ""
+    efficiency_notes: str = ""
+    logical_soundness_notes: str = ""
+    source_quality_notes: str = ""
+    replanning_notes: str = ""
 
 
 class TrajectoryQualityJudge(BaseJudge):
@@ -744,78 +732,59 @@ class TrajectoryQualityJudge(BaseJudge):
 
     dimension = "trajectory_quality"
     system_prompt = """\
-You are an expert evaluator assessing the quality of an AI agent's research trajectory using process supervision principles.
+You are an expert evaluator assessing the quality of an AI agent's research trajectory.
 
-## Evaluation Framework
+## Task
+Rate the agent's trajectory as **High**, **Medium**, or **Low** quality based on four key aspects:
 
-Evaluate the agent's execution path across three dimensions:
+### 1. EFFICIENCY
+- **High**: No redundant searches, direct progress, minimal unnecessary steps
+- **Medium**: Some redundancy or detours, but generally productive
+- **Low**: Significant redundancy, thrashing (repeating same approaches), wasted effort
 
-### 1. EFFICIENCY (1-5)
-- **5**: Optimal path with no redundancy, direct progress toward answer
-- **4**: Mostly efficient, 1-2 minor redundancies that don't significantly impact progress
-- **3**: Moderate efficiency, some redundant searches or unnecessary detours
-- **2**: Inefficient, multiple redundant operations or significant wasted effort
-- **1**: Highly inefficient, excessive redundancy or thrashing behavior
+Red flags: Duplicate searches, fetching but not using resources, going in circles
 
-Consider:
-- Are there duplicate or near-duplicate searches?
-- Are files fetched but never used?
-- Are there unnecessary tool calls?
-- Is there evidence of "thrashing" (repeatedly trying same approach)?
+### 2. LOGICAL SOUNDNESS (Causal Chain Quality)
+- **High**: Each step builds logically on previous findings, clear progression
+- **Medium**: Mostly logical but some disconnected or out-of-sequence steps
+- **Low**: Incoherent flow, unclear why steps were taken, poor sequencing
 
-### 2. LOGICAL COHERENCE (1-5)
-- **5**: Perfect logical flow, each step clearly builds on previous findings
-- **4**: Generally coherent with minor logical gaps
-- **3**: Mostly coherent but some steps seem disconnected or out of sequence
-- **2**: Weak coherence, unclear why certain steps were taken
-- **1**: Incoherent, steps don't follow from each other
+Expected patterns: search→fetch, fetch_file→grep_file
 
-Consider:
-- Does each step logically follow from previous findings?
-- Are steps well-sequenced (e.g., search before fetch, fetch before grep)?
-- Is there clear progression toward answering the question?
-- Do intermediate findings inform subsequent actions?
+### 3. SOURCE QUALITY
+- **High**: Appropriate, authoritative sources; proper tool usage
+- **Medium**: Adequate sources with minor issues in tool selection
+- **Low**: Poor source choices or inappropriate tool usage
 
-### 3. TOOL APPROPRIATENESS (1-5)
-- **5**: Perfect tool selection for each sub-task
-- **4**: Mostly appropriate with minor suboptimal choices
-- **3**: Adequate tool usage but some missed opportunities
-- **2**: Several poor tool choices (e.g., searching when should grep, fetching unnecessary files)
-- **1**: Consistently inappropriate tool usage
+Expected: web_fetch for articles/pages, fetch_file for data (CSV/XLSX/JSON)
 
-Expected patterns:
-- `google_search` → `web_fetch` (search to find URLs, then fetch content)
-- `fetch_file` → `grep_file` (download data files, then search within them)
-- `web_fetch` for articles/pages, `fetch_file` for structured data (CSV, XLSX, JSON)
+### 4. REPLANNING QUALITY
+- **High**: Appropriate replanning when needed, well-justified adaptations
+- **Medium**: Some replanning that may not always be necessary
+- **Low**: Excessive or unjustified replanning, or rigid adherence when adaptation needed
 
-### 4. REPLANNING ASSESSMENT (if applicable)
-If replanning occurred (presence of /*REPLANNING*/ tag):
-- Was replanning necessary? (e.g., initial plan insufficient, new information revealed gaps)
-- Did the new plan address deficiencies in the original?
-- Was replanning done at an appropriate time?
-- Did replanning improve trajectory quality?
+Look for: Plan reasoning starting with "Replanned:", assess if adaptations were beneficial
+
+## Overall Rating Guidelines
+- **High Quality**: Strong on all four aspects, minor imperfections acceptable
+- **Medium Quality**: Good on 2-3 aspects but notable issues in at least one area
+- **Low Quality**: Significant problems in 2+ aspects
 
 ## Output Format
-
-Return a JSON object with this exact structure:
+Return JSON:
 {
-    "efficiency_score": <1-5>,
-    "coherence_score": <1-5>,
-    "tool_appropriateness_score": <1-5>,
-    "overall_score": <1-5>,
-    "explanation": "<2-3 sentence summary of trajectory quality>",
-    "efficiency_issues": ["<specific issue 1>", "<specific issue 2>"],
-    "coherence_issues": ["<specific issue 1>"],
-    "tool_issues": ["<specific issue 1>"],
-    "strengths": ["<positive aspect 1>", "<positive aspect 2>"],
-    "replanning_assessment": "<assessment of replanning if occurred, empty string otherwise>"
+    "quality_category": "<High/Medium/Low>",
+    "explanation": "<1-2 sentence overall assessment>",
+    "efficiency_notes": "<brief efficiency assessment>",
+    "logical_soundness_notes": "<brief logical flow assessment>",
+    "source_quality_notes": "<brief source/tool assessment>",
+    "replanning_notes": "<brief replanning assessment>"
 }
 
-## Important Notes
+## Important
 - Be objective and evidence-based
-- The agent doesn't have ground truth, so don't penalize for incorrect paths unless they're illogical
-- Focus on process quality, not outcome quality
-- Consider question complexity when assessing efficiency
+- Focus on process quality, not outcome
+- Consider question complexity
 """
 
     def _format_trajectory(
@@ -848,7 +817,7 @@ Return a JSON object with this exact structure:
         # Show tool sequence with details
         for i, tc in enumerate(tool_calls, 1):
             tool_name = tc.get("name", "unknown")
-            args = tc.get("arguments", {})
+            args = tc.get("args", {})
 
             # Format based on tool type
             if tool_name == "google_search":
@@ -890,25 +859,18 @@ Return a JSON object with this exact structure:
             data = json.loads(text)
 
             return TrajectoryQualityResult(
-                efficiency_score=float(data.get("efficiency_score", 3.0)),
-                coherence_score=float(data.get("coherence_score", 3.0)),
-                tool_appropriateness_score=float(data.get("tool_appropriateness_score", 3.0)),
-                overall_score=float(data.get("overall_score", 3.0)),
+                quality_category=data.get("quality_category", "Medium"),
                 explanation=data.get("explanation", ""),
-                efficiency_issues=data.get("efficiency_issues", []),
-                coherence_issues=data.get("coherence_issues", []),
-                tool_issues=data.get("tool_issues", []),
-                strengths=data.get("strengths", []),
-                replanning_assessment=data.get("replanning_assessment", ""),
+                efficiency_notes=data.get("efficiency_notes", ""),
+                logical_soundness_notes=data.get("logical_soundness_notes", ""),
+                source_quality_notes=data.get("source_quality_notes", ""),
+                replanning_notes=data.get("replanning_notes", ""),
             )
 
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             logger.warning(f"Failed to parse trajectory evaluation response: {e}")
             return TrajectoryQualityResult(
-                efficiency_score=3.0,
-                coherence_score=3.0,
-                tool_appropriateness_score=3.0,
-                overall_score=3.0,
+                quality_category="Medium",
                 explanation=f"Parse error: {e}",
             )
 

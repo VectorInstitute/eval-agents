@@ -53,7 +53,6 @@ class EvaluationContext:
         self._judge: DeepSearchQAJudge | None = None
         self._trajectory_judge: TrajectoryQualityJudge | None = None
         self.completed_item_ids: set[str] = set()
-        self.agent_responses: dict[str, Any] = {}  # item_id -> AgentResponse
 
     @property
     def agent(self) -> KnowledgeGroundedAgent:
@@ -79,14 +78,13 @@ class EvaluationContext:
     def reset_completed_ids(self) -> None:
         """Reset the completed item IDs for a new evaluation run."""
         self.completed_item_ids.clear()
-        self.agent_responses.clear()
 
 
 # Shared context for the evaluation run
 _context = EvaluationContext()
 
 
-async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
+async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG001
     """Run the Knowledge Agent on a dataset item.
 
     Parameters
@@ -96,8 +94,9 @@ async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
 
     Returns
     -------
-    str
-        The agent's response text.
+    dict[str, Any]
+        Dictionary containing 'text' (the response) and 'agent_response'
+        (full response object).
     """
     question = item.input
     item_id = item.id
@@ -106,7 +105,7 @@ async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
     if item_id in _context.completed_item_ids:
         logger.info(f"Skipping completed item {item_id}")
         # Return a marker that tells evaluator to skip
-        return "__SKIP__"
+        return {"text": "__SKIP__", "agent_response": None}
 
     logger.info(f"Running agent on: {question[:80]}...")
 
@@ -118,19 +117,20 @@ async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
         response = await agent.answer_async(question)
         logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
 
-        # Store response for trajectory evaluation
-        _context.agent_responses[item_id] = response
-
-        return response.text
+        # Return both text and full response for trajectory evaluation
+        return {
+            "text": response.text,
+            "agent_response": response,
+        }
     except Exception as e:
         logger.error(f"Agent failed: {e}")
-        return f"Error: {e}"
+        return {"text": f"Error: {e}", "agent_response": None}
 
 
 async def deepsearchqa_evaluator(
     *,
     input: str,  # noqa: A002
-    output: str,
+    output: dict[str, Any],
     expected_output: str,
     **kwargs: Any,
 ) -> list[Evaluation]:
@@ -143,8 +143,8 @@ async def deepsearchqa_evaluator(
     ----------
     input : str
         The original question.
-    output : str
-        The agent's response.
+    output : dict[str, Any]
+        Dictionary containing 'text' and 'agent_response'.
     expected_output : str
         The ground truth answer.
 
@@ -153,8 +153,11 @@ async def deepsearchqa_evaluator(
     list[Evaluation]
         List of Langfuse Evaluations with F1, precision, and recall scores.
     """
+    # Extract text from output dict
+    output_text = output.get("text", "") if isinstance(output, dict) else str(output)
+
     # Skip evaluation for items marked as already completed
-    if output == "__SKIP__":
+    if output_text == "__SKIP__":
         logger.debug("Skipping evaluation for already-completed item")
         return []
 
@@ -167,7 +170,7 @@ async def deepsearchqa_evaluator(
     try:
         _, result = await _context.judge.evaluate_with_details_async(
             question=input,
-            answer=output,
+            answer=output_text,
             ground_truth=expected_output,
             answer_type=answer_type,
         )
@@ -227,131 +230,142 @@ async def deepsearchqa_evaluator(
         ]
 
 
-def _build_trajectory_comment(result: Any) -> str:
-    """Build detailed comment for trajectory evaluation."""
-    comment_parts = [
-        f"Efficiency: {result.efficiency_score:.1f}/5",
-        f"Coherence: {result.coherence_score:.1f}/5",
-        f"Tool Appropriateness: {result.tool_appropriateness_score:.1f}/5",
-        f"Overall: {result.overall_score:.1f}/5",
-    ]
+def _count_replanning_events(plan: Any) -> int:
+    """Count how many times the agent replanned during execution.
 
-    if result.explanation:
-        comment_parts.append(f"\n{result.explanation}")
+    Parameters
+    ----------
+    plan : ResearchPlan
+        The research plan which tracks replanning.
 
-    if result.strengths:
-        comment_parts.append("\n✓ Strengths:")
-        comment_parts.extend(f"  • {s}" for s in result.strengths)
+    Returns
+    -------
+    int
+        Number of replanning events (0 if no replanning occurred).
+    """
+    if not plan or not hasattr(plan, "reasoning"):
+        return 0
 
-    if result.efficiency_issues:
-        comment_parts.append("\n⚠ Efficiency issues:")
-        comment_parts.extend(f"  • {i}" for i in result.efficiency_issues)
+    # Check if plan reasoning indicates replanning
+    # Replanning is marked by "Replanned:" prefix in reasoning field
+    if plan.reasoning.startswith("Replanned:"):
+        # Count by checking if there are completed steps preserved
+        # (replanning preserves completed steps and adds new ones)
+        completed_steps = [s for s in plan.steps if s.status == "completed"]
+        # If there are completed steps in a replanned plan, replanning occurred
+        # at least once. This is a conservative estimate - actual count may be
+        # higher with multiple replans
+        return 1 if completed_steps else 0
 
-    if result.coherence_issues:
-        comment_parts.append("\n⚠ Coherence issues:")
-        comment_parts.extend(f"  • {i}" for i in result.coherence_issues)
-
-    if result.tool_issues:
-        comment_parts.append("\n⚠ Tool usage issues:")
-        comment_parts.extend(f"  • {i}" for i in result.tool_issues)
-
-    if result.replanning_assessment:
-        comment_parts.append(f"\n🔄 Replanning: {result.replanning_assessment}")
-
-    return "\n".join(comment_parts)
+    return 0
 
 
 async def trajectory_evaluator(
     *,
     input: str,  # noqa: A002
-    output: str,  # noqa: ARG001
-    **kwargs: Any,
+    output: dict[str, Any],
+    **kwargs: Any,  # noqa: ARG001
 ) -> list[Evaluation]:
-    """Evaluate the agent's trajectory quality using process supervision.
+    """Evaluate the agent's trajectory with LLM-as-judge and quantitative metrics.
 
-    This evaluator assesses the agent's reasoning path, tool usage, and
-    execution efficiency without relying on ground truth answers.
+    Computes both categorical quality assessment and quantitative metrics:
+    - Trajectory Quality: LLM judge rates trajectory as High/Medium/Low
+    - Replanning Frequency: How many times the agent adapted its plan
 
     Parameters
     ----------
     input : str
         The original question.
-    output : str
-        The agent's response (unused for trajectory evaluation).
+    output : dict[str, Any]
+        Dictionary containing 'text' and 'agent_response'.
     **kwargs : dict
-        Additional arguments, may contain agent_response or item for
-        accessing stored response.
+        Additional keyword arguments.
 
     Returns
     -------
     list[Evaluation]
-        List of Langfuse Evaluations with trajectory quality metrics.
+        List of Langfuse Evaluations with trajectory metrics.
     """
+    # Extract agent_response from output dict
+    output_text = output.get("text", "") if isinstance(output, dict) else str(output)
+
     # Skip evaluation for items marked as already completed
-    if output == "__SKIP__":
+    if output_text == "__SKIP__":
         logger.debug("Skipping trajectory evaluation for already-completed item")
         return []
 
-    # Try to get agent response from kwargs or context
-    agent_response = kwargs.get("agent_response")
-    if not agent_response:
-        item = kwargs.get("item")
-        if item and hasattr(item, "id"):
-            agent_response = _context.agent_responses.get(item.id)
+    # Get agent_response from output dict
+    agent_response = output.get("agent_response") if isinstance(output, dict) else None
 
     if not agent_response:
-        logger.warning("No agent_response available, skipping trajectory evaluation")
+        logger.error("No agent_response in output dict")
         return []
 
-    logger.info("Evaluating trajectory quality...")
+    logger.info("Computing trajectory metrics...")
 
     try:
-        result = await _context.trajectory_judge.evaluate_async(
+        # Count replanning events from the plan reasoning
+        replanning_count = _count_replanning_events(agent_response.plan)
+
+        # Build replanning comment
+        if replanning_count == 0:
+            replanning_comment = "No replanning occurred - agent executed original plan."
+        elif replanning_count == 1:
+            replanning_comment = "Agent replanned once during execution to adapt to findings."
+        else:
+            replanning_comment = f"Agent replanned {replanning_count} times to adapt strategy."
+
+        # Extract search queries from tool calls
+        search_queries = [
+            tc.get("arguments", {}).get("query", "")
+            for tc in agent_response.tool_calls
+            if tc.get("name") == "google_search" and tc.get("arguments", {}).get("query")
+        ]
+
+        # Get LLM-based trajectory quality evaluation
+        quality_result = await _context.trajectory_judge.evaluate_async(
             question=input,
             plan=agent_response.plan,
             tool_calls=agent_response.tool_calls,
-            search_queries=agent_response.search_queries,
+            search_queries=search_queries,
         )
 
-        logger.info(f"Trajectory evaluation complete: {result.overall_score:.1f}/5")
+        # Build detailed quality comment
+        quality_comment_parts = [
+            f"Quality: {quality_result.quality_category}",
+            f"\n{quality_result.explanation}",
+            f"\n\nEfficiency: {quality_result.efficiency_notes}",
+            f"Logical Soundness: {quality_result.logical_soundness_notes}",
+            f"Source Quality: {quality_result.source_quality_notes}",
+            f"Replanning: {quality_result.replanning_notes}",
+        ]
+        quality_comment = "\n".join(quality_comment_parts)
 
-        comment = _build_trajectory_comment(result)
-        has_efficiency_issues = bool(result.efficiency_issues)
+        logger.info(
+            f"Trajectory evaluation complete: {quality_result.quality_category} quality, "
+            f"{replanning_count} replanning events"
+        )
 
-        # Return multiple evaluations for different aspects
+        # Return both evaluations: categorical quality and quantitative
+        # replanning frequency
         return [
             Evaluation(
-                name="Trajectory Overall",
-                value=result.overall_score,
-                comment=comment,
+                name="Trajectory Quality",
+                value=quality_result.quality_category,
+                comment=quality_comment,
             ),
             Evaluation(
-                name="Trajectory Efficiency",
-                value=result.efficiency_score,
-                comment=f"Efficiency score. {len(result.efficiency_issues)} issues found."
-                if has_efficiency_issues
-                else "Efficient trajectory.",
-            ),
-            Evaluation(
-                name="Trajectory Coherence",
-                value=result.coherence_score,
-                comment=f"Logical coherence score. {len(result.coherence_issues)} issues found."
-                if result.coherence_issues
-                else "Coherent progression.",
-            ),
-            Evaluation(
-                name="Trajectory Tool Usage",
-                value=result.tool_appropriateness_score,
-                comment=f"Tool appropriateness score. {len(result.tool_issues)} issues found."
-                if result.tool_issues
-                else "Appropriate tool selection.",
+                name="Replanning Frequency",
+                value=replanning_count,
+                comment=replanning_comment,
             ),
         ]
 
     except Exception as e:
         logger.error(f"Trajectory evaluation failed: {e}")
         return [
-            Evaluation(name="Trajectory Overall", value=3.0, comment=f"Trajectory evaluation error: {e}"),
+            Evaluation(name="Trajectory Quality", value="Medium", comment=f"Evaluation error: {e}"),
+            Evaluation(name="Replanning Frequency", value=0, comment=f"Evaluation error: {e}"),
         ]
 
 
@@ -435,22 +449,26 @@ async def process_single_item(item: Any, experiment_name: str) -> None:
             # Run the agent
             agent = KnowledgeGroundedAgent(enable_planning=True)
             response = await agent.answer_async(item.input)
-            output = response.text
 
-            logger.info(f"Agent completed: {len(output)} chars, {len(response.tool_calls)} tool calls")
+            logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
+
+            # Create output dict in same format as agent_task
+            output_dict = {
+                "text": response.text,
+                "agent_response": response,
+            }
 
             # Run evaluations
             outcome_evaluations = await deepsearchqa_evaluator(
                 input=item.input,
-                output=output,
+                output=output_dict,
                 expected_output=item.expected_output,
                 metadata=item.metadata,
             )
 
             trajectory_evaluations = await trajectory_evaluator(
                 input=item.input,
-                output=output,
-                agent_response=response,
+                output=output_dict,
             )
 
             all_evaluations = outcome_evaluations + trajectory_evaluations
