@@ -14,7 +14,7 @@ Example
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 import agents
 from aieng.agent_evals.async_client_manager import AsyncClientManager
@@ -27,7 +27,7 @@ from aieng.agent_evals.report_generation.prompts import (
     TRAJECTORY_EVALUATOR_TEMPLATE,
 )
 from langfuse._client.datasets import DatasetItemClient
-from langfuse.experiment import Evaluation
+from langfuse.experiment import Evaluation, LocalExperimentItem
 from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
 from openai.types.responses.response_output_message import ResponseOutputMessage
 from openai.types.responses.response_output_refusal import ResponseOutputRefusal
@@ -136,12 +136,14 @@ class ReportGenerationTask:
         self.reports_output_path = reports_output_path
         self.langfuse_project_name = langfuse_project_name
 
-    async def run(self, *, item: DatasetItemClient, **kwargs) -> EvaluationOutput:
+    async def run(
+        self, *, item: Union[LocalExperimentItem, DatasetItemClient], **kwargs: dict[str, Any]
+    ) -> EvaluationOutput:
         """Run the report generation agent against an item from a Langfuse dataset.
 
         Parameters
         ----------
-        item : DatasetItemClient
+        item : LocalExperimentItem | DatasetItemClient
             The item from the Langfuse dataset to evaluate against.
 
         Returns
@@ -157,7 +159,9 @@ class ReportGenerationTask:
             reports_output_path=self.reports_output_path,
             langfuse_project_name=self.langfuse_project_name,
         )
-        result = await run_agent_with_retry(report_generation_agent, item.input)
+        # Handle both TypedDict and class access patterns
+        item_input = item["input"] if isinstance(item, dict) else item.input
+        result = await run_agent_with_retry(report_generation_agent, item_input)
 
         # Extract the report data and trajectory from the agent's response
         actions = []

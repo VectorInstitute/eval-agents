@@ -20,7 +20,7 @@ import functools
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Callable, get_args
+from typing import Any, Callable, cast, get_args
 
 import click
 import pandas as pd
@@ -167,9 +167,12 @@ def create_db(illicit_ratio: str, transactions_size: str, ddl_file_path: Path, d
         db_path = ddl_file_path.parent / "aml_transactions.db"
 
     # Download datasets from Kaggle
+    # Cast is safe because _validate_dataset_options ensures valid values
     click.echo("Downloading dataset files...")
-    path_to_transc_csv = download_dataset_file(illicit_ratio, transactions_size, "Trans.csv")
-    path_to_accts_csv = download_dataset_file(illicit_ratio, transactions_size, "accounts.csv")
+    ratio = cast(IllicitRatios, illicit_ratio)
+    size = cast(TransactionsSizes, transactions_size)
+    path_to_transc_csv = download_dataset_file(ratio, size, "Trans.csv")
+    path_to_accts_csv = download_dataset_file(ratio, size, "accounts.csv")
     click.echo("✅ Download complete.")
 
     with sqlite3.connect(db_path) as conn:
@@ -269,8 +272,11 @@ def create_cases(
     if lookback_days == 0:
         logger.warning("lookback_days=0 creates very narrow windows (can be seed timestamp only); consider >= 1.")
 
-    path_to_transc_csv = download_dataset_file(illicit_ratio, transactions_size, "Trans.csv")
-    path_to_patterns_txt = download_dataset_file(illicit_ratio, transactions_size, "Patterns.txt")
+    # Cast is safe because _validate_dataset_options ensures valid values
+    ratio = cast(IllicitRatios, illicit_ratio)
+    size = cast(TransactionsSizes, transactions_size)
+    path_to_transc_csv = download_dataset_file(ratio, size, "Trans.csv")
+    path_to_patterns_txt = download_dataset_file(ratio, size, "Patterns.txt")
     click.echo("✅ Downloaded dataset files.")
 
     transc_df = pd.read_csv(path_to_transc_csv, dtype_backend="pyarrow")
