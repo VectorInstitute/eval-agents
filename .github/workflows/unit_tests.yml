@@ -37,24 +37,32 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6.0.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a
+        uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41
         with:
           # Install a specific version of uv.
-          version: "0.9.7"
+          version: "0.9.22"
           enable-cache: true
 
       - name: "Set up Python"
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version-file: ".python-version"
 
-      - name: Install dependencies and check code
+      - name: Install the project
+        run: uv sync --all-extras --dev
+
+      - name: Run tests with coverage
         run: |
           cd aieng-eval-agents
-          uv venv .venv
-          source .venv/bin/activate
-          uv sync --all-extras --dev
-          uv run pytest -m "not integration_test" tests
+          uv run pytest -m "not integration_test" --cov aieng/agent_evals --cov-report=xml tests
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: VectorInstitute/eval-agents
+          fail_ci_if_error: false
+          verbose: true

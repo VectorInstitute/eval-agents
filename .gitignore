@@ -24,3 +24,7 @@ wheels/
 **.ipynb_checkpoints
 
 .env
+.gradio
+.adk
+*.db
+implementations/report_generation/reports/*
