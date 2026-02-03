@@ -1,4 +1,11 @@
-"""Import the Online Retail dataset to a SQLite database."""
+"""
+Import the Online Retail dataset to a SQLite database.
+
+Example
+-------
+$ python -m implementations.report_generation.data.import_online_retail_data\
+     --dataset-path <path/to/dataset.csv>
+"""
 
 import logging
 import sqlite3
@@ -9,7 +16,7 @@ import click
 import pandas as pd
 from dotenv import load_dotenv
 
-from implementations.report_generation.main import get_sqlite_db_path
+from implementations.report_generation.demo import get_sqlite_db_path
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")

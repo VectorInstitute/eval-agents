@@ -1,11 +1,19 @@
-"""Upload a dataset to Langfuse."""
+"""
+Upload a dataset to Langfuse.
+
+Example
+-------
+$ python -m implementations.report_generation.data.langfuse_upload
+$ python -m implementations.report_generation.data.langfuse_upload \
+    --dataset-path <path/to/dataset.json> \
+    --dataset-name <dataset name>
+"""
 
 import asyncio
-import json
 import logging
 
 import click
-from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -14,48 +22,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_EVALUATION_DATASET_PATH = "implementations/report_generation/data/OnlineRetailReportEval.json"
 DEFAULT_EVALUATION_DATASET_NAME = "OnlineRetailReportEval"
-
-
-async def upload_dataset_to_langfuse(dataset_path: str, dataset_name: str):
-    """Upload a dataset to Langfuse.
-
-    Parameters
-    ----------
-    dataset_path : str
-        Path to the dataset to upload.
-    dataset_name : str
-        Name of the dataset to upload.
-    """
-    # Get the client manager singleton instance and langfuse client
-    client_manager = AsyncClientManager.get_instance()
-    langfuse_client = client_manager.langfuse_client
-
-    # Load the ground truth dataset from the file path
-    logger.info(f"Loading dataset from '{dataset_path}'")
-    with open(dataset_path, "r") as file:
-        dataset = json.load(file)
-
-    # Create the dataset in Langfuse
-    langfuse_client.create_dataset(name=dataset_name)
-
-    # Upload each item to the dataset
-    for item in dataset:
-        assert "input" in item, "`input` is required for all items in the dataset"
-        assert "expected_output" in item, "`expected_output` is required for all items in the dataset"
-
-        langfuse_client.create_dataset_item(
-            dataset_name=dataset_name,
-            input=item["input"],
-            expected_output=item["expected_output"],
-            metadata={
-                "id": item.get("id", None),
-            },
-        )
-
-    logger.info(f"Uploaded {len(dataset)} items to dataset '{dataset_name}'")
-
-    # Gracefully close the services
-    await client_manager.close()
 
 
 @click.command()
