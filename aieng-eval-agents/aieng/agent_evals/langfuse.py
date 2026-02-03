@@ -99,12 +99,9 @@ def init_tracing(service_name: str = "aieng-eval-agents") -> bool:
 
     Examples
     --------
-    Basic usage:
     >>> from aieng.agent_evals.langfuse import init_tracing
-    >>> from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
     >>> init_tracing()  # Call once at startup
-    >>> agent = KnowledgeGroundedAgent()
-    >>> response = agent.answer("What is the population of Tokyo?")
+    >>> # Create and use your Google ADK agent as usual
     # Traces are automatically sent to Langfuse
     """
     manager = AsyncClientManager.get_instance()
