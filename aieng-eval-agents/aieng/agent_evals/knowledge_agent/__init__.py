@@ -30,7 +30,6 @@ from .evaluation import (
     DSQAExample,
     EvaluationResult,
 )
-from .tracing import flush_traces, init_tracing, is_tracing_enabled
 
 
 __all__ = [
@@ -49,8 +48,4 @@ __all__ = [
     "DeepSearchQAEvaluator",
     "DSQAExample",
     "EvaluationResult",
-    # Tracing
-    "init_tracing",
-    "is_tracing_enabled",
-    "flush_traces",
 ]
