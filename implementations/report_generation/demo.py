@@ -1,98 +1,36 @@
-"""Reason-and-Act Knowledge Retrieval Agent via the OpenAI Agent SDK."""
+"""
+Demo UI for the report generation agent.
+
+Example
+-------
+$ python -m implementations.report_generation.demo
+"""
 
 import asyncio
 import logging
-import os
 from functools import partial
-from pathlib import Path
 from typing import Any, AsyncGenerator
 
 import agents
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.langfuse import setup_langfuse_tracer
+from aieng.agent_evals.report_generation.agent import get_report_generation_agent
+from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 from aieng.agent_evals.utils import get_or_create_session, oai_agent_stream_to_gradio_messages
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
 
-from implementations.report_generation.file_writer import get_reports_output_path, write_report_to_file
+from implementations.report_generation.env_vars import (
+    get_langfuse_project_name,
+    get_reports_output_path,
+    get_sqlite_db_path,
+)
 
 
 load_dotenv(verbose=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-REACT_INSTRUCTIONS = """\
-Perform the task using the SQLite database tool. \
-EACH TIME before invoking the function, you must explain your reasons for doing so. \
-If the SQL query did not return intended results, try again. \
-For best performance, divide complex queries into simpler sub-queries. \
-Do not make up information. \
-When the report is done, use the report file writer tool to write it to a file. \
-Make sure the write_report_to_file tool is called so it generates the report file. \
-At the end, provide the report file as a downloadable hyperlink to the user. \
-Make sure the link can be clicked on by the user.
-"""
-
-LANGFUSE_PROJECT_NAME = "Report Generation"
-
-
-def get_sqlite_db_path() -> Path:
-    """Get the SQLite database path.
-
-    If no path is provided in the REPORT_GENERATION_DB_PATH env var, will use the
-    default path in `implementations/report_generation/data/OnlineRetail.db`.
-
-    Returns
-    -------
-    Path
-        The SQLite database path.
-    """
-    default_sqlite_db_path = "implementations/report_generation/data/OnlineRetail.db"
-    return Path(os.getenv("REPORT_GENERATION_DB_PATH", default_sqlite_db_path))
-
-
-def get_report_generation_agent(enable_trace: bool = True) -> agents.Agent:
-    """
-    Define the report generation agent.
-
-    Parameters
-    ----------
-    enable_trace : bool, optional
-        Whether to enable tracing with Langfuse for evaluation purposes.
-        Default is True.
-
-    Returns
-    -------
-    agents.Agent
-        The report generation agent.
-    """
-    # Setup langfuse tracing if enabled
-    if enable_trace:
-        setup_langfuse_tracer(LANGFUSE_PROJECT_NAME)
-
-    # Get the client manager singleton instance
-    client_manager = AsyncClientManager.get_instance()
-
-    # Define an agent using the OpenAI Agent SDK
-    return agents.Agent(
-        name="Report Generation Agent",  # Agent name for logging and debugging purposes
-        instructions=REACT_INSTRUCTIONS,  # System instructions for the agent
-        # Tools available to the agent
-        # We wrap the `search_knowledgebase` method with `function_tool`, which
-        # will construct the tool definition JSON schema by extracting the necessary
-        # information from the method signature and docstring.
-        tools=[
-            agents.function_tool(client_manager.sqlite_connection(get_sqlite_db_path()).execute),
-            agents.function_tool(write_report_to_file),
-        ],
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_planner_model,
-            openai_client=client_manager.openai_client,
-        ),
-    )
 
 
 async def agent_session_handler(
@@ -129,7 +67,12 @@ async def agent_session_handler(
     # previous turns in the conversation
     session = get_or_create_session(history, session_state)
 
-    main_agent = get_report_generation_agent(enable_trace=enable_trace)
+    main_agent = get_report_generation_agent(
+        instructions=MAIN_AGENT_INSTRUCTIONS,
+        sqlite_db_path=get_sqlite_db_path(),
+        reports_output_path=get_reports_output_path(),
+        langfuse_project_name=get_langfuse_project_name() if enable_trace else None,
+    )
 
     # Run the agent in streaming mode to get and display intermediate outputs
     result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
