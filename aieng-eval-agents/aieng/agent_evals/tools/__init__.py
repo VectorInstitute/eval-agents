@@ -2,6 +2,7 @@
 
 This package provides modular tools for:
 - Google Search (search.py)
+- SQL Database access (sql_database.py)
 """
 
 from .search import (
@@ -11,6 +12,7 @@ from .search import (
     format_response_with_citations,
     google_search,
 )
+from .sql_database import ReadOnlySqlDatabase, ReadOnlySqlPolicy
 
 
 __all__ = [
@@ -20,4 +22,7 @@ __all__ = [
     "google_search",
     "GroundedResponse",
     "GroundingChunk",
+    # SQL Database tools
+    "ReadOnlySqlDatabase",
+    "ReadOnlySqlPolicy",
 ]

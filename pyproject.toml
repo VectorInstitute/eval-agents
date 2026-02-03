@@ -12,13 +12,10 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "datasets>=3.6.0",
     "e2b-code-interpreter>=2.4.1",
-    "gradio>=6.0.2",
     "langfuse>=3.10.3",
     "lxml>=6.0.0",
     "nest-asyncio>=1.6.0",
     "numpy<2.3.0",
-    "openai>=2.8.1",
-    "openai-agents>=0.6.1",
     "plotly>=6.5.0",
     "pydantic>=2.12.4",
     "pydantic-settings>=2.7.0",
@@ -155,6 +152,7 @@ filterwarnings = [
     # Ignore deprecation warnings from google-adk/google-genai internal code
     "ignore:deprecated:DeprecationWarning:google.adk.runners",
     "ignore:Inheritance class AiohttpClientSession:DeprecationWarning:google.genai",
+    "ignore:[EXPERIMENTAL] BaseAgentState:UserWarning:aieng.agent_evals.aml_investigation.workflow",
 ]
 
 [tool.coverage]

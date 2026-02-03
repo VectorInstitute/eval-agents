@@ -25,5 +25,6 @@ wheels/
 
 .env
 .gradio
-implementations/report_generation/data/*.db
+.adk
+*.db
 implementations/report_generation/reports/*
