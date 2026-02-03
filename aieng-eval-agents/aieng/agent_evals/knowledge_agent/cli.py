@@ -717,7 +717,7 @@ def _setup_tracing(log_trace: bool) -> bool:
     if not log_trace:
         return False
 
-    from .tracing import init_tracing  # noqa: PLC0415
+    from ..langfuse import init_tracing  # noqa: PLC0415
 
     enabled = init_tracing()
     if enabled:
@@ -738,7 +738,7 @@ def _flush_tracing(tracing_enabled: bool) -> None:
     if not tracing_enabled:
         return
 
-    from .tracing import flush_traces  # noqa: PLC0415
+    from ..langfuse import flush_traces  # noqa: PLC0415
 
     flush_traces()
     console.print("\n[dim]Traces flushed to Langfuse[/dim]")

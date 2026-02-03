@@ -8,7 +8,7 @@ import logging
 import os
 from typing import Any
 
-from google import genai
+from google.genai import Client
 from pydantic import BaseModel
 
 
@@ -125,7 +125,7 @@ class TokenTracker:
     def _fetch_model_limits(self) -> None:
         """Fetch model context limits from the API, with known fallbacks."""
         try:
-            client = genai.Client()
+            client = Client()
             model_info = client.models.get(model=self._model)
             if model_info.input_token_limit:
                 self._usage.context_limit = model_info.input_token_limit

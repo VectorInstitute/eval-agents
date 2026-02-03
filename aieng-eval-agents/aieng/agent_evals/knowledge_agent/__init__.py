@@ -16,6 +16,7 @@ Example
 """
 
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.langfuse import flush_traces, init_tracing, is_tracing_enabled
 from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
@@ -59,7 +60,6 @@ from .models import (
     StepStatus,
 )
 from .notebook import run_with_display
-from .tracing import flush_traces, init_tracing, is_tracing_enabled
 
 
 __all__ = [

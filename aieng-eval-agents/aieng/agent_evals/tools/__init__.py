@@ -4,6 +4,7 @@ This package provides modular tools for:
 - Google Search (search.py)
 - Web content fetching - HTML and PDF (web.py)
 - File downloading and searching - CSV, XLSX, text (file.py)
+- SQL Database access (sql_database.py)
 
 Tool Selection Guide:
 - web_fetch(url): HTML pages and PDFs - returns content for agent to analyze
@@ -29,6 +30,7 @@ from .search import (
     format_response_with_citations,
     google_search,
 )
+from .sql_database import ReadOnlySqlDatabase, ReadOnlySqlPolicy
 from .web import (
     create_web_fetch_tool,
     web_fetch,
@@ -54,4 +56,7 @@ __all__ = [
     "create_fetch_file_tool",
     "create_grep_file_tool",
     "create_read_file_tool",
+    # SQL Database tools
+    "ReadOnlySqlDatabase",
+    "ReadOnlySqlPolicy",
 ]

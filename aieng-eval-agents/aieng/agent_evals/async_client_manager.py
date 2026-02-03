@@ -124,11 +124,7 @@ class AsyncClientManager:
             The OpenAI async client instance.
         """
         if self._openai_client is None:
-            api_key: str | None = self.configs.openai_api_key
-            if "googleapis" in self.configs.openai_base_url:
-                # Use Gemini API key if the base URL is for Google API requests
-                api_key = self.configs.gemini_api_key
-
+            api_key = self.configs.openai_api_key.get_secret_value()
             self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
             self._initialized = True
         return self._openai_client
@@ -163,7 +159,9 @@ class AsyncClientManager:
         if self._langfuse_client is None:
             self._langfuse_client = Langfuse(
                 public_key=self.configs.langfuse_public_key,
-                secret_key=self.configs.langfuse_secret_key,
+                secret_key=self.configs.langfuse_secret_key.get_secret_value()
+                if self.configs.langfuse_secret_key
+                else None,
                 host=self.configs.langfuse_host,
             )
             self._initialized = True
