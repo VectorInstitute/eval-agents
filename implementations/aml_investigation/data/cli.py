@@ -20,7 +20,7 @@ import functools
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Callable, cast, get_args
+from typing import Any, Callable, get_args
 
 import click
 import pandas as pd
@@ -104,12 +104,50 @@ def _dataset_options(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def _validate_dataset_options(illicit_ratio: str, transactions_size: str) -> None:
-    """Validate dataset option values."""
-    if illicit_ratio not in get_args(IllicitRatios):
+def _validate_illicit_ratio(value: str) -> IllicitRatios:
+    """Validate and narrow illicit_ratio to its Literal type.
+
+    Parameters
+    ----------
+    value : str
+        The illicit ratio value to validate.
+
+    Returns
+    -------
+    IllicitRatios
+        The validated and type-narrowed illicit ratio.
+
+    Raises
+    ------
+    ValueError
+        If value is not a valid illicit ratio.
+    """
+    if value not in get_args(IllicitRatios):
         raise ValueError(f"illicit_ratio must be one of {sorted(get_args(IllicitRatios))}")
-    if transactions_size not in get_args(TransactionsSizes):
+    return value  # type: ignore[return-value]
+
+
+def _validate_transactions_size(value: str) -> TransactionsSizes:
+    """Validate and narrow transactions_size to its Literal type.
+
+    Parameters
+    ----------
+    value : str
+        The transactions size value to validate.
+
+    Returns
+    -------
+    TransactionsSizes
+        The validated and type-narrowed transactions size.
+
+    Raises
+    ------
+    ValueError
+        If value is not a valid transactions size.
+    """
+    if value not in get_args(TransactionsSizes):
         raise ValueError(f"transactions_size must be one of {sorted(get_args(TransactionsSizes))}")
+    return value  # type: ignore[return-value]
 
 
 @click.group()
@@ -159,7 +197,10 @@ def create_db(illicit_ratio: str, transactions_size: str, ddl_file_path: Path, d
     FileNotFoundError
         If the DDL file does not exist.
     """
-    _validate_dataset_options(illicit_ratio, transactions_size)
+    # Validate and narrow types
+    ratio = _validate_illicit_ratio(illicit_ratio)
+    size = _validate_transactions_size(transactions_size)
+
     if not ddl_file_path.exists():
         raise FileNotFoundError(f"DDL file not found: {ddl_file_path}")
 
@@ -167,10 +208,7 @@ def create_db(illicit_ratio: str, transactions_size: str, ddl_file_path: Path, d
         db_path = ddl_file_path.parent / "aml_transactions.db"
 
     # Download datasets from Kaggle
-    # Cast is safe because _validate_dataset_options ensures valid values
     click.echo("Downloading dataset files...")
-    ratio = cast(IllicitRatios, illicit_ratio)
-    size = cast(TransactionsSizes, transactions_size)
     path_to_transc_csv = download_dataset_file(ratio, size, "Trans.csv")
     path_to_accts_csv = download_dataset_file(ratio, size, "accounts.csv")
     click.echo("✅ Download complete.")
@@ -259,7 +297,10 @@ def create_cases(
     ValueError
         If any numeric argument is negative or option values are invalid.
     """
-    _validate_dataset_options(illicit_ratio, transactions_size)
+    # Validate and narrow types
+    ratio = _validate_illicit_ratio(illicit_ratio)
+    size = _validate_transactions_size(transactions_size)
+
     for name, value in [
         ("num_laundering_cases", num_laundering_cases),
         ("num_normal_cases", num_normal_cases),
@@ -272,9 +313,6 @@ def create_cases(
     if lookback_days == 0:
         logger.warning("lookback_days=0 creates very narrow windows (can be seed timestamp only); consider >= 1.")
 
-    # Cast is safe because _validate_dataset_options ensures valid values
-    ratio = cast(IllicitRatios, illicit_ratio)
-    size = cast(TransactionsSizes, transactions_size)
     path_to_transc_csv = download_dataset_file(ratio, size, "Trans.csv")
     path_to_patterns_txt = download_dataset_file(ratio, size, "Patterns.txt")
     click.echo("✅ Downloaded dataset files.")
