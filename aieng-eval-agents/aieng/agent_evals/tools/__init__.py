@@ -42,6 +42,7 @@ __all__ = [
     "create_google_search_tool",
     "google_search",
     "format_response_with_citations",
+    "google_search",
     "GroundedResponse",
     "GroundingChunk",
     # Web tools (HTML pages and PDFs)
