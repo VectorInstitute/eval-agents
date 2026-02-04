@@ -16,6 +16,7 @@ from .display import (
     display_success,
     display_warning,
 )
+from .progress import create_progress, track_with_progress
 
 
 __all__ = [
@@ -30,4 +31,7 @@ __all__ = [
     "display_success",
     "display_info",
     "display_warning",
+    # Progress utilities
+    "create_progress",
+    "track_with_progress",
 ]
