@@ -1,6 +1,6 @@
-# Agentic AI Bootcamp
+# Agentic AI Evaluation Bootcamp
 
-This template provides the software environment needed to run Vector Institute's Agentic AI Bootcamp.
+This template provides the software environment needed to run Vector Institute's Agentic AI Evaluation Bootcamp.
 
 ## Prerequisites
 
