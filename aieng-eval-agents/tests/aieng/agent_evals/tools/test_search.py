@@ -81,8 +81,11 @@ class TestGroundedResponse:
 class TestCreateGoogleSearchTool:
     """Tests for the create_google_search_tool function."""
 
-    def test_creates_function_tool(self):
+    def test_creates_function_tool(self, monkeypatch):
         """Test that the tool is created as a FunctionTool wrapping google_search."""
+        # Set required environment variable for Configs
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+
         result = create_google_search_tool()
 
         assert isinstance(result, FunctionTool)
