@@ -185,6 +185,41 @@ class DeepSearchQADataset:
         """
         return [ex for ex in self.examples if ex.problem_category == category]
 
+    def get_by_id(self, example_id: int) -> DSQAExample | None:
+        """Get a single example by its ID.
+
+        Parameters
+        ----------
+        example_id : int
+            The unique identifier of the example.
+
+        Returns
+        -------
+        DSQAExample or None
+            The example with the given ID, or None if not found.
+        """
+        for ex in self.examples:
+            if ex.example_id == example_id:
+                return ex
+        return None
+
+    def get_by_ids(self, example_ids: list[int]) -> list[DSQAExample]:
+        """Get multiple examples by their IDs.
+
+        Parameters
+        ----------
+        example_ids : list[int]
+            List of example IDs to retrieve.
+
+        Returns
+        -------
+        list[DSQAExample]
+            Examples matching the given IDs, in the order requested.
+            Missing IDs are silently skipped.
+        """
+        id_to_example = {ex.example_id: ex for ex in self.examples}
+        return [id_to_example[eid] for eid in example_ids if eid in id_to_example]
+
     def get_categories(self) -> list[str]:
         """Get all unique problem categories.
 
