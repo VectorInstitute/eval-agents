@@ -30,12 +30,9 @@ class Configs(BaseSettings):
         default="https://generativelanguage.googleapis.com/v1beta/openai/",
         description="Base URL for OpenAI-compatible API (defaults to Gemini endpoint).",
     )
-    openai_api_key: str = Field(
-        validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        description="API key for OpenAI-compatible API (accepts OPENAI_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY).",
-    )
     gemini_api_key: str = Field(
-        description="API key for Gemini API in case of using both Gemini and Open AI APIs.",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+        description="API key for Google/Gemini API (accepts GEMINI_API_KEY, or GOOGLE_API_KEY).",
     )
     default_planner_model: str = Field(
         default="gemini-2.5-pro",

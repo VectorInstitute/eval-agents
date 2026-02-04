@@ -24,10 +24,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write",
                     "output_text"
                 ],
                 "description": [
@@ -61,10 +61,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write",
                     "output_text"
                 ],
                 "description": [
@@ -101,10 +101,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write",
                     "output_text"
                 ],
                 "description": [
@@ -146,11 +146,11 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
+                    "execute",
+                    "execute",
+                    "execute",
                     "output_text",
-                    "write_report_to_file",
+                    "write",
                     "output_text"
                 ],
                 "description": [
@@ -236,10 +236,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write",
                     "output_text"
                 ],
                 "description": [
@@ -273,11 +273,11 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write",
                     "output_text"
                 ],
                 "description": [
@@ -304,11 +304,11 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write",
                     "output_text"
                 ],
                 "description": [

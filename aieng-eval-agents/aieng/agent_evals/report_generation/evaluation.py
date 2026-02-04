@@ -12,13 +12,13 @@ Example
 >>> )
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
-import agents
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.report_generation.agent import get_report_generation_agent
+from aieng.agent_evals.report_generation.agent import EventParser, EventType, get_report_generation_agent
 from aieng.agent_evals.report_generation.prompts import (
     MAIN_AGENT_INSTRUCTIONS,
     RESULT_EVALUATOR_INSTRUCTIONS,
@@ -26,12 +26,13 @@ from aieng.agent_evals.report_generation.prompts import (
     TRAJECTORY_EVALUATOR_INSTRUCTIONS,
     TRAJECTORY_EVALUATOR_TEMPLATE,
 )
+from google.adk.agents import Agent
+from google.adk.events.event import Event
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai.types import Content, Part
 from langfuse._client.datasets import DatasetItemClient
 from langfuse.experiment import Evaluation
-from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
-from openai.types.responses.response_output_message import ResponseOutputMessage
-from openai.types.responses.response_output_refusal import ResponseOutputRefusal
-from openai.types.responses.response_output_text import ResponseOutputText
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -157,38 +158,41 @@ class ReportGenerationTask:
             reports_output_path=self.reports_output_path,
             langfuse_project_name=self.langfuse_project_name,
         )
-        result = await run_agent_with_retry(report_generation_agent, item.input)
+        events = await run_agent_with_retry(report_generation_agent, item.input)
 
         # Extract the report data and trajectory from the agent's response
         actions = []
         parameters = []
         final_report = None
-        for raw_response in result.raw_responses:
-            for output in raw_response.output:
-                # The trajectory will be the list of actions and the
-                # parameters passed to each one of them
-                if isinstance(output, ResponseFunctionToolCall):
-                    actions.append(output.name)
-                    parameters.append(output.arguments)
+
+        # The trajectory will be the list of actions and the
+        # parameters passed to each one of them
+        for event in events:
+            parsed_events = EventParser.parse(event)
+
+            for parsed_event in parsed_events:
+                if parsed_event.type == EventType.FINAL_RESPONSE:
+                    # Picking up the final message displayed to the user
+                    actions.append("final_response")
+                    parameters.append(parsed_event.text)
+
+                if parsed_event.type == EventType.TOOL_CALL:
+                    # Picking up tool calls and their arguments
+                    actions.append(parsed_event.text)
+                    parameters.append(parsed_event.arguments)
 
                     # The final report will be the arguments sent by the
-                    # write_report_to_file function call
-                    # If there is more than one call to the write_report_to_file
-                    # function, the last one will be used because the previous
-                    # calls were likely be failed calls
-                    if isinstance(output, ResponseFunctionToolCall) and "write_report_to_file" in output.name:
-                        final_report = output.arguments
+                    # write tool call
+                    # If there is more than one call to the write tool call,
+                    # the last one will be used because the previous
+                    # calls are likely failed calls
+                    if parsed_event.text == "write":
+                        final_report = parsed_event.arguments
 
-                if isinstance(output, ResponseOutputMessage):
-                    for content in output.content:
-                        actions.append(content.type)
-                        if isinstance(content, ResponseOutputText):
-                            parameters.append(content.text)
-                        elif isinstance(content, ResponseOutputRefusal):
-                            parameters.append(content.refusal)
+                # Not tracking EventType.THOUGHT or EventType.TOOL_RESPONSE
 
         if final_report is None:
-            logger.warning("No call to write_report_to_file function found in the agent's response")
+            logger.warning("No call to `write` function found in the agent's response")
 
         return {
             "final_report": final_report,
@@ -230,14 +234,11 @@ async def final_result_evaluator(
     """
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
-    evaluator_agent = agents.Agent(
-        name="Final Result Evaluator Agent",
-        instructions=RESULT_EVALUATOR_INSTRUCTIONS,
-        output_type=EvaluatorResponse,
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_planner_model,
-            openai_client=client_manager.openai_client,
-        ),
+    evaluator_agent = Agent(
+        name="FinalResultEvaluatorAgent",
+        instruction=RESULT_EVALUATOR_INSTRUCTIONS,
+        model=client_manager.configs.default_worker_model,
+        output_schema=EvaluatorResponse,
     )
     # Format the input for the evaluator agent
     evaluator_input = RESULT_EVALUATOR_TEMPLATE.format(
@@ -245,15 +246,16 @@ async def final_result_evaluator(
         ground_truth=expected_output["final_report"],
         proposed_response=output["final_report"],
     )
+
     # Run the evaluator agent with retry
-    result = await run_agent_with_retry(evaluator_agent, evaluator_input)
-    evaluation_response = result.final_output_as(EvaluatorResponse)
+    events = await run_agent_with_retry(evaluator_agent, evaluator_input)
 
     # Return the evaluation result
+    evaluator_response = get_evaluator_reponse(events)
     return Evaluation(
         name="Final Result",
-        value=evaluation_response.is_answer_correct,
-        comment=evaluation_response.explanation,
+        value=evaluator_response.is_answer_correct,
+        comment=evaluator_response.explanation,
     )
 
 
@@ -288,14 +290,11 @@ async def trajectory_evaluator(
     """
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
-    evaluator_agent = agents.Agent(
-        name="Trajectory Evaluator Agent",
-        instructions=TRAJECTORY_EVALUATOR_INSTRUCTIONS,
-        output_type=EvaluatorResponse,
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_planner_model,
-            openai_client=client_manager.openai_client,
-        ),
+    evaluator_agent = Agent(
+        name="TrajectoryEvaluatorAgent",
+        instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS,
+        model=client_manager.configs.default_planner_model,
+        output_schema=EvaluatorResponse,
     )
 
     assert isinstance(expected_output["trajectory"], dict), "Expected trajectory must be a dictionary"
@@ -310,19 +309,46 @@ async def trajectory_evaluator(
         actual_parameters=output["trajectory"]["parameters"],
     )
     # Run the evaluator agent with retry
-    result = await run_agent_with_retry(evaluator_agent, evaluator_input)
-    evaluation_response = result.final_output_as(EvaluatorResponse)
+    events = await run_agent_with_retry(evaluator_agent, evaluator_input)
 
     # Return the evaluation result
+    evaluator_response = get_evaluator_reponse(events)
     return Evaluation(
         name="Trajectory",
-        value=evaluation_response.is_answer_correct,
-        comment=evaluation_response.explanation,
+        value=evaluator_response.is_answer_correct,
+        comment=evaluator_response.explanation,
     )
 
 
+def get_evaluator_reponse(events: list[Event]) -> EvaluatorResponse:
+    """Get the evaluator response from a list of events.
+
+    It must be a list of events from an evaluator that has
+    EvaluatorResponse as output schema
+
+    Parameters
+    ----------
+    events : list[Event]
+        The list of events to get the evaluator response from.
+
+    Returns
+    -------
+    EvaluatorResponse
+        The evaluator response.
+    """
+    for event in events:
+        if event.is_final_response():
+            assert event.content, "Event content must be present"
+            assert event.content.parts, "Event content parts must be present"
+            assert len(event.content.parts) > 0, "Event content parts must not be empty"
+            assert isinstance(event.content.parts[0].text, str), "Event content parts text must be a string"
+            return EvaluatorResponse(**json.loads(event.content.parts[0].text))
+
+    raise Exception("No final response found in the events")
+
+
 @retry(stop=stop_after_attempt(5), wait=wait_exponential())
-async def run_agent_with_retry(agent: agents.Agent, agent_input: str) -> agents.RunResult:
+async def run_agent_with_retry(agent: Agent, agent_input: str) -> list[Event]:
     """Run an agent with Tenacity's retry mechanism.
 
     Parameters
@@ -334,8 +360,28 @@ async def run_agent_with_retry(agent: agents.Agent, agent_input: str) -> agents.
 
     Returns
     -------
-    agents.RunnerResult
-        The result of the agent run.
+    list[Event]
+        The events from the agent run.
     """
     logger.info(f"Running agent {agent.name} with input '{agent_input[:100]}...'")
-    return await agents.Runner.run(agent, input=agent_input)
+
+    # Create session and runner
+    session_service = InMemorySessionService()
+    runner = Runner(app_name=agent.name, agent=agent, session_service=session_service)
+    current_session = await session_service.create_session(
+        app_name=agent.name,
+        user_id="user",
+        state={},
+    )
+
+    # create the user message and run the agent
+    content = Content(role="user", parts=[Part(text=agent_input)])
+    events = []
+    async for event in runner.run_async(
+        user_id="user",
+        session_id=current_session.id,
+        new_message=content,
+    ):
+        events.append(event)
+
+    return events
