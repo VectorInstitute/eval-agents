@@ -4,8 +4,6 @@ This module provides a search tool that returns actual URLs the agent can fetch,
 enabling a proper research workflow: search → fetch → verify → answer.
 """
 
-import asyncio
-import concurrent.futures
 import logging
 from typing import Any
 
@@ -150,7 +148,7 @@ async def _google_search_async(query: str) -> dict[str, Any]:
         }
 
 
-def google_search(query: str) -> dict[str, Any]:
+async def google_search(query: str) -> dict[str, Any]:
     """Search Google and return results with actual URLs for fetching.
 
     Use this tool to find information on the web. The results include:
@@ -173,25 +171,14 @@ def google_search(query: str) -> dict[str, Any]:
 
     Examples
     --------
-    >>> result = google_search("highest single day snowfall Toronto")
+    >>> result = await google_search("highest single day snowfall Toronto")
     >>> # Check the sources
     >>> for source in result["sources"]:
     ...     print(f"{source['title']}: {source['url']}")
     >>> # Then fetch to verify
-    >>> page = web_fetch(result["sources"][0]["url"])
+    >>> page = await web_fetch(result["sources"][0]["url"])
     """
-    logger.info(f"GoogleSearch: {query}")
-
-    # Handle being called from async context
-    try:
-        asyncio.get_running_loop()
-        # We're in an async context - need to run in a new thread
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, _google_search_async(query))
-            return future.result()
-    except RuntimeError:
-        # No running loop - we can use asyncio.run directly
-        return asyncio.run(_google_search_async(query))
+    return await _google_search_async(query)
 
 
 def create_google_search_tool() -> FunctionTool:

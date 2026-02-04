@@ -162,9 +162,10 @@ class TestGoogleSearchToolIntegration:
         # The tool should be a FunctionTool wrapping google_search
         assert isinstance(tool, FunctionTool)
 
-    def test_google_search_returns_urls(self):
+    @pytest.mark.asyncio
+    async def test_google_search_returns_urls(self):
         """Test that google_search returns actual URLs, not redirect URLs."""
-        result = google_search("capital of France")
+        result = await google_search("capital of France")
 
         # Should have success status
         assert result["status"] == "success"
@@ -184,9 +185,10 @@ class TestGoogleSearchToolIntegration:
             assert source["url"].startswith("http"), f"Expected URL, got: {source['url']}"
             assert "vertexaisearch" not in source["url"], "URL should not be a redirect URL"
 
-    def test_google_search_response_structure(self):
+    @pytest.mark.asyncio
+    async def test_google_search_response_structure(self):
         """Test the complete response structure from google_search."""
-        result = google_search("Python programming language")
+        result = await google_search("Python programming language")
 
         # Check all expected keys exist
         assert "status" in result
