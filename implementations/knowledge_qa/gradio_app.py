@@ -13,8 +13,10 @@ import uuid
 from typing import Any, Generator
 
 import gradio as gr
-from aieng.agent_evals.knowledge_qa import KnowledgeAgentManager
-from aieng.agent_evals.knowledge_qa.data import DeepSearchQADataset
+from aieng.agent_evals.knowledge_qa import (
+    DeepSearchQADataset,
+    KnowledgeAgentManager,
+)
 from dotenv import load_dotenv
 from gradio.components.chatbot import ChatMessage
 

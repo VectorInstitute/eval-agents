@@ -24,6 +24,7 @@ from aieng.agent_evals.tools import (
 )
 
 from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
+from .data import DeepSearchQADataset, DSQAExample
 from .evaluation import DeepSearchQAEvaluator, EvaluationResult
 
 
