@@ -93,8 +93,15 @@ async def _google_search_async(query: str, model: str) -> dict[str, Any]:
     Returns
     -------
     dict
-        Search results with 'summary' text and 'sources' list containing
-        actual URLs the agent can fetch.
+        Search results with the following keys:
+
+        - **status** (str): "success" or "error"
+        - **summary** (str): Brief text summary of search results
+        - **sources** (list[dict]): List of source dicts, each containing:
+            - **title** (str): Title of the webpage
+            - **url** (str): Actual URL that can be fetched
+        - **source_count** (int): Number of sources found (success case only)
+        - **error** (str): Error message (error case only)
     """
     client = Client()
 
@@ -172,8 +179,15 @@ async def google_search(query: str, model: str | None = None) -> dict[str, Any]:
     Returns
     -------
     dict
-        Contains 'summary' (brief overview), 'sources' (list of URLs to fetch),
-        and 'source_count'. On error, contains 'status': 'error' and 'error' message.
+        Search results with the following keys:
+
+        - **status** (str): "success" or "error"
+        - **summary** (str): Brief text summary of search results
+        - **sources** (list[dict]): List of source dicts, each containing:
+            - **title** (str): Title of the webpage
+            - **url** (str): Actual URL that can be fetched
+        - **source_count** (int): Number of sources found (success case only)
+        - **error** (str): Error message (error case only)
 
     Examples
     --------
@@ -241,9 +255,15 @@ def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
         Returns
         -------
         dict
-            Contains 'summary' (brief overview), 'sources' (list of URLs to fetch),
-            and 'source_count'. On error, contains 'status': 'error' and 'error'
-            message.
+            Search results with the following keys:
+
+            - **status** (str): "success" or "error"
+            - **summary** (str): Brief text summary of search results
+            - **sources** (list[dict]): List of source dicts, each containing:
+                - **title** (str): Title of the webpage
+                - **url** (str): Actual URL that can be fetched
+            - **source_count** (int): Number of sources found (success case only)
+            - **error** (str): Error message (error case only)
         """
         return await _google_search_async(query, model=model)
 
