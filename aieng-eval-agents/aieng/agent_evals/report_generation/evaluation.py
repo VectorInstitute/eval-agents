@@ -136,9 +136,7 @@ class ReportGenerationTask:
         self.reports_output_path = reports_output_path
         self.langfuse_project_name = langfuse_project_name
 
-    async def run(
-        self, *, item: LocalExperimentItem | DatasetItemClient, **kwargs: dict[str, Any]
-    ) -> EvaluationOutput:
+    async def run(self, *, item: LocalExperimentItem | DatasetItemClient, **kwargs: dict[str, Any]) -> EvaluationOutput:
         """Run the report generation agent against an item from a Langfuse dataset.
 
         Parameters
