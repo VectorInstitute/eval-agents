@@ -1,6 +1,7 @@
 """Functions and objects pertaining to Langfuse."""
 
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -227,8 +228,8 @@ async def upload_dataset_to_langfuse(dataset_path: str, dataset_name: str):
     dataset_format = _detect_dataset_format(dataset_file)
     records = _load_dataset_records(dataset_file, dataset_format)
 
-    # Create the dataset in Langfuse
-    langfuse_client.create_dataset(name=dataset_name)
+    # Create dataset if missing; if it already exists we reuse it.
+    _ensure_dataset_exists(langfuse_client=langfuse_client, dataset_name=dataset_name)
 
     # We centralize metadata normalization to keep uploader behavior
     # consistent across JSON and JSONL sources.
@@ -239,8 +240,14 @@ async def upload_dataset_to_langfuse(dataset_path: str, dataset_name: str):
         transient=True,  # Clear progress bar when done
     ):
         normalized = _normalize_dataset_record(item=item, record_number=record_number)
+        item_id = _build_dataset_item_id(
+            dataset_name=dataset_name,
+            input_payload=normalized["input"],
+            expected_output_payload=normalized["expected_output"],
+        )
         langfuse_client.create_dataset_item(
             dataset_name=dataset_name,
+            id=item_id,  # Globally unique ID of deduplication
             input=normalized["input"],
             expected_output=normalized["expected_output"],
             metadata=normalized["metadata"],
@@ -270,6 +277,41 @@ def _detect_dataset_format(dataset_file: Path) -> Literal["json", "jsonl"]:
             return "jsonl"
 
     raise ValueError(f"Dataset file is empty: {dataset_file}")
+
+
+def _ensure_dataset_exists(*, langfuse_client: Any, dataset_name: str) -> None:
+    """Ensure the target dataset exists before item uploads."""
+    try:
+        langfuse_client.create_dataset(name=dataset_name)
+        return
+    except Exception as exc:
+        # We only continue if the dataset can be retrieved
+        try:
+            langfuse_client.get_dataset(dataset_name)
+            logger.info("Dataset '%s' already exists; appending/upserting items.", dataset_name)
+            return
+        except Exception as retrieval_exc:
+            raise exc from retrieval_exc
+
+
+def _build_dataset_item_id(
+    *,
+    dataset_name: str,
+    input_payload: Any,
+    expected_output_payload: Any,
+) -> str:
+    """Build a deterministic, globally-unique dataset item ID."""
+    canonical = json.dumps(
+        {
+            "input": input_payload,
+            "expected_output": expected_output_payload,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return f"{dataset_name}:{digest}"
 
 
 def _load_dataset_records(

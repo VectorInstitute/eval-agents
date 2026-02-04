@@ -37,6 +37,7 @@ def mock_client_manager(monkeypatch) -> MagicMock:
     manager.langfuse_client = MagicMock()
     manager.close = AsyncMock()
     manager.langfuse_client.create_dataset = MagicMock()
+    manager.langfuse_client.get_dataset = MagicMock()
     manager.langfuse_client.create_dataset_item = MagicMock()
 
     monkeypatch.setattr(langfuse_module.AsyncClientManager, "get_instance", lambda: manager)
@@ -81,6 +82,9 @@ async def test_upload_dataset_to_langfuse_json(tmp_path: Path, mock_client_manag
 
     assert first_call["metadata"] == {"split": "train", "id": "case-1"}
     assert second_call["metadata"] == {"split": "test", "id": 2}
+    assert isinstance(first_call["id"], str)
+    assert first_call["id"].startswith("json-dataset:")
+    assert first_call["id"] != second_call["id"]
     mock_client_manager.close.assert_awaited_once()
 
 
@@ -107,7 +111,27 @@ async def test_upload_dataset_to_langfuse_jsonl(tmp_path: Path, mock_client_mana
 
     assert first_call["metadata"]["id"] == 1
     assert second_call["metadata"]["id"] == "line-3"
+    assert first_call["id"] != second_call["id"]
     assert patch_progress.item_count == 2
+
+
+@pytest.mark.asyncio
+async def test_upload_dataset_to_langfuse_reuses_existing_dataset(
+    tmp_path: Path, mock_client_manager, patch_progress
+) -> None:
+    """Fallback to existing dataset when creation raises and retrieval succeeds."""
+    dataset_file = tmp_path / "dataset.jsonl"
+    dataset_file.write_text(
+        json.dumps({"input": {"q": "A"}, "expected_output": {"a": 1}}),
+        encoding="utf-8",
+    )
+
+    mock_client_manager.langfuse_client.create_dataset.side_effect = RuntimeError("already exists")
+
+    await langfuse_module.upload_dataset_to_langfuse(str(dataset_file), "existing-dataset")
+
+    mock_client_manager.langfuse_client.get_dataset.assert_called_once_with("existing-dataset")
+    mock_client_manager.langfuse_client.create_dataset_item.assert_called_once()
 
 
 @pytest.mark.asyncio
