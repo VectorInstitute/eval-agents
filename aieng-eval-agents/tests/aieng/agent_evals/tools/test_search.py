@@ -1,5 +1,7 @@
 """Tests for Google Search tool."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from aieng.agent_evals.tools import (
     GroundedResponse,
@@ -81,12 +83,13 @@ class TestGroundedResponse:
 class TestCreateGoogleSearchTool:
     """Tests for the create_google_search_tool function."""
 
-    def test_creates_function_tool(self, monkeypatch):
+    def test_creates_function_tool(self):
         """Test that the tool is created as a FunctionTool wrapping google_search."""
-        # Set required environment variable for Configs
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        # Create a mock config with the required attribute
+        mock_config = MagicMock()
+        mock_config.default_worker_model = "gemini-2.5-flash"
 
-        result = create_google_search_tool()
+        result = create_google_search_tool(config=mock_config)
 
         assert isinstance(result, FunctionTool)
         # The function tool should wrap the google_search function
