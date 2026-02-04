@@ -140,19 +140,7 @@ async def resolve_redirect_url_async(url: str) -> str:
     str
         The final destination URL after following redirects.
     """
-    # Skip resolution for non-redirect URLs (fast path)
-    if not _is_redirect_url(url):
-        return url
-
-    # Check cache first (fast path)
-    if url in _redirect_cache:
-        return _redirect_cache[url]
-
-    async with httpx.AsyncClient(
-        timeout=_get_redirect_timeout(),
-        follow_redirects=True,
-    ) as client:
-        return await _resolve_single_url_async(client, url)
+    return (await resolve_redirect_urls_async([url]))[0]
 
 
 async def resolve_redirect_urls_async(urls: list[str]) -> list[str]:
