@@ -156,6 +156,9 @@ async def _google_search_async(query: str, model: str) -> dict[str, Any]:
             "summary": "",
             "sources": [],
         }
+    finally:
+        # Properly close the client to avoid aiohttp session leaks
+        client.close()
 
 
 async def google_search(query: str, model: str | None = None) -> dict[str, Any]:

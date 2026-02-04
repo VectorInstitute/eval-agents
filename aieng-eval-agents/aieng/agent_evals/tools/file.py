@@ -20,7 +20,7 @@ from typing import Any
 import httpx
 import pandas as pd
 from google.adk.tools.function_tool import FunctionTool
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
@@ -32,14 +32,6 @@ EXCEL_EXTENSIONS = {".xlsx", ".xls"}
 MAX_GREP_RESULTS_HARD_CAP = 50  # Never return more than 50 matches
 MAX_GREP_OUTPUT_CHARS = 100_000  # 100K character limit per grep output
 MAX_CONTEXT_LINES_CAP = 5  # Maximum context lines allowed
-
-
-_http_retry = retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
-    reraise=True,
-)
 
 
 @lru_cache(maxsize=1)
@@ -57,11 +49,20 @@ def _url_to_filename(url: str, extension: str = ".txt") -> str:
     return f"{safe_name}_{url_hash}{extension}"
 
 
-@_http_retry
-def _fetch_with_retry(client: httpx.Client, url: str) -> httpx.Response:
+async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Fetch URL with automatic retry on transient failures."""
-    response = client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
-    response.raise_for_status()
+    response: httpx.Response | None = None
+    async for attempt in AsyncRetrying(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+    ):
+        with attempt:
+            response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
+            response.raise_for_status()
+
+    # AsyncRetrying ensures response is set on success
+    assert response is not None
     return response
 
 
@@ -155,7 +156,7 @@ def _detect_extension(content_type: str, url: str) -> str:
     return ".txt"
 
 
-def fetch_file(url: str) -> dict[str, Any]:
+async def fetch_file(url: str) -> dict[str, Any]:
     """Download a file from a URL and save it locally.
 
     Use this tool to download data files (CSV, XLSX, JSON, text) that need
@@ -178,7 +179,7 @@ def fetch_file(url: str) -> dict[str, Any]:
 
     Examples
     --------
-    >>> result = fetch_file("https://example.com/data.csv")
+    >>> result = await fetch_file("https://example.com/data.csv")
     >>> if result["status"] == "success":
     ...     grep_result = grep_file(result["file_path"], "revenue, income")
     """
@@ -190,8 +191,8 @@ def fetch_file(url: str) -> dict[str, Any]:
         }
 
     try:
-        with httpx.Client(timeout=60.0, follow_redirects=True) as client:
-            response = _fetch_with_retry(client, url)
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            response = await _fetch_with_retry(client, url)
             content_type = response.headers.get("content-type", "")
 
             # Detect file extension

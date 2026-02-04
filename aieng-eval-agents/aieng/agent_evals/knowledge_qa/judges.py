@@ -153,6 +153,11 @@ class BaseJudge:
         )
         return response.text or ""
 
+    def close(self) -> None:
+        """Close the judge's client to clean up resources."""
+        if hasattr(self, "_client") and self._client is not None:
+            self._client.close()
+
 
 class DeepSearchQAResult(BaseModel):
     """Result from DeepSearchQA evaluation with IR metrics.

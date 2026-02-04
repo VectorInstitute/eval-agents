@@ -12,26 +12,28 @@ from urllib.parse import urljoin
 import httpx
 from google.adk.tools.function_tool import FunctionTool
 from html_to_markdown import convert as html_to_markdown
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
 
 MAX_CONTENT_CHARS = 100_000
 
-_http_retry = retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
-    reraise=True,
-)
 
-
-@_http_retry
-def _fetch_with_retry(client: httpx.Client, url: str) -> httpx.Response:
+async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Fetch URL with automatic retry on transient failures."""
-    response = client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
-    response.raise_for_status()
+    response: httpx.Response | None = None
+    async for attempt in AsyncRetrying(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+    ):
+        with attempt:
+            response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
+            response.raise_for_status()
+
+    # AsyncRetrying ensures response is set on success
+    assert response is not None
     return response
 
 
@@ -142,7 +144,7 @@ def _make_success_response(url: str, content: str, content_type: str, truncated:
     return result
 
 
-def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
+async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
     """Fetch content from a URL (HTML page or PDF document).
 
     This tool retrieves the full content from a URL for analysis. It handles
@@ -167,11 +169,11 @@ def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
     Examples
     --------
     >>> # Fetch an HTML page
-    >>> result = web_fetch("https://example.com/about")
+    >>> result = await web_fetch("https://example.com/about")
     >>> print(result["content"])
 
     >>> # Fetch a PDF
-    >>> result = web_fetch("https://arxiv.org/pdf/2301.00234.pdf")
+    >>> result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf")
     >>> print(f"Pages: {result['num_pages']}")
     >>> print(result["content"])
     """
@@ -180,8 +182,8 @@ def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
         return _make_error_response("Invalid URL. Must start with http:// or https://", url)
 
     try:
-        with httpx.Client(timeout=60.0, follow_redirects=True) as client:
-            response = _fetch_with_retry(client, url)
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            response = await _fetch_with_retry(client, url)
             content_type = response.headers.get("content-type", "")
             final_url = str(response.url)
 

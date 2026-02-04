@@ -6,7 +6,7 @@ Tests fetch_file, grep_file, and read_file which handle structured data files
 
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -202,8 +202,9 @@ class TestReadFileLines:
 class TestFetchFile:
     """Tests for the fetch_file function."""
 
-    @patch("aieng.agent_evals.tools.file.httpx.Client")
-    def test_fetch_csv_success(self, mock_client_class):
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.file.httpx.AsyncClient")
+    async def test_fetch_csv_success(self, mock_client_class):
         """Test successful CSV file download."""
         csv_content = "name,value\nfoo,100\nbar,200\n"
         mock_response = MagicMock()
@@ -211,13 +212,16 @@ class TestFetchFile:
         mock_response.headers = {"content-type": "text/csv"}
         mock_response.url = "https://example.com/data.csv"
 
+        async def mock_get(*_args, **_kwargs):
+            return mock_response
+
         mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
-        result = fetch_file("https://example.com/data.csv")
+        result = await fetch_file("https://example.com/data.csv")
 
         assert result["status"] == "success"
         assert "file_path" in result
@@ -229,26 +233,31 @@ class TestFetchFile:
         # Cleanup
         os.remove(result["file_path"])
 
-    @patch("aieng.agent_evals.tools.file.httpx.Client")
-    def test_fetch_pdf_returns_error(self, mock_client_class):
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.file.httpx.AsyncClient")
+    async def test_fetch_pdf_returns_error(self, mock_client_class):
         """Test that PDF URLs redirect to web_fetch."""
         mock_response = MagicMock()
         mock_response.headers = {"content-type": "application/pdf"}
 
+        async def mock_get(*_args, **_kwargs):
+            return mock_response
+
         mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
-        result = fetch_file("https://example.com/doc.pdf")
+        result = await fetch_file("https://example.com/doc.pdf")
 
         assert result["status"] == "error"
         assert "PDF" in result["error"]
 
-    def test_fetch_invalid_url(self):
+    @pytest.mark.asyncio
+    async def test_fetch_invalid_url(self):
         """Test that invalid URLs return error."""
-        result = fetch_file("not-a-url")
+        result = await fetch_file("not-a-url")
         assert result["status"] == "error"
         assert "Invalid URL" in result["error"]
 

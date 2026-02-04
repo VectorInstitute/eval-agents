@@ -124,6 +124,7 @@ class TokenTracker:
 
     def _fetch_model_limits(self) -> None:
         """Fetch model context limits from the API, with known fallbacks."""
+        client = None
         try:
             client = Client()
             model_info = client.models.get(model=self._model)
@@ -133,6 +134,10 @@ class TokenTracker:
                 return
         except Exception as e:
             logger.warning(f"Failed to fetch model limits from API: {e}")
+        finally:
+            # Properly close the client to avoid aiohttp session leaks
+            if client is not None:
+                client.close()
 
         # Use known fallback if available
         if self._model in KNOWN_MODEL_LIMITS:

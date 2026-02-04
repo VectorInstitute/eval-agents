@@ -79,6 +79,13 @@ class EvaluationContext:
         """Reset the completed item IDs for a new evaluation run."""
         self.completed_item_ids.clear()
 
+    def close(self) -> None:
+        """Close all judge clients to clean up resources."""
+        if self._judge is not None:
+            self._judge.close()
+        if self._trajectory_judge is not None:
+            self._trajectory_judge.close()
+
 
 # Shared context for the evaluation run
 _context = EvaluationContext()
@@ -588,9 +595,12 @@ async def run_evaluation(
     if resume and _context.completed_item_ids:
         logger.info("Resume processing complete!")
 
-    # Cleanup - client_manager.close() will flush Langfuse
+    # Cleanup - close judges and client_manager
     logger.info("Closing client manager and flushing data...")
     try:
+        # Close judge clients to properly clean up aiohttp sessions
+        _context.close()
+        # Close client manager to flush Langfuse
         await client_manager.close()
         logger.info("Cleanup complete")
     except Exception as e:
