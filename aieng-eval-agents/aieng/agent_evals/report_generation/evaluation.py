@@ -14,7 +14,7 @@ Example
 
 import logging
 from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 import agents
 from aieng.agent_evals.async_client_manager import AsyncClientManager
@@ -137,7 +137,7 @@ class ReportGenerationTask:
         self.langfuse_project_name = langfuse_project_name
 
     async def run(
-        self, *, item: Union[LocalExperimentItem, DatasetItemClient], **kwargs: dict[str, Any]
+        self, *, item: LocalExperimentItem | DatasetItemClient, **kwargs: dict[str, Any]
     ) -> EvaluationOutput:
         """Run the report generation agent against an item from a Langfuse dataset.
 
