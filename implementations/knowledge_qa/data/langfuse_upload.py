@@ -9,11 +9,14 @@ Usage:
 """
 
 import asyncio
+import json
 import logging
+import tempfile
+from pathlib import Path
 
 import click
-from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.knowledge_qa.evaluation import DeepSearchQADataset
+from aieng.agent_evals.langfuse import upload_dataset_to_langfuse as upload_file_to_langfuse
 from dotenv import load_dotenv
 
 
@@ -25,13 +28,16 @@ logger = logging.getLogger(__name__)
 DEFAULT_DATASET_NAME = "DeepSearchQA-Subset"
 
 
-async def upload_dataset_to_langfuse(
+async def upload_deepsearch_qa_to_langfuse(
     dataset_name: str,
     samples: int = 10,
     category: str | None = None,
     ids: list[int] | None = None,
 ) -> None:
     """Upload DeepSearchQA examples to Langfuse.
+
+    This function converts DeepSearchQA examples to a temporary JSONL file
+    and uses the shared upload utility for consistent formatting and progress tracking.
 
     Parameters
     ----------
@@ -44,15 +50,12 @@ async def upload_dataset_to_langfuse(
     ids : list[int], optional
         Specific example IDs to upload.
     """
-    client_manager = AsyncClientManager.get_instance()
-    langfuse = client_manager.langfuse_client
-
     # Load DeepSearchQA dataset
     logger.info("Loading DeepSearchQA dataset...")
     dataset = DeepSearchQADataset()
     logger.info(f"Loaded {len(dataset)} total examples")
 
-    # Select examples
+    # Select examples based on criteria
     if ids:
         examples = dataset.get_by_ids(ids)
         logger.info(f"Selected {len(examples)} examples by ID")
@@ -67,31 +70,41 @@ async def upload_dataset_to_langfuse(
         logger.error("No examples found matching criteria")
         return
 
-    # Create or get existing dataset in Langfuse
+    # Convert examples to JSONL format for the shared upload utility
+    # Use a temporary file that's automatically cleaned up
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix=".jsonl",
+        prefix=f"deepsearchqa_{dataset_name}_",
+        delete=False,
+    ) as temp_file:
+        temp_path = Path(temp_file.name)
+        logger.info(f"Writing {len(examples)} examples to temporary file...")
+
+        for example in examples:
+            record = {
+                "input": example.problem,
+                "expected_output": example.answer,
+                "metadata": {
+                    "example_id": example.example_id,
+                    "category": example.problem_category,
+                    "answer_type": example.answer_type,
+                },
+            }
+            temp_file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
     try:
-        langfuse.create_dataset(name=dataset_name)
-        logger.info(f"Created new dataset '{dataset_name}'")
-    except Exception:
-        logger.info(f"Dataset '{dataset_name}' already exists, adding items")
-
-    # Upload each example
-    for example in examples:
-        langfuse.create_dataset_item(
+        # Use the shared upload utility with progress tracking and deduplication
+        await upload_file_to_langfuse(
+            dataset_path=str(temp_path),
             dataset_name=dataset_name,
-            input=example.problem,
-            expected_output=example.answer,
-            metadata={
-                "example_id": example.example_id,
-                "category": example.problem_category,
-                "answer_type": example.answer_type,
-            },
         )
-        logger.info(f"Uploaded example {example.example_id}: {example.problem[:50]}...")
-
-    logger.info(f"Uploaded {len(examples)} items to dataset '{dataset_name}'")
-
-    # Cleanup
-    await client_manager.close()
+    finally:
+        # Clean up temporary file
+        if temp_path.exists():
+            temp_path.unlink()
+            logger.debug(f"Removed temporary file: {temp_path}")
 
 
 @click.command()
@@ -120,7 +133,7 @@ async def upload_dataset_to_langfuse(
 def cli(dataset_name: str, samples: int, category: str | None, ids: tuple[int, ...]) -> None:
     """Upload DeepSearchQA examples to Langfuse."""
     ids_list = list(ids) if ids else None
-    asyncio.run(upload_dataset_to_langfuse(dataset_name, samples, category, ids_list))
+    asyncio.run(upload_deepsearch_qa_to_langfuse(dataset_name, samples, category, ids_list))
 
 
 if __name__ == "__main__":
