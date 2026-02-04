@@ -75,29 +75,34 @@ class TestHtmlToMarkdown:
 class TestWebFetch:
     """Tests for the web_fetch function."""
 
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_fetch_html_success(self, mock_client_class):
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
+    async def test_fetch_html_success(self, mock_client_class):
         """Test successful HTML fetch returns content."""
         mock_response = MagicMock()
         mock_response.text = "<html><body><p>Hello World</p></body></html>"
         mock_response.headers = {"content-type": "text/html"}
         mock_response.url = "https://example.com"
 
+        async def mock_get(*_args, **_kwargs):
+            return mock_response
+
         mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
-        result = web_fetch("https://example.com")
+        result = await web_fetch("https://example.com")
 
         assert result["status"] == "success"
         assert "content" in result
         assert "Hello World" in result["content"]
         assert result["content_type"] == "text/html"
 
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_fetch_pdf_success(self, mock_client_class):
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
+    async def test_fetch_pdf_success(self, mock_client_class):
         """Test that PDF content is extracted successfully."""
         # Create a PDF with text
         writer = PdfWriter()
@@ -111,21 +116,25 @@ class TestWebFetch:
         mock_response.headers = {"content-type": "application/pdf"}
         mock_response.url = "https://example.com/doc.pdf"
 
+        async def mock_get(*_args, **_kwargs):
+            return mock_response
+
         mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
-        result = web_fetch("https://example.com/doc.pdf")
+        result = await web_fetch("https://example.com/doc.pdf")
 
         assert result["status"] == "success"
         assert result["content_type"] == "application/pdf"
         assert "num_pages" in result
         assert result["num_pages"] >= 1
 
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_fetch_returns_content_length(self, mock_client_class):
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
+    async def test_fetch_returns_content_length(self, mock_client_class):
         """Test that fetch returns content length."""
         long_text = "A" * 10000
         mock_response = MagicMock()
@@ -133,21 +142,25 @@ class TestWebFetch:
         mock_response.headers = {"content-type": "text/html"}
         mock_response.url = "https://example.com"
 
+        async def mock_get(*_args, **_kwargs):
+            return mock_response
+
         mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
-        result = web_fetch("https://example.com")
+        result = await web_fetch("https://example.com")
 
         assert result["status"] == "success"
         # Content length should include the 10000 As (may have some markdown formatting)
         assert result["content_length"] >= 10000
         assert not result["truncated"]
 
-    @patch("aieng.agent_evals.tools.web.httpx.Client")
-    def test_fetch_truncates_large_content(self, mock_client_class):
+    @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
+    async def test_fetch_truncates_large_content(self, mock_client_class):
         """Test that very large content is truncated."""
         # Create content larger than MAX_CONTENT_CHARS (100KB)
         large_text = "A" * 150_000
@@ -156,21 +169,25 @@ class TestWebFetch:
         mock_response.headers = {"content-type": "text/html"}
         mock_response.url = "https://example.com"
 
+        async def mock_get(*_args, **_kwargs):
+            return mock_response
+
         mock_client = MagicMock()
-        mock_client.get.return_value = mock_response
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get = mock_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
-        result = web_fetch("https://example.com")
+        result = await web_fetch("https://example.com")
 
         assert result["status"] == "success"
         assert result["truncated"] is True
         assert "[Content truncated" in result["content"]
 
-    def test_fetch_invalid_url(self):
+    @pytest.mark.asyncio
+    async def test_fetch_invalid_url(self):
         """Test that invalid URLs return error."""
-        result = web_fetch("not-a-url")
+        result = await web_fetch("not-a-url")
         assert result["status"] == "error"
         assert "Invalid URL" in result["error"]
 
@@ -338,9 +355,10 @@ class TestWebFetchIntegration:
     and PDF documents, returning content suitable for the agent to analyze.
     """
 
-    def test_fetch_html_page_returns_readable_content(self):
+    @pytest.mark.asyncio
+    async def test_fetch_html_page_returns_readable_content(self):
         """Test that HTML pages are converted to readable markdown."""
-        result = web_fetch("https://www.iana.org/help/example-domains")
+        result = await web_fetch("https://www.iana.org/help/example-domains")
         assert result["status"] == "success"
         assert result["content_type"] == "text/html" or "html" in result["content_type"].lower()
 
@@ -359,9 +377,10 @@ class TestWebFetchIntegration:
             # Links should be in markdown format, not raw <a> tags
             assert "<a " not in content.lower()
 
-    def test_fetch_pdf_extracts_text(self):
+    @pytest.mark.asyncio
+    async def test_fetch_pdf_extracts_text(self):
         """Test that PDF content is extracted as searchable text."""
-        result = web_fetch("https://arxiv.org/pdf/2301.00234.pdf", max_pages=2)
+        result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf", max_pages=2)
         assert result["status"] == "success"
         assert result["content_type"] == "application/pdf"
         assert result["num_pages"] > 0
@@ -373,9 +392,10 @@ class TestWebFetchIntegration:
         # Verify page markers are present
         assert "--- Page" in content
 
-    def test_fetch_pdf_pagination(self):
+    @pytest.mark.asyncio
+    async def test_fetch_pdf_pagination(self):
         """Test that PDF max_pages parameter limits extraction."""
-        result = web_fetch("https://arxiv.org/pdf/2301.00234.pdf", max_pages=1)
+        result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf", max_pages=1)
         assert result["status"] == "success"
         assert result["pages_extracted"] == 1
         assert result["num_pages"] >= 1
