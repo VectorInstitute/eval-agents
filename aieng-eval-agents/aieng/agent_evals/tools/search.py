@@ -7,6 +7,7 @@ enabling a proper research workflow: search → fetch → verify → answer.
 import logging
 from typing import Any
 
+from aieng.agent_evals.configs import Configs
 from google.adk.tools.function_tool import FunctionTool
 from google.genai import Client, types
 from pydantic import BaseModel, Field
@@ -75,7 +76,7 @@ def format_response_with_citations(response: GroundedResponse) -> str:
     return response.format_with_citations()
 
 
-async def _google_search_async(query: str) -> dict[str, Any]:
+async def _google_search_async(query: str, model: str) -> dict[str, Any]:
     """Execute a Google search and return results with actual URLs.
 
     This function calls Gemini with Google Search grounding enabled,
@@ -86,6 +87,8 @@ async def _google_search_async(query: str) -> dict[str, Any]:
     ----------
     query : str
         The search query.
+    model : str
+        The Gemini model to use for search.
 
     Returns
     -------
@@ -97,7 +100,7 @@ async def _google_search_async(query: str) -> dict[str, Any]:
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model=model,
             contents=query,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -148,7 +151,7 @@ async def _google_search_async(query: str) -> dict[str, Any]:
         }
 
 
-async def google_search(query: str) -> dict[str, Any]:
+async def google_search(query: str, model: str | None = None) -> dict[str, Any]:
     """Search Google and return results with actual URLs for fetching.
 
     Use this tool to find information on the web. The results include:
@@ -162,6 +165,9 @@ async def google_search(query: str) -> dict[str, Any]:
     ----------
     query : str
         The search query. Be specific and include key terms.
+    model : str, optional
+        The Gemini model to use for search. If not provided, uses
+        default_worker_model from Configs.
 
     Returns
     -------
@@ -178,14 +184,24 @@ async def google_search(query: str) -> dict[str, Any]:
     >>> # Then fetch to verify
     >>> page = await web_fetch(result["sources"][0]["url"])
     """
-    return await _google_search_async(query)
+    if model is None:
+        config = Configs()  # type: ignore[call-arg]
+        model = config.default_worker_model
+
+    return await _google_search_async(query, model=model)
 
 
-def create_google_search_tool() -> FunctionTool:
+def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
     """Create a search tool that returns actual URLs for fetching.
 
     This tool calls Google Search, extracts grounding URLs, resolves redirects,
     and returns actual URLs the agent can use with web_fetch for verification.
+
+    Parameters
+    ----------
+    config : Configs, optional
+        Configuration settings. If not provided, creates default config.
+        Uses config.default_worker_model for the search model.
 
     Returns
     -------
@@ -195,8 +211,40 @@ def create_google_search_tool() -> FunctionTool:
     Examples
     --------
     >>> from aieng.agent_evals.tools import create_google_search_tool
-    >>> search_tool = create_google_search_tool()
+    >>> from aieng.agent_evals.configs import Configs
+    >>> config = Configs()
+    >>> search_tool = create_google_search_tool(config=config)
     >>> # Use with an ADK agent
     >>> agent = Agent(tools=[search_tool])
     """
+    if config is None:
+        config = Configs()  # type: ignore[call-arg]
+
+    model = config.default_worker_model
+
+    async def google_search(query: str) -> dict[str, Any]:
+        """Search Google and return results with actual URLs for fetching.
+
+        Use this tool to find information on the web. The results include:
+        - A summary of what was found
+        - A list of source URLs that you can fetch with web_fetch to verify
+
+        IMPORTANT: The summary is from search snippets which may be incomplete
+        or outdated. Always use web_fetch on the source URLs to verify information
+        before answering.
+
+        Parameters
+        ----------
+        query : str
+            The search query. Be specific and include key terms.
+
+        Returns
+        -------
+        dict
+            Contains 'summary' (brief overview), 'sources' (list of URLs to fetch),
+            and 'source_count'. On error, contains 'status': 'error' and 'error'
+            message.
+        """
+        return await _google_search_async(query, model=model)
+
     return FunctionTool(func=google_search)

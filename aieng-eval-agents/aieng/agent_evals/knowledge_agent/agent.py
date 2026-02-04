@@ -151,7 +151,7 @@ class KnowledgeGroundedAgent:
         self._thinking_budget = thinking_budget
 
         # Create tools - use function tool for search so agent sees actual URLs
-        self._search_tool = create_google_search_tool()
+        self._search_tool = create_google_search_tool(config=config)
         self._web_fetch_tool = create_web_fetch_tool()
         self._fetch_file_tool = create_fetch_file_tool()
         self._grep_file_tool = create_grep_file_tool()
