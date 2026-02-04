@@ -1,8 +1,8 @@
 """Tests for the metrics aggregation module."""
 
 import pytest
-from aieng.agent_evals.knowledge_agent.judges import DeepSearchQAResult, JudgeResult
-from aieng.agent_evals.knowledge_agent.metrics import (
+from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAResult, JudgeResult
+from aieng.agent_evals.knowledge_qa.metrics import (
     EnhancedEvaluationResult,
     EvaluationMetrics,
     MetricsAggregator,

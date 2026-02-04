@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.scripts]
-knowledge-agent = "aieng.agent_evals.knowledge_agent.cli:main"
+knowledge-qa = "aieng.agent_evals.knowledge_qa.cli:main"
 
 [dependency-groups]
 dev = [

@@ -5,11 +5,11 @@ Command-line interface for running and evaluating the Knowledge-Grounded QA Agen
 
 Usage::
 
-    knowledge-agent ask "What is..."
-    knowledge-agent eval --samples 3
-    knowledge-agent eval --ids 123 456 789
-    knowledge-agent sample --ids 123
-    knowledge-agent sample --category "Finance & Economics" --count 5
+    knowledge-qa ask "What is..."
+    knowledge-qa eval --samples 3
+    knowledge-qa eval --ids 123 456 789
+    knowledge-qa sample --ids 123
+    knowledge-qa sample --category "Finance & Economics" --count 5
 """
 
 import argparse
@@ -85,7 +85,7 @@ def display_banner() -> None:
     # Robot face with magnifying glass
     line0 = Text()
     line0.append("  ◯─◯    ", style=f"{VECTOR_CYAN} bold")
-    line0.append("knowledge-agent ", style="white bold")
+    line0.append("knowledge-qa ", style="white bold")
     line0.append(f"v{ver}", style="bright_black")
 
     line1 = Text()
@@ -592,7 +592,7 @@ def setup_logging() -> ToolCallHandler:
         "httpx",
         "httpcore",
         "aieng.agent_evals.tools",
-        "aieng.agent_evals.knowledge_agent.web_tools",
+        "aieng.agent_evals.knowledge_qa.web_tools",
     ]:
         _logger = logging.getLogger(logger_name)
         _logger.setLevel(logging.CRITICAL)
@@ -605,7 +605,7 @@ def setup_logging() -> ToolCallHandler:
     tool_handler.setLevel(logging.INFO)
 
     # Configure agent logger to only capture tool calls, suppress other messages
-    agent_logger = logging.getLogger("aieng.agent_evals.knowledge_agent.agent")
+    agent_logger = logging.getLogger("aieng.agent_evals.knowledge_qa.agent")
     agent_logger.handlers.clear()
     agent_logger.addHandler(tool_handler)
     agent_logger.setLevel(logging.INFO)
@@ -1418,19 +1418,15 @@ def _display_help() -> None:
 
     # Usage examples
     console.print("[bold]Examples:[/bold]")
-    console.print('  [dim]$[/dim] knowledge-agent [green]ask[/green] [yellow]"What is quantum computing?"[/yellow]')
+    console.print('  [dim]$[/dim] knowledge-qa [green]ask[/green] [yellow]"What is quantum computing?"[/yellow]')
     console.print(
-        '  [dim]$[/dim] knowledge-agent [green]ask[/green] [yellow]"What is AI?"[/yellow] [cyan]--log-trace[/cyan]'
+        '  [dim]$[/dim] knowledge-qa [green]ask[/green] [yellow]"What is AI?"[/yellow] [cyan]--log-trace[/cyan]'
     )
-    console.print("  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--samples[/cyan] 3")
+    console.print("  [dim]$[/dim] knowledge-qa [green]eval[/green] [cyan]--samples[/cyan] 3")
+    console.print("  [dim]$[/dim] knowledge-qa [green]eval[/green] [cyan]--ids[/cyan] 123 456 [cyan]--show-plan[/cyan]")
+    console.print("  [dim]$[/dim] knowledge-qa [green]eval[/green] [cyan]--samples[/cyan] 5 [cyan]--log-trace[/cyan]")
     console.print(
-        "  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--ids[/cyan] 123 456 [cyan]--show-plan[/cyan]"
-    )
-    console.print(
-        "  [dim]$[/dim] knowledge-agent [green]eval[/green] [cyan]--samples[/cyan] 5 [cyan]--log-trace[/cyan]"
-    )
-    console.print(
-        '  [dim]$[/dim] knowledge-agent [green]sample[/green] [cyan]--category[/cyan] [yellow]"Finance & Economics"[/yellow]'
+        '  [dim]$[/dim] knowledge-qa [green]sample[/green] [cyan]--category[/cyan] [yellow]"Finance & Economics"[/yellow]'
     )
     console.print()
 
@@ -1438,7 +1434,7 @@ def _display_help() -> None:
 def main() -> int:
     """Run the Knowledge Agent CLI."""
     parser = argparse.ArgumentParser(
-        prog="knowledge-agent",
+        prog="knowledge-qa",
         description="Knowledge-Grounded QA Agent CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,  # We'll handle help ourselves
@@ -1559,7 +1555,7 @@ def main() -> int:
     # Show help for no command or explicit --help
     display_banner()
     if args.version:
-        console.print(f"[bold]knowledge-agent[/bold] v{get_version()}")
+        console.print(f"[bold]knowledge-qa[/bold] v{get_version()}")
         return 0
     _display_help()
     return 0

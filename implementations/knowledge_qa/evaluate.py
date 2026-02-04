@@ -30,8 +30,8 @@ from typing import Any
 
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.knowledge_agent.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_agent.judges import DeepSearchQAJudge, TrajectoryQualityJudge
+from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
+from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge, TrajectoryQualityJudge
 from dotenv import load_dotenv
 from langfuse.experiment import Evaluation
 

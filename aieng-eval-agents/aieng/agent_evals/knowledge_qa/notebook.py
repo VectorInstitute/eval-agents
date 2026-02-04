@@ -5,8 +5,8 @@ and tool calls while the agent works.
 
 Example
 -------
->>> from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
->>> from aieng.agent_evals.knowledge_agent.notebook import run_with_display
+>>> from aieng.agent_evals.knowledge_qa import KnowledgeGroundedAgent
+>>> from aieng.agent_evals.knowledge_qa.notebook import run_with_display
 >>> agent = KnowledgeGroundedAgent(enable_planning=True)
 >>> response = await run_with_display(agent, "What is quantum computing?")
 """
@@ -197,7 +197,7 @@ async def run_with_display(
     # Set up tool call capture on the agent logger (same as CLI)
     tool_capture = ToolCallCapture()
     tool_capture.setLevel(logging.INFO)
-    agent_logger = logging.getLogger("aieng.agent_evals.knowledge_agent.agent")
+    agent_logger = logging.getLogger("aieng.agent_evals.knowledge_qa.agent")
     original_agent_level = agent_logger.level
     original_handlers = agent_logger.handlers.copy()
     agent_logger.handlers.clear()

@@ -3,11 +3,11 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from aieng.agent_evals.knowledge_agent.agent import (
+from aieng.agent_evals.knowledge_qa.agent import (
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
 )
-from aieng.agent_evals.knowledge_agent.models import (
+from aieng.agent_evals.knowledge_qa.models import (
     AgentResponse,
     ResearchPlan,
     ResearchStep,
@@ -356,15 +356,15 @@ class TestKnowledgeGroundedAgent:
         config.default_temperature = 0.0
         return config
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_grep_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_initialization(
         self,
         mock_create_search_tool,
@@ -396,7 +396,7 @@ class TestKnowledgeGroundedAgent:
         # Verify ADK Agent was created with correct params
         mock_agent_class.assert_called_once()
         call_kwargs = mock_agent_class.call_args[1]
-        assert call_kwargs["name"] == "knowledge_agent"
+        assert call_kwargs["name"] == "knowledge_qa"
         assert mock_search_tool in call_kwargs["tools"]
         assert mock_web_fetch_tool in call_kwargs["tools"]
 
@@ -404,15 +404,15 @@ class TestKnowledgeGroundedAgent:
         mock_planner.assert_called_once()
         assert agent.enable_planning is True
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_grep_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_without_planning(
         self,
         _mock_create_search_tool,
@@ -439,15 +439,15 @@ class TestKnowledgeGroundedAgent:
         call_kwargs = mock_agent_class.call_args[1]
         assert call_kwargs["planner"] is None
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_grep_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_with_custom_model(
         self,
         _mock_create_search_tool,
@@ -474,18 +474,18 @@ class TestKnowledgeGroundedAgent:
 class TestKnowledgeAgentManager:
     """Tests for the KnowledgeAgentManager class."""
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_grep_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_lazy_initialization(self, *_mocks):
         """Test that agent is lazily initialized."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
             mock_config = MagicMock()
             mock_config.default_worker_model = "gemini-2.5-flash"
             mock_config.default_temperature = 0.0
@@ -502,18 +502,18 @@ class TestKnowledgeAgentManager:
             # Now should be initialized
             assert manager.is_initialized()
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.PlanReActPlanner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_read_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_grep_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_fetch_file_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_web_fetch_tool")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_close(self, *_mocks):
         """Test closing the client manager."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
             mock_config = MagicMock()
             mock_config.default_worker_model = "gemini-2.5-flash"
             mock_config.default_temperature = 0.0

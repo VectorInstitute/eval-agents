@@ -13,7 +13,7 @@ import logging
 
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.knowledge_agent.evaluation import DeepSearchQADataset
+from aieng.agent_evals.knowledge_qa.evaluation import DeepSearchQADataset
 from dotenv import load_dotenv
 
 

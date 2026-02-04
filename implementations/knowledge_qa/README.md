@@ -38,7 +38,7 @@ uv sync
 ### Programmatic Usage
 
 ```python
-from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
+from aieng.agent_evals.knowledge_qa import KnowledgeGroundedAgent
 
 agent = KnowledgeGroundedAgent()
 
@@ -56,7 +56,7 @@ print(f"Tool calls: {response.tool_calls}")
 ### Evaluation on DeepSearchQA
 
 ```python
-from aieng.agent_evals.knowledge_agent import (
+from aieng.agent_evals.knowledge_qa import (
     KnowledgeGroundedAgent,
     DeepSearchQAEvaluator,
 )
@@ -80,7 +80,7 @@ print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
 ## Architecture
 
 ```
-aieng.agent_evals.knowledge_agent/
+aieng.agent_evals.knowledge_qa/
 ├── agent.py           # KnowledgeGroundedAgent (ADK Agent + Runner)
 ├── evaluation.py      # DeepSearchQA dataset and evaluator
 ├── judges.py          # LLM-as-judge evaluation

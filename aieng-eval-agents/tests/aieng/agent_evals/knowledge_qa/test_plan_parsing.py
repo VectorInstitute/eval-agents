@@ -1,9 +1,9 @@
 """Tests for plan parsing utilities."""
 
 import pytest
-from aieng.agent_evals.knowledge_agent.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_agent.models import ResearchStep, StepStatus
-from aieng.agent_evals.knowledge_agent.plan_parsing import (
+from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
+from aieng.agent_evals.knowledge_qa.models import ResearchStep, StepStatus
+from aieng.agent_evals.knowledge_qa.plan_parsing import (
     ACTION_TAG,
     FINAL_ANSWER_TAG,
     PLANNING_TAG,

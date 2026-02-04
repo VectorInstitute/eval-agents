@@ -5,7 +5,7 @@ question answering agents using Google ADK with explicit Google Search tool call
 
 Example
 -------
->>> from aieng.agent_evals.knowledge_agent import (
+>>> from aieng.agent_evals.knowledge_qa import (
 ...     KnowledgeGroundedAgent,
 ...     DeepSearchQADataset,
 ...     DeepSearchQAEvaluator,

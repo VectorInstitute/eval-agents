@@ -103,7 +103,7 @@ class KnowledgeGroundedAgent:
 
     Examples
     --------
-    >>> from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
+    >>> from aieng.agent_evals.knowledge_qa import KnowledgeGroundedAgent
     >>> agent = KnowledgeGroundedAgent()
     >>> response = agent.answer("What are the Basel III capital requirements?")
     >>> print(response.text)
@@ -169,7 +169,7 @@ class KnowledgeGroundedAgent:
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
 
         self._agent = Agent(
-            name="knowledge_agent",
+            name="knowledge_qa",
             model=self.model,
             instruction=build_system_instructions(),
             tools=[
@@ -202,7 +202,7 @@ class KnowledgeGroundedAgent:
         else:
             self._app = None
             self._runner = Runner(
-                app_name="knowledge_agent",
+                app_name="knowledge_qa",
                 agent=self._agent,
                 session_service=self._session_service,
             )
@@ -218,7 +218,7 @@ class KnowledgeGroundedAgent:
     ) -> tuple[App, Runner]:
         """Create App and Runner with caching/compaction config."""
         app_kwargs: dict[str, Any] = {
-            "name": "knowledge_agent",
+            "name": "knowledge_qa",
             "root_agent": self._agent,
         }
 
@@ -272,7 +272,7 @@ class KnowledgeGroundedAgent:
             )
         else:
             self._runner = Runner(
-                app_name="knowledge_agent",
+                app_name="knowledge_qa",
                 agent=self._agent,
                 session_service=self._session_service,
             )
@@ -313,7 +313,7 @@ class KnowledgeGroundedAgent:
 
         if session_id not in self._sessions:
             session = await self._session_service.create_session(
-                app_name="knowledge_agent",
+                app_name="knowledge_qa",
                 user_id="user",
                 state={},
             )
@@ -598,7 +598,7 @@ class KnowledgeGroundedAgent:
                 )
                 # Create fresh session for retry to avoid polluted history
                 fresh_session = await self._session_service.create_session(
-                    app_name="knowledge_agent",
+                    app_name="knowledge_qa",
                     user_id="user",
                     state={},
                 )

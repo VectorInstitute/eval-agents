@@ -11,7 +11,7 @@ from aieng.agent_evals.tools import GroundingChunk, resolve_redirect_urls_async
 
 
 # Use the agent module's logger so CLI tool call handler captures these messages
-logger = logging.getLogger("aieng.agent_evals.knowledge_agent.agent")
+logger = logging.getLogger("aieng.agent_evals.knowledge_qa.agent")
 
 
 def extract_tool_calls(event: Any) -> list[dict[str, Any]]:

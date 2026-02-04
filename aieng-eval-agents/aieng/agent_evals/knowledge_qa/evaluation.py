@@ -273,7 +273,7 @@ class DeepSearchQAEvaluator:
 
     Examples
     --------
-    >>> from aieng.agent_evals.knowledge_agent import (
+    >>> from aieng.agent_evals.knowledge_qa import (
     ...     KnowledgeGroundedAgent,
     ...     DeepSearchQAEvaluator,
     ... )
