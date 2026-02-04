@@ -9,6 +9,7 @@ import asyncio
 import logging
 
 import httpx
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,8 @@ async def _resolve_single_url_async(
 ) -> str:
     """Resolve a single URL with retries and exponential backoff.
 
+    Uses tenacity for automatic retry handling with exponential backoff.
+
     Parameters
     ----------
     client : httpx.AsyncClient
@@ -84,7 +87,7 @@ async def _resolve_single_url_async(
     Returns
     -------
     str
-        The resolved URL, or original URL on failure.
+        The resolved URL, or original URL if not a redirect or on failure.
     """
     # Skip resolution for non-redirect URLs
     if not _is_redirect_url(url):
@@ -94,40 +97,34 @@ async def _resolve_single_url_async(
     if url in _redirect_cache:
         return _redirect_cache[url]
 
-    last_error: Exception | None = None
+    try:
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(max_retries),
+            wait=wait_exponential(multiplier=base_delay, min=base_delay, max=60.0),
+            retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)),
+        ):
+            with attempt:
+                # Try HEAD first (faster, no body download)
+                final_url = await _resolve_with_head_async(client, url)
 
-    for attempt in range(max_retries):
-        try:
-            # Try HEAD first (faster, no body download)
-            final_url = await _resolve_with_head_async(client, url)
+                # Fall back to GET if HEAD failed
+                if final_url is None:
+                    logger.debug(f"HEAD failed for {url[:60]}..., trying GET")
+                    final_url = await _resolve_with_get_async(client, url)
 
-            # Fall back to GET if HEAD failed
-            if final_url is None:
-                logger.debug(f"HEAD failed for {url[:60]}..., trying GET (attempt {attempt + 1})")
-                final_url = await _resolve_with_get_async(client, url)
+                if final_url != url:
+                    logger.debug(f"Resolved redirect: {url[:60]}... -> {final_url[:60]}...")
 
-            if final_url != url:
-                logger.debug(f"Resolved redirect: {url[:60]}... -> {final_url[:60]}...")
+                _redirect_cache[url] = final_url
 
-            _redirect_cache[url] = final_url
-            return final_url
+        # If we reach here, the retry loop succeeded
+        return _redirect_cache[url]
 
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.ReadError) as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                delay = base_delay * (2**attempt)  # Exponential backoff
-                logger.debug(f"Retry {attempt + 1}/{max_retries} for {url[:60]}... after {delay}s: {e}")
-                await asyncio.sleep(delay)
-            continue
-        except Exception as e:
-            # Non-retryable error
-            last_error = e
-            break
-
-    # All retries exhausted or non-retryable error
-    logger.warning(f"Failed to resolve redirect URL {url[:60]}...: {type(last_error).__name__}: {last_error}")
-    _redirect_cache[url] = url  # Cache failures to avoid repeated attempts
-    return url
+    except Exception as e:
+        # All retries exhausted or non-retryable error
+        logger.warning(f"Failed to resolve redirect URL {url[:60]}...: {type(e).__name__}: {e}")
+        _redirect_cache[url] = url  # Cache failures to avoid repeated attempts
+        return url
 
 
 async def resolve_redirect_url_async(url: str) -> str:
