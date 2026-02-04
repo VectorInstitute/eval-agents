@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import uuid
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 
 import google.genai.types
@@ -216,7 +216,7 @@ async def _analyze_cases_to_jsonl(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tasks = [
-        asyncio.create_task(rate_limited(lambda r=record: _safe_analyze_case(runner, r), semaphore)) for record in cases
+        asyncio.create_task(rate_limited(partial(_safe_analyze_case, runner, record), semaphore)) for record in cases
     ]
 
     analyzed_by_id: dict[str, CaseRecord] = {}
@@ -280,6 +280,7 @@ async def _main() -> None:
             tp = fp = fn = tn = 0
             for r in scored:
                 gt = r.groundtruth.is_laundering
+                assert r.analysis is not None  # Guaranteed by filter above
                 pred = r.analysis.is_laundering
                 if gt and pred:
                     tp += 1
