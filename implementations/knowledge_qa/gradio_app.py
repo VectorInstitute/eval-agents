@@ -4,7 +4,7 @@ This app provides an interactive chat interface for testing the
 knowledge-grounded QA agent with Google ADK and explicit Google Search tool calls.
 
 Run with:
-    uv run --env-file .env gradio implementations/knowledge_agent/gradio_app.py
+    uv run --env-file .env gradio implementations/knowledge_qa/gradio_app.py
 """
 
 import asyncio
@@ -13,7 +13,7 @@ import uuid
 from typing import Any, Generator
 
 import gradio as gr
-from aieng.agent_evals.knowledge_agent import (
+from aieng.agent_evals.knowledge_qa import (
     DeepSearchQADataset,
     KnowledgeAgentManager,
 )
