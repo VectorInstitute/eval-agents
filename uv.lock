@@ -25,7 +25,6 @@ dependencies = [
     { name = "datasets" },
     { name = "e2b-code-interpreter" },
     { name = "filelock" },
-    { name = "gradio" },
     { name = "langfuse" },
     { name = "lxml" },
     { name = "nest-asyncio" },
@@ -39,7 +38,6 @@ dependencies = [
     { name = "tenacity" },
     { name = "urllib3" },
     { name = "virtualenv" },
-    { name = "weaviate-client" },
 ]
 
 [package.dev-dependencies]
@@ -53,6 +51,7 @@ dev = [
     { name = "jupyterlab" },
     { name = "mypy" },
     { name = "nbqa" },
+    { name = "pandas-stubs" },
     { name = "pip" },
     { name = "pip-audit" },
     { name = "pre-commit" },
@@ -88,7 +87,6 @@ requires-dist = [
     { name = "datasets", specifier = ">=3.6.0" },
     { name = "e2b-code-interpreter", specifier = ">=2.4.1" },
     { name = "filelock", specifier = ">=3.20.3" },
-    { name = "gradio", specifier = ">=6.0.2" },
     { name = "langfuse", specifier = ">=3.10.3" },
     { name = "lxml", specifier = ">=6.0.0" },
     { name = "nest-asyncio", specifier = ">=1.6.0" },
@@ -102,7 +100,6 @@ requires-dist = [
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "urllib3", specifier = ">=2.6.3" },
     { name = "virtualenv", specifier = ">=20.36.1" },
-    { name = "weaviate-client", specifier = ">=4.18.3" },
 ]
 
 [package.metadata.requires-dev]
@@ -116,6 +113,7 @@ dev = [
     { name = "jupyterlab", specifier = ">=4.4.8" },
     { name = "mypy", specifier = ">=1.19.0" },
     { name = "nbqa", specifier = ">=1.9.1" },
+    { name = "pandas-stubs", specifier = ">=2.3.3.260113" },
     { name = "pip", specifier = ">=26.0" },
     { name = "pip-audit", specifier = ">=2.9.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
@@ -144,11 +142,14 @@ web-search = [
 
 [[package]]
 name = "aieng-eval-agents"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "aieng-eval-agents" }
 dependencies = [
     { name = "google-adk" },
     { name = "google-genai" },
+    { name = "gradio" },
+    { name = "html-to-markdown" },
+    { name = "httpx" },
     { name = "kagglehub" },
     { name = "langfuse" },
     { name = "openinference-instrumentation-google-adk" },
@@ -157,12 +158,19 @@ dependencies = [
     { name = "pandas" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pypdf" },
+    { name = "python-dotenv" },
     { name = "rich" },
+    { name = "sqlalchemy" },
+    { name = "sqlglot" },
+    { name = "tenacity" },
+    { name = "weaviate-client" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
 ]
 
@@ -170,6 +178,9 @@ dev = [
 requires-dist = [
     { name = "google-adk", specifier = ">=1.23.0" },
     { name = "google-genai", specifier = ">=1.52.0" },
+    { name = "gradio", specifier = ">=6.0.2" },
+    { name = "html-to-markdown", specifier = ">=2.24.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "kagglehub", specifier = ">=0.4.1" },
     { name = "langfuse", specifier = ">=3.10.3" },
     { name = "openinference-instrumentation-google-adk", specifier = ">=0.1.0" },
@@ -178,12 +189,19 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.3.0" },
     { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "pypdf" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.9.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.46" },
+    { name = "sqlglot", specifier = ">=28.6.0" },
+    { name = "tenacity", specifier = ">=8.2.0" },
+    { name = "weaviate-client", specifier = ">=4.18.3" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
 
@@ -2249,6 +2267,17 @@ wheels = [
 ]
 
 [[package]]
+name = "html-to-markdown"
+version = "2.24.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/90/f77a624499fd7f95dcd10e3d56fd20f7312f6c9987064a75e1da4fb7e2b4/html_to_markdown-2.24.5.tar.gz", hash = "sha256:05459e635bca56c31bdb5bbc684a54947e83d7ed4c30da3a98485ce2b60153b6", size = 293423, upload-time = "2026-02-01T22:22:23.503Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a6/03/c4562d06e9b3dda55d7d5cfa5ea8d38efad500c5aa51d0028b684483a388/html_to_markdown-2.24.5-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:cb7e74839d01ee397dc5662e3474004a4baddbc5d3f94aa3c517f1cba735708a", size = 8850237, upload-time = "2026-02-01T22:22:16.26Z" },
+    { url = "https://files.pythonhosted.org/packages/93/20/b5942e47a6de5f662f629db0bf8b7206e2c9352a7123914225a4d26e0a4b/html_to_markdown-2.24.5-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c7b4903aeb38795cec2e7a6f9b8e5b5d2d874e367935e9ef7ba9f60d76505066", size = 9673130, upload-time = "2026-02-01T22:22:18.876Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/26/03ef12d72f0a5fbc7838f02988865e9f62ab6084bebb8a4de0ba55ae5986/html_to_markdown-2.24.5-cp310-abi3-win_amd64.whl", hash = "sha256:66d7369ee721e5e5eb043e71e104eda829da6c9f72deaa86241653c5cd00f7a2", size = 9266646, upload-time = "2026-02-01T22:22:21.558Z" },
+]
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -3717,7 +3746,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "2.8.1"
+version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -3729,9 +3758,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d5/e4/42591e356f1d53c568418dc7e30dcda7be31dd5a4d570bca22acb0525862/openai-2.8.1.tar.gz", hash = "sha256:cb1b79eef6e809f6da326a7ef6038719e35aa944c42d081807bfa1be8060f15f", size = 602490, upload-time = "2025-11-17T22:39:59.549Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/6c/e4c964fcf1d527fdf4739e7cc940c60075a4114d50d03871d5d5b1e13a88/openai-2.16.0.tar.gz", hash = "sha256:42eaa22ca0d8ded4367a77374104d7a2feafee5bd60a107c3c11b5243a11cd12", size = 629649, upload-time = "2026-01-27T23:28:02.579Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/4f/dbc0c124c40cb390508a82770fb9f6e3ed162560181a85089191a851c59a/openai-2.8.1-py3-none-any.whl", hash = "sha256:c6c3b5a04994734386e8dad3c00a393f56d3b68a27cd2e8acae91a59e4122463", size = 1022688, upload-time = "2025-11-17T22:39:57.675Z" },
+    { url = "https://files.pythonhosted.org/packages/16/83/0315bf2cfd75a2ce8a7e54188e9456c60cec6c0cf66728ed07bd9859ff26/openai-2.16.0-py3-none-any.whl", hash = "sha256:5f46643a8f42899a84e80c38838135d7038e7718333ce61396994f887b09a59b", size = 1068612, upload-time = "2026-01-27T23:28:00.356Z" },
 ]
 
 [[package]]
@@ -4079,6 +4108,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/1e/1bac1a839d12e6a82ec6cb40cda2edde64a2013a66963293696bbf31fbbb/pandas-2.3.3-cp314-cp314t-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2e3ebdb170b5ef78f19bfb71b0dc5dc58775032361fa188e814959b74d726dd5", size = 12121582, upload-time = "2025-09-29T23:30:43.391Z" },
     { url = "https://files.pythonhosted.org/packages/44/91/483de934193e12a3b1d6ae7c8645d083ff88dec75f46e827562f1e4b4da6/pandas-2.3.3-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:d051c0e065b94b7a3cea50eb1ec32e912cd96dba41647eb24104b6c6c14c5788", size = 12699963, upload-time = "2025-09-29T23:31:10.009Z" },
     { url = "https://files.pythonhosted.org/packages/70/44/5191d2e4026f86a2a109053e194d3ba7a31a2d10a9c2348368c63ed4e85a/pandas-2.3.3-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:3869faf4bd07b3b66a9f462417d0ca3a9df29a9f6abd5d0d0dbab15dac7abe87", size = 13202175, upload-time = "2025-09-29T23:31:59.173Z" },
+]
+
+[[package]]
+name = "pandas-stubs"
+version = "3.0.0.260204"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/1d/297ff2c7ea50a768a2247621d6451abb2a07c0e9be7ca6d36ebe371658e5/pandas_stubs-3.0.0.260204.tar.gz", hash = "sha256:bf9294b76352effcffa9cb85edf0bed1339a7ec0c30b8e1ac3d66b4228f1fbc3", size = 109383, upload-time = "2026-02-04T15:17:17.247Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/2f/f91e4eee21585ff548e83358332d5632ee49f6b2dcd96cb5dca4e0468951/pandas_stubs-3.0.0.260204-py3-none-any.whl", hash = "sha256:5ab9e4d55a6e2752e9720828564af40d48c4f709e6a2c69b743014a6fcb6c241", size = 168540, upload-time = "2026-02-04T15:17:15.615Z" },
 ]
 
 [[package]]
@@ -4709,6 +4750,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pypdf"
+version = "6.6.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/bb/a44bab1ac3c54dbcf653d7b8bcdee93dddb2d3bf025a3912cacb8149a2f2/pypdf-6.6.2.tar.gz", hash = "sha256:0a3ea3b3303982333404e22d8f75d7b3144f9cf4b2970b96856391a516f9f016", size = 5281850, upload-time = "2026-01-26T11:57:55.964Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/be/549aaf1dfa4ab4aed29b09703d2fb02c4366fc1f05e880948c296c5764b9/pypdf-6.6.2-py3-none-any.whl", hash = "sha256:44c0c9811cfb3b83b28f1c3d054531d5b8b81abaedee0d8cb403650d023832ba", size = 329132, upload-time = "2026-01-26T11:57:54.099Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "8.3.5"
 source = { registry = "https://pypi.org/simple" }
@@ -4725,14 +4775,15 @@ wheels = [
 
 [[package]]
 name = "pytest-asyncio"
-version = "0.26.0"
+version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/c4/453c52c659521066969523e87d85d54139bbd17b78f09532fb8eb8cdb58e/pytest_asyncio-0.26.0.tar.gz", hash = "sha256:c4df2a697648241ff39e7f0e4a73050b03f123f760673956cf0d72a4990e312f", size = 54156, upload-time = "2025-03-25T06:22:28.883Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/2c/8af215c0f776415f3590cac4f9086ccefd6fd463befeae41cd4d3f193e5a/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5", size = 50087, upload-time = "2025-11-10T16:07:47.256Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/7f/338843f449ace853647ace35870874f69a764d251872ed1b4de9f234822c/pytest_asyncio-0.26.0-py3-none-any.whl", hash = "sha256:7b51ed894f4fbea1340262bdae5135797ebbe21d8638978e35d31c6d19f72fb0", size = 19694, upload-time = "2025-03-25T06:22:27.807Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/35/f8b19922b6a25bc0880171a2f1a003eaeb93657475193ab516fd87cac9da/pytest_asyncio-1.3.0-py3-none-any.whl", hash = "sha256:611e26147c7f77640e6d0a92a38ed17c3e9848063698d5c93d5aa7aa11cebff5", size = 15075, upload-time = "2025-11-10T16:07:45.537Z" },
 ]
 
 [[package]]
@@ -5524,6 +5575,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8e/29/21698bb83e542f32e3581886671f39d94b1f7e8b190c24a8bfa994e62fd6/sqlalchemy_spanner-1.17.2.tar.gz", hash = "sha256:56ce4da7168a27442d80ffd71c29ed639b5056d7e69b1e69bb9c1e10190b67c4", size = 82745, upload-time = "2025-12-15T23:30:08.622Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/87/05be45a086116cea32cfa00fa0059d31b5345360dba7902ee640a1db793b/sqlalchemy_spanner-1.17.2-py3-none-any.whl", hash = "sha256:18713d4d78e0bf048eda0f7a5c80733e08a7b678b34349496415f37652efb12f", size = 31917, upload-time = "2025-12-15T23:30:07.356Z" },
+]
+
+[[package]]
+name = "sqlglot"
+version = "28.10.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/7d/1479ac3543caada917c3781893d3f846c810aec6355eb7b2f58df68f999b/sqlglot-28.10.0.tar.gz", hash = "sha256:f3d4759164ad854176980b3a47eb0c7ef699118dfa80beeb93e010885637b211", size = 5739594, upload-time = "2026-02-04T14:22:18.26Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/34/c5de8f3c110bd066ebfa31b2d948dd33b691c7ccea39065e37f97f3f30a1/sqlglot-28.10.0-py3-none-any.whl", hash = "sha256:d442473bfd2340776dfc88382de3df456b9c5b66974623e554c6ad6426ba365e", size = 597042, upload-time = "2026-02-04T14:22:16.534Z" },
 ]
 
 [[package]]

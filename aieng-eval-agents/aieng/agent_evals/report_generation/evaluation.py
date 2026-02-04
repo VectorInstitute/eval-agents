@@ -32,7 +32,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 from langfuse._client.datasets import DatasetItemClient
-from langfuse.experiment import Evaluation
+from langfuse.experiment import Evaluation, LocalExperimentItem
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -137,12 +137,12 @@ class ReportGenerationTask:
         self.reports_output_path = reports_output_path
         self.langfuse_project_name = langfuse_project_name
 
-    async def run(self, *, item: DatasetItemClient, **kwargs) -> EvaluationOutput:
+    async def run(self, *, item: LocalExperimentItem | DatasetItemClient, **kwargs: dict[str, Any]) -> EvaluationOutput:
         """Run the report generation agent against an item from a Langfuse dataset.
 
         Parameters
         ----------
-        item : DatasetItemClient
+        item : LocalExperimentItem | DatasetItemClient
             The item from the Langfuse dataset to evaluate against.
 
         Returns
@@ -158,12 +158,14 @@ class ReportGenerationTask:
             reports_output_path=self.reports_output_path,
             langfuse_project_name=self.langfuse_project_name,
         )
-        events = await run_agent_with_retry(report_generation_agent, item.input)
+        # Handle both TypedDict and class access patterns
+        item_input = item["input"] if isinstance(item, dict) else item.input
+        events = await run_agent_with_retry(report_generation_agent, item_input)
 
         # Extract the report data and trajectory from the agent's response
-        actions = []
-        parameters = []
-        final_report = None
+        actions: list[str] = []
+        parameters: list[Any | None] = []
+        final_report: str | None = None
 
         # The trajectory will be the list of actions and the
         # parameters passed to each one of them
