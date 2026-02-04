@@ -182,8 +182,6 @@ def fetch_file(url: str) -> dict[str, Any]:
     >>> if result["status"] == "success":
     ...     grep_result = grep_file(result["file_path"], "revenue, income")
     """
-    logger.info(f"Fetching file: {url}")
-
     if not url.startswith(("http://", "https://")):
         return {
             "status": "error",
@@ -296,8 +294,6 @@ def grep_file(
     >>> for match in result["matches"]:
     ...     print(f"Line {match['line_number']}: {match['context']}")
     """
-    logger.info(f"Grep {file_path} for: {pattern}")
-
     try:
         # Enforce hard caps to prevent context overflow
         max_results = min(max_results, MAX_GREP_RESULTS_HARD_CAP)
@@ -435,8 +431,6 @@ def read_file(
     >>> result = read_file("/path/to/data.csv", start_line=40, num_lines=20)
     >>> print(result["content"])
     """
-    logger.info(f"Reading {file_path} from line {start_line}")
-
     try:
         if not os.path.exists(file_path):
             return {

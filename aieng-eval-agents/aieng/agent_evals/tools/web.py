@@ -175,8 +175,6 @@ def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
     >>> print(f"Pages: {result['num_pages']}")
     >>> print(result["content"])
     """
-    logger.info(f"WebFetch: {url}")
-
     # Validate URL
     if not url.startswith(("http://", "https://")):
         return _make_error_response("Invalid URL. Must start with http:// or https://", url)

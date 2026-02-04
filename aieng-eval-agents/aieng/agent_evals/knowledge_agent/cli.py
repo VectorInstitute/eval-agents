@@ -582,29 +582,42 @@ def display_tool_usage(tool_calls: list[dict]) -> dict[str, int]:
 
 def setup_logging() -> ToolCallHandler:
     """Configure logging to capture tool calls without verbose output."""
-    logging.basicConfig(level=logging.ERROR, format="%(message)s")
+    logging.basicConfig(level=logging.ERROR, format="%(message)s", force=True)
 
-    # Suppress verbose logging from external libraries
+    # Suppress verbose logging from external libraries and tools
     for logger_name in [
         "google.adk",
         "google.genai",
+        "google.generativeai",
         "httpx",
         "httpcore",
+        "aieng.agent_evals.tools",
         "aieng.agent_evals.knowledge_agent.web_tools",
     ]:
         _logger = logging.getLogger(logger_name)
-        _logger.setLevel(logging.ERROR)
+        _logger.setLevel(logging.CRITICAL)
         _logger.propagate = False
+        # Clear any existing handlers
+        _logger.handlers.clear()
 
     # Set up custom handler for tool call capture
     tool_handler = ToolCallHandler()
     tool_handler.setLevel(logging.INFO)
 
+    # Configure agent logger to only capture tool calls, suppress other messages
     agent_logger = logging.getLogger("aieng.agent_evals.knowledge_agent.agent")
     agent_logger.handlers.clear()
     agent_logger.addHandler(tool_handler)
     agent_logger.setLevel(logging.INFO)
     agent_logger.propagate = False
+
+    # Add a filter to suppress non-tool-call messages
+    class ToolCallOnlyFilter(logging.Filter):
+        def filter(self, record):
+            msg = record.getMessage()
+            return "Tool call:" in msg or "Tool response:" in msg or "Tool error:" in msg
+
+    tool_handler.addFilter(ToolCallOnlyFilter())
 
     return tool_handler
 
