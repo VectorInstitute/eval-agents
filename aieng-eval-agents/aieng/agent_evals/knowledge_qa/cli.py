@@ -1143,7 +1143,7 @@ async def cmd_eval(
         Enable Langfuse tracing for this run.
     """
     from .agent import KnowledgeGroundedAgent  # noqa: PLC0415
-    from .evaluation import DeepSearchQADataset  # noqa: PLC0415
+    from .data import DeepSearchQADataset  # noqa: PLC0415
     from .judges import DeepSearchQAJudge  # noqa: PLC0415
 
     display_banner()
@@ -1314,7 +1314,7 @@ def cmd_sample(
     int
         Exit code (0 for success).
     """
-    from .evaluation import DeepSearchQADataset  # noqa: PLC0415
+    from .data import DeepSearchQADataset  # noqa: PLC0415
 
     display_banner()
 

@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 import click
-from aieng.agent_evals.knowledge_qa.evaluation import DeepSearchQADataset
+from aieng.agent_evals.knowledge_qa.data import DeepSearchQADataset
 from aieng.agent_evals.langfuse import upload_dataset_to_langfuse as upload_file_to_langfuse
 from dotenv import load_dotenv
 
