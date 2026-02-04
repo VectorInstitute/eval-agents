@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from aieng.agent_evals.knowledge_agent.evaluation import (
+from aieng.agent_evals.knowledge_qa.evaluation import (
     DeepSearchQADataset,
     DSQAExample,
     EvaluationResult,
@@ -78,8 +78,8 @@ class TestDeepSearchQADataset:
             "answer_type": ["Single Answer", "List", "Single Answer"],
         }
 
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.kagglehub.dataset_download")
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.pd.read_csv")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.kagglehub.dataset_download")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.pd.read_csv")
     def test_dataset_loading(self, mock_read_csv, mock_download, mock_csv_data):
         """Test loading the dataset."""
         mock_download.return_value = "/fake/path"
@@ -92,8 +92,8 @@ class TestDeepSearchQADataset:
         assert len(examples) == 3
         assert examples[0].problem == "Q1"
 
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.kagglehub.dataset_download")
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.pd.read_csv")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.kagglehub.dataset_download")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.pd.read_csv")
     def test_dataset_length(self, mock_read_csv, mock_download, mock_csv_data):
         """Test getting dataset length."""
         mock_download.return_value = "/fake/path"
@@ -103,8 +103,8 @@ class TestDeepSearchQADataset:
             dataset = DeepSearchQADataset()
             assert len(dataset) == 3
 
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.kagglehub.dataset_download")
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.pd.read_csv")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.kagglehub.dataset_download")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.pd.read_csv")
     def test_dataset_indexing(self, mock_read_csv, mock_download, mock_csv_data):
         """Test indexing into the dataset."""
         mock_download.return_value = "/fake/path"
@@ -117,8 +117,8 @@ class TestDeepSearchQADataset:
         assert example.example_id == 1
         assert example.problem == "Q2"
 
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.kagglehub.dataset_download")
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.pd.read_csv")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.kagglehub.dataset_download")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.pd.read_csv")
     def test_get_by_category(self, mock_read_csv, mock_download, mock_csv_data):
         """Test filtering by category."""
         mock_download.return_value = "/fake/path"
@@ -131,8 +131,8 @@ class TestDeepSearchQADataset:
         assert len(cat_a_examples) == 2
         assert all(ex.problem_category == "Cat A" for ex in cat_a_examples)
 
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.kagglehub.dataset_download")
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.pd.read_csv")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.kagglehub.dataset_download")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.pd.read_csv")
     def test_get_categories(self, mock_read_csv, mock_download, mock_csv_data):
         """Test getting unique categories."""
         mock_download.return_value = "/fake/path"
@@ -145,8 +145,8 @@ class TestDeepSearchQADataset:
         assert "Cat A" in categories
         assert "Cat B" in categories
 
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.kagglehub.dataset_download")
-    @patch("aieng.agent_evals.knowledge_agent.evaluation.pd.read_csv")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.kagglehub.dataset_download")
+    @patch("aieng.agent_evals.knowledge_qa.evaluation.pd.read_csv")
     def test_sample(self, mock_read_csv, mock_download, mock_csv_data):
         """Test random sampling."""
         mock_download.return_value = "/fake/path"
