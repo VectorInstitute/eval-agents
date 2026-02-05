@@ -234,11 +234,13 @@ async def final_result_evaluator(
     Evaluation
         The evaluation result, including the reasoning behind the answer.
     """
+    additional_instructions = _get_additional_instructions(expected_output, "final_report")
+
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
     evaluator_agent = Agent(
         name="FinalResultEvaluatorAgent",
-        instruction=RESULT_EVALUATOR_INSTRUCTIONS,
+        instruction=RESULT_EVALUATOR_INSTRUCTIONS + additional_instructions,
         model=client_manager.configs.default_worker_model,
         output_schema=EvaluatorResponse,
     )
@@ -290,11 +292,13 @@ async def trajectory_evaluator(
     Evaluation
         The evaluation result, including the reasoning behind the answer.
     """
+    additional_instructions = _get_additional_instructions(expected_output, "trajectory")
+
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
     evaluator_agent = Agent(
         name="TrajectoryEvaluatorAgent",
-        instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS,
+        instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS + additional_instructions,
         model=client_manager.configs.default_planner_model,
         output_schema=EvaluatorResponse,
     )
@@ -347,6 +351,14 @@ def get_evaluator_reponse(events: list[Event]) -> EvaluatorResponse:
             return EvaluatorResponse(**json.loads(event.content.parts[0].text))
 
     raise Exception("No final response found in the events")
+
+
+def _get_additional_instructions(expected_output: EvaluationOutput, key: str) -> str:
+    additional_instructions_dict = expected_output.get("additional_instructions", {})
+    if additional_instructions_dict:
+        return additional_instructions_dict.get(key, "")
+
+    return ""
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential())
