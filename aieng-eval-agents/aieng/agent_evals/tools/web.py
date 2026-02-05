@@ -5,6 +5,8 @@ and returns the content for the agent to analyze. Similar to Anthropic's web_fet
 """
 
 import logging
+import re
+from collections.abc import Callable
 from io import BytesIO
 from typing import Any
 from urllib.parse import urljoin
@@ -12,7 +14,8 @@ from urllib.parse import urljoin
 import httpx
 from google.adk.tools.function_tool import FunctionTool
 from html_to_markdown import convert as html_to_markdown
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from pypdf import PdfReader
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
@@ -20,20 +23,45 @@ logger = logging.getLogger(__name__)
 MAX_CONTENT_CHARS = 100_000
 
 
+def _make_absolute_url(base_url: str) -> Callable[[re.Match[str]], str]:
+    """Create a function that converts relative URLs to absolute URLs.
+
+    Parameters
+    ----------
+    base_url : str
+        Base URL for resolving relative links.
+
+    Returns
+    -------
+    Callable[[re.Match[str]], str]
+        Function that takes a regex match and returns the URL converted to absolute.
+    """
+
+    def make_absolute(match: re.Match) -> str:
+        """Convert relative URL to absolute."""
+        prefix = match.group(1)  # [text]( or src="
+        url = match.group(2)
+        suffix = match.group(3)  # ) or "
+
+        # Skip if already absolute or is a data URI
+        if url.startswith(("http://", "https://", "data:", "mailto:", "#")):
+            return match.group(0)
+
+        absolute_url = urljoin(base_url, url)
+        return f"{prefix}{absolute_url}{suffix}"
+
+    return make_absolute
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+)
 async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Fetch URL with automatic retry on transient failures."""
-    response: httpx.Response | None = None
-    async for attempt in AsyncRetrying(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
-    ):
-        with attempt:
-            response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
-            response.raise_for_status()
-
-    # AsyncRetrying ensures response is set on success
-    assert response is not None
+    response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
+    response.raise_for_status()
     return response
 
 
@@ -58,20 +86,7 @@ def _html_to_markdown(html: str, base_url: str | None = None) -> str:
 
     # If base_url provided, convert relative URLs to absolute
     if base_url:
-        import re  # noqa: PLC0415
-
-        def make_absolute(match: re.Match) -> str:
-            """Convert relative URL to absolute."""
-            prefix = match.group(1)  # [text]( or src="
-            url = match.group(2)
-            suffix = match.group(3)  # ) or "
-
-            # Skip if already absolute or is a data URI
-            if url.startswith(("http://", "https://", "data:", "mailto:", "#")):
-                return match.group(0)
-
-            absolute_url = urljoin(base_url, url)
-            return f"{prefix}{absolute_url}{suffix}"
+        make_absolute = _make_absolute_url(base_url)
 
         # Fix markdown links: [text](url)
         markdown = re.sub(r"(\[[^\]]*\]\()([^)]+)(\))", make_absolute, markdown)
@@ -97,8 +112,6 @@ def _extract_pdf_text(content: bytes, max_pages: int = 10) -> tuple[str, int]:
     tuple[str, int]
         The extracted text and total number of pages.
     """
-    from pypdf import PdfReader  # noqa: PLC0415
-
     pdf_file = BytesIO(content)
     reader = PdfReader(pdf_file)
     num_pages = len(reader.pages)
@@ -192,7 +205,7 @@ async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
                 return _handle_pdf_response(response.content, max_pages, final_url, url)
 
             # Handle HTML and text content
-            if "text/html" in content_type or not content_type:
+            if "text/html" in content_type or content_type == "":
                 text = _html_to_markdown(response.text, base_url=final_url)
             else:
                 text = response.text
@@ -225,8 +238,6 @@ def _handle_pdf_response(content: bytes, max_pages: int, final_url: str, url: st
             num_pages=num_pages,
             pages_extracted=min(num_pages, max_pages),
         )
-    except ImportError:
-        return _make_error_response("PDF support requires pypdf. Install with: pip install pypdf", url)
     except Exception as e:
         return _make_error_response(f"Failed to extract PDF text: {e!s}", url)
 
