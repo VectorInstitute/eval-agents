@@ -4,7 +4,7 @@ import asyncio
 import functools
 import inspect
 import logging
-from typing import Any, Awaitable, Literal
+from typing import Any, Awaitable, Literal, cast
 
 import httpx
 from aieng.agent_evals.async_client_manager import AsyncClientManager
@@ -111,7 +111,7 @@ async def _run_trace_evaluations_async(
     async def _evaluate_item(
         item_result: ExperimentItemResult,
     ) -> tuple[str, list[Evaluation], TraceEvalStatus, str | None]:
-        trace_id = item_result.trace_id or ""
+        trace_id = cast(str, item_result.trace_id)  # item_result already filtered for non-None trace_id
         evaluations, status, error_message = await _evaluate_trace(
             langfuse_client=langfuse_client,
             item_result=item_result,
