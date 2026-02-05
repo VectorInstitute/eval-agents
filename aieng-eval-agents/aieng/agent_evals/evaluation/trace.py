@@ -354,7 +354,11 @@ def _sum_token_usage(observations: list[ObservationsView], *, token_type: str) -
             value = usage_details.get(key)
             if value is not None:
                 total += value
-                break  # Only count the first matching key per observation.
+                # Only count the first matching key per observation: all keys in
+                # `usage_keys` are aliases/alternative naming conventions for the
+                # same underlying usage value (for example, "input_tokens" vs
+                # "prompt_tokens"), so counting more than one would double-count.
+                break
 
     return total
 
