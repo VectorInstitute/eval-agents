@@ -602,6 +602,11 @@ async def run_evaluation(
         _context.close()
         # Close client manager to flush Langfuse
         await client_manager.close()
+
+        # Give the event loop time to process any pending cleanup tasks
+        # This prevents aiohttp cleanup errors during Python shutdown
+        await asyncio.sleep(0.1)
+
         logger.info("Cleanup complete")
     except Exception as e:
         logger.warning(f"Cleanup warning: {e}")
