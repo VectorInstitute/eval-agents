@@ -45,13 +45,17 @@ parameters: {actual_parameters}
 """
 
 RESULT_EVALUATOR_INSTRUCTIONS = """\
-Evaluate whether the "Proposed Answer" to the given "Question" matches the "Ground Truth".\
-Disregard the following aspects when comparing the "Proposed Answer" to the "Ground Truth":\
-- The order of the items should not matter, unless explicitly specified in the "Question".\
-- The formatting of the values should not matter, unless explicitly specified in the "Question".\
-- The column and row names have to be similar but not necessarily exact, unless explicitly specified in the "Question".\
-- The filename has to be similar by name but not necessarily exact, unless explicitly specified in the "Question".\
-- The numerical values should be equal to the second decimal place.
+Evaluate whether the "Proposed Answer" to the given "Question" matches the "Ground Truth". \
+Disregard the following aspects when comparing the "Proposed Answer" to the "Ground Truth": \
+- The order of the items should not matter, unless explicitly specified in the "Question". \
+- The formatting of the values should not matter, unless explicitly specified in the "Question". \
+- The column and row names have to be similar but not necessarily exact, unless explicitly specified in the "Question". \
+- The filename has to be similar by name but not necessarily exact, unless explicitly specified in the "Question". \
+- It is ok if the filename is missing. \
+- The numerical values should be equal with a tolerance of 0.01. \
+- The report data in the "Proposed Answer" should have the same number of rows as in the "Ground Truth". \
+- It is OK if the report data in the "Proposed Answer" contains extra columns or if the rows are in a different order, \
+unless explicitly specified in the "Question".
 """
 
 RESULT_EVALUATOR_TEMPLATE = """\
