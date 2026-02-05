@@ -9,7 +9,7 @@ import asyncio
 import logging
 
 import httpx
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
@@ -63,12 +63,28 @@ async def _resolve_with_get_async(client: httpx.AsyncClient, url: str) -> str:
         return str(response.url)
 
 
-async def _resolve_single_url_async(
-    client: httpx.AsyncClient,
-    url: str,
-    max_retries: int = 3,
-    base_delay: float = 1.0,
-) -> str:
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1.0, min=1.0, max=60.0),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)),
+)
+async def _resolve_single_url_with_retry(client: httpx.AsyncClient, url: str) -> str:
+    """Resolve URL with retry handling (internal helper)."""
+    # Try HEAD first (faster, no body download)
+    final_url = await _resolve_with_head_async(client, url)
+
+    # Fall back to GET if HEAD failed
+    if final_url is None:
+        logger.debug(f"HEAD failed for {url[:60]}..., trying GET")
+        final_url = await _resolve_with_get_async(client, url)
+
+    if final_url != url:
+        logger.debug(f"Resolved redirect: {url[:60]}... -> {final_url[:60]}...")
+
+    return final_url
+
+
+async def _resolve_single_url_async(client: httpx.AsyncClient, url: str) -> str:
     """Resolve a single URL with retries and exponential backoff.
 
     Uses tenacity for automatic retry handling with exponential backoff.
@@ -79,10 +95,6 @@ async def _resolve_single_url_async(
         The HTTP client to use.
     url : str
         The URL to resolve.
-    max_retries : int
-        Maximum number of retry attempts.
-    base_delay : float
-        Base delay between retries (doubles each retry).
 
     Returns
     -------
@@ -98,27 +110,9 @@ async def _resolve_single_url_async(
         return _redirect_cache[url]
 
     try:
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(max_retries),
-            wait=wait_exponential(multiplier=base_delay, min=base_delay, max=60.0),
-            retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.ReadError)),
-        ):
-            with attempt:
-                # Try HEAD first (faster, no body download)
-                final_url = await _resolve_with_head_async(client, url)
-
-                # Fall back to GET if HEAD failed
-                if final_url is None:
-                    logger.debug(f"HEAD failed for {url[:60]}..., trying GET")
-                    final_url = await _resolve_with_get_async(client, url)
-
-                if final_url != url:
-                    logger.debug(f"Resolved redirect: {url[:60]}... -> {final_url[:60]}...")
-
-                _redirect_cache[url] = final_url
-
-        # If we reach here, the retry loop succeeded
-        return _redirect_cache[url]
+        final_url = await _resolve_single_url_with_retry(client, url)
+        _redirect_cache[url] = final_url
+        return final_url
 
     except Exception as e:
         # All retries exhausted or non-retryable error

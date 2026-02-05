@@ -20,7 +20,7 @@ from typing import Any
 import httpx
 import pandas as pd
 from google.adk.tools.function_tool import FunctionTool
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
@@ -49,20 +49,15 @@ def _url_to_filename(url: str, extension: str = ".txt") -> str:
     return f"{safe_name}_{url_hash}{extension}"
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
+)
 async def _fetch_with_retry(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Fetch URL with automatic retry on transient failures."""
-    response: httpx.Response | None = None
-    async for attempt in AsyncRetrying(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
-    ):
-        with attempt:
-            response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
-            response.raise_for_status()
-
-    # AsyncRetrying ensures response is set on success
-    assert response is not None
+    response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; ResearchBot/1.0)"})
+    response.raise_for_status()
     return response
 
 
