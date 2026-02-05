@@ -121,10 +121,7 @@ async def _run_trace_evaluations_async(
         return trace_id, evaluations, status, error_message
 
     trace_eval_coroutines = [
-        rate_limited(
-            _fn=functools.partial(_evaluate_item, item_result),
-            semaphore=semaphore,
-        )
+        rate_limited(_fn=functools.partial(_evaluate_item, item_result), semaphore=semaphore)
         for item_result in item_results
     ]
     task_results = await gather_with_progress(trace_eval_coroutines, description="Evaluating traces")
@@ -303,8 +300,8 @@ def _is_retryable_trace_fetch_error(exc: BaseException) -> bool:
 def _trace_ready(trace: TraceWithFullDetails) -> bool:
     """Check whether a trace has the required fields to evaluate."""
     # This is a heuristic. The input and output fields being populated is a strong
-    # signal that the trace is complete, however, it not every field of the trace
-    # might be fully populated depending on instrumentation.
+    # signal that the trace is complete; however, every field of the trace might
+    # not be fully populated depending on instrumentation.
     return trace.input is not None and trace.output is not None
 
 
