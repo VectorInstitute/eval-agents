@@ -241,7 +241,7 @@ class KnowledgeGroundedAgent:
 
     Examples
     --------
-    >>> from aieng.agent_evals.knowledge_agent import KnowledgeGroundedAgent
+    >>> from aieng.agent_evals.knowledge_qa import KnowledgeGroundedAgent
     >>> agent = KnowledgeGroundedAgent()
     >>> response = agent.answer("Who won the 2024 Nobel Prize in Physics?")
     >>> print(response.text)
@@ -283,7 +283,7 @@ class KnowledgeGroundedAgent:
 
         # Runner orchestrates the ReAct loop
         self._runner = Runner(
-            app_name="knowledge_agent",
+            app_name="knowledge_qa",
             agent=self._agent,
             session_service=self._session_service,
         )
@@ -310,7 +310,7 @@ class KnowledgeGroundedAgent:
         if session_id not in self._sessions:
             # Create a new ADK session through the session service
             session = await self._session_service.create_session(
-                app_name="knowledge_agent",
+                app_name="knowledge_qa",
                 user_id="user",
                 state={},
             )

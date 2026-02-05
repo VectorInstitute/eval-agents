@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aieng.agent_evals.knowledge_agent.agent import (
+from aieng.agent_evals.knowledge_qa.agent import (
     SYSTEM_INSTRUCTIONS,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
@@ -22,10 +22,10 @@ class TestKnowledgeGroundedAgent:
         config.default_worker_model = "gemini-2.5-flash"
         return config
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_initialization(
         self,
         mock_create_tool,
@@ -55,10 +55,10 @@ class TestKnowledgeGroundedAgent:
         mock_session_service.assert_called_once()
         mock_runner_class.assert_called_once()
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_with_custom_model(
         self,
         mock_create_tool,
@@ -74,10 +74,10 @@ class TestKnowledgeGroundedAgent:
         assert call_kwargs["model"] == "gemini-2.5-pro"
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_get_or_create_session(
         self,
         mock_create_tool,
@@ -110,10 +110,10 @@ class TestKnowledgeGroundedAgent:
         assert session3 != session1
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_get_or_create_session_generates_id(
         self,
         mock_create_tool,
@@ -136,10 +136,10 @@ class TestKnowledgeGroundedAgent:
         assert session is not None
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async(
         self,
         mock_create_tool,
@@ -176,10 +176,10 @@ class TestKnowledgeGroundedAgent:
         assert response.text == "Paris is the capital of France."
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_extracts_function_calls(
         self,
         mock_create_tool,
@@ -234,10 +234,10 @@ class TestKnowledgeGroundedAgent:
         assert "capital of France" in response.search_queries
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_extracts_sources_from_function_responses(
         self,
         mock_create_tool,
@@ -297,10 +297,10 @@ class TestKnowledgeGroundedAgent:
         assert response.sources[1].uri == "https://example.com/paris"
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_extracts_grounding_chunks_from_responses(
         self,
         mock_create_tool,
@@ -360,10 +360,10 @@ class TestKnowledgeGroundedAgent:
         assert response.sources[1].uri == "https://news.com/article"
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_extracts_grounding_metadata(
         self,
         mock_create_tool,
@@ -426,10 +426,10 @@ class TestKnowledgeGroundedAgent:
         assert "grounded query" in response.search_queries
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_extracts_grounding_metadata_from_content(
         self,
         mock_create_tool,
@@ -495,10 +495,10 @@ class TestKnowledgeGroundedAgent:
         assert "content query" in response.search_queries
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_handles_multiple_search_tool_names(
         self,
         mock_create_tool,
@@ -561,10 +561,10 @@ class TestKnowledgeGroundedAgent:
         assert "query three" in response.search_queries
 
     @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     async def test_answer_async_handles_empty_events(
         self,
         mock_create_tool,
@@ -618,10 +618,10 @@ class TestKnowledgeGroundedAgent:
 class TestKnowledgeAgentManager:
     """Tests for the KnowledgeAgentManager class."""
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_lazy_initialization(
         self,
         mock_create_tool,
@@ -630,7 +630,7 @@ class TestKnowledgeAgentManager:
         mock_runner_class,
     ):
         """Test that clients are lazily initialized."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
             manager = KnowledgeAgentManager()
@@ -644,10 +644,10 @@ class TestKnowledgeAgentManager:
             # Now should be initialized
             assert manager.is_initialized()
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_close(
         self,
         mock_create_tool,
@@ -656,7 +656,7 @@ class TestKnowledgeAgentManager:
         mock_runner_class,
     ):
         """Test closing the client manager."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
             manager = KnowledgeAgentManager()
@@ -666,10 +666,10 @@ class TestKnowledgeAgentManager:
             manager.close()
             assert not manager.is_initialized()
 
-    @patch("aieng.agent_evals.knowledge_agent.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_agent.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_agent.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_agent.agent.create_google_search_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_reuse(
         self,
         mock_create_tool,
@@ -678,7 +678,7 @@ class TestKnowledgeAgentManager:
         mock_runner_class,
     ):
         """Test that agent is reused on multiple accesses."""
-        with patch("aieng.agent_evals.knowledge_agent.agent.Configs") as mock_config_class:
+        with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
             mock_config_class.return_value = MagicMock()
 
             manager = KnowledgeAgentManager()
@@ -698,7 +698,7 @@ class TestKnowledgeGroundedAgentIntegration:
 
     def test_agent_creation_real(self):
         """Test creating a real agent instance."""
-        from aieng.agent_evals.knowledge_agent import (  # noqa: PLC0415
+        from aieng.agent_evals.knowledge_qa import (  # noqa: PLC0415
             KnowledgeGroundedAgent,
         )
 
@@ -709,7 +709,7 @@ class TestKnowledgeGroundedAgentIntegration:
     @pytest.mark.asyncio
     async def test_answer_real_question(self):
         """Test answering a real question."""
-        from aieng.agent_evals.knowledge_agent import (  # noqa: PLC0415
+        from aieng.agent_evals.knowledge_qa import (  # noqa: PLC0415
             KnowledgeGroundedAgent,
         )
 
