@@ -31,6 +31,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from google.genai.errors import ClientError
 from tenacity import (
+    RetryError,
     before_sleep_log,
     retry,
     retry_if_exception,
@@ -150,6 +151,10 @@ class KnowledgeGroundedAgent:
         self.enable_planning = enable_planning
         self._thinking_budget = thinking_budget
 
+        # Generate unique instance ID for this agent to avoid cache collisions
+        # in concurrent runs
+        self._instance_id = str(uuid.uuid4())[:8]
+
         # Create tools - use function tool for search so agent sees actual URLs
         self._search_tool = create_google_search_tool(config=config)
         self._web_fetch_tool = create_web_fetch_tool()
@@ -169,7 +174,7 @@ class KnowledgeGroundedAgent:
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
 
         self._agent = Agent(
-            name="knowledge_qa",
+            name=f"knowledge_qa_{self._instance_id}",
             model=self.model,
             instruction=build_system_instructions(),
             tools=[
@@ -202,7 +207,7 @@ class KnowledgeGroundedAgent:
         else:
             self._app = None
             self._runner = Runner(
-                app_name="knowledge_qa",
+                app_name=f"knowledge_qa_{self._instance_id}",
                 agent=self._agent,
                 session_service=self._session_service,
             )
@@ -218,7 +223,7 @@ class KnowledgeGroundedAgent:
     ) -> tuple[App, Runner]:
         """Create App and Runner with caching/compaction config."""
         app_kwargs: dict[str, Any] = {
-            "name": "knowledge_qa",
+            "name": f"knowledge_qa_{self._instance_id}",
             "root_agent": self._agent,
         }
 
@@ -272,7 +277,7 @@ class KnowledgeGroundedAgent:
             )
         else:
             self._runner = Runner(
-                app_name="knowledge_qa",
+                app_name=f"knowledge_qa_{self._instance_id}",
                 agent=self._agent,
                 session_service=self._session_service,
             )
@@ -313,7 +318,7 @@ class KnowledgeGroundedAgent:
 
         if session_id not in self._sessions:
             session = await self._session_service.create_session(
-                app_name="knowledge_qa",
+                app_name=f"knowledge_qa_{self._instance_id}",
                 user_id="user",
                 state={},
             )
@@ -441,7 +446,7 @@ class KnowledgeGroundedAgent:
             self._process_event_text_for_plan(event_text, question)
             reasoning_text = extract_reasoning_text(event_text)
             if reasoning_text:
-                results["reasoning_chain"].append(reasoning_text[:300])
+                results["reasoning_chain"].append(reasoning_text)
                 self._advance_plan_step_on_reasoning()
 
         # Extract tool calls
@@ -519,13 +524,20 @@ class KnowledgeGroundedAgent:
             ),
             stop=stop_after_attempt(API_RETRY_MAX_ATTEMPTS),
             before_sleep=before_sleep_log(logger, logging.WARNING),
-            reraise=True,
+            reraise=False,  # Don't reraise to avoid noisy stack traces
         )
         async def _run_with_retry() -> dict[str, Any]:
             return await self._run_agent_once_inner(question, adk_session_id)
 
         try:
             return await _run_with_retry()
+        except RetryError as e:
+            # Clean error message when retries are exhausted
+            original_error = e.last_attempt.exception()
+            logger.error(f"API retry failed after {API_RETRY_MAX_ATTEMPTS} attempts: {original_error}")
+            raise RuntimeError(
+                f"API request failed after {API_RETRY_MAX_ATTEMPTS} retry attempts. Last error: {original_error}"
+            ) from original_error
         except ClientError as e:
             # Handle context overflow by resetting session
             if is_context_overflow_error(e):
@@ -598,7 +610,7 @@ class KnowledgeGroundedAgent:
                 )
                 # Create fresh session for retry to avoid polluted history
                 fresh_session = await self._session_service.create_session(
-                    app_name="knowledge_qa",
+                    app_name=f"knowledge_qa_{self._instance_id}",
                     user_id="user",
                     state={},
                 )
@@ -616,13 +628,11 @@ class KnowledgeGroundedAgent:
                     f"Tool calls: {tool_call_count}, Reasoning steps: {reasoning_count}, "
                     f"Sources: {source_count}. The model may have only produced thinking tokens."
                 )
-                # Try to salvage any useful content from reasoning chain
-                if results.get("reasoning_chain") and not results.get("final_response"):
-                    # Use last reasoning as fallback response
-                    last_reasoning = results["reasoning_chain"][-1]
-                    if last_reasoning and len(last_reasoning) > 20:
-                        logger.warning("Using last reasoning step as fallback response")
-                        results["final_response"] = f"[Partial response from reasoning]: {last_reasoning}"
+                # Log reasoning chain to debug why no final answer was generated
+                if results.get("reasoning_chain"):
+                    logger.error("Last reasoning steps (for debugging):")
+                    for i, reasoning in enumerate(results["reasoning_chain"][-3:], 1):
+                        logger.error(f"  Reasoning {i}: {reasoning[:500]}...")  # Log first 500 chars
 
         total_duration_ms = int((time.time() - start_time) * 1000)
 

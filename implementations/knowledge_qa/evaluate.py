@@ -31,13 +31,14 @@ from typing import Any
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge, TrajectoryQualityJudge
+from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge
+from aieng.agent_evals.logging_config import setup_logging
 from dotenv import load_dotenv
 from langfuse.experiment import Evaluation
 
 
 load_dotenv(verbose=True)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+setup_logging(level=logging.INFO, show_time=True, show_path=False)
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +52,6 @@ class EvaluationContext:
     def __init__(self) -> None:
         self._agent: KnowledgeGroundedAgent | None = None
         self._judge: DeepSearchQAJudge | None = None
-        self._trajectory_judge: TrajectoryQualityJudge | None = None
         self.completed_item_ids: set[str] = set()
 
     @property
@@ -68,13 +68,6 @@ class EvaluationContext:
             self._judge = DeepSearchQAJudge()
         return self._judge
 
-    @property
-    def trajectory_judge(self) -> TrajectoryQualityJudge:
-        """Get or create the Trajectory Quality Judge instance."""
-        if self._trajectory_judge is None:
-            self._trajectory_judge = TrajectoryQualityJudge()
-        return self._trajectory_judge
-
     def reset_completed_ids(self) -> None:
         """Reset the completed item IDs for a new evaluation run."""
         self.completed_item_ids.clear()
@@ -83,8 +76,6 @@ class EvaluationContext:
         """Close all judge clients to clean up resources."""
         if self._judge is not None:
             self._judge.close()
-        if self._trajectory_judge is not None:
-            self._trajectory_judge.close()
 
 
 # Shared context for the evaluation run
@@ -237,145 +228,6 @@ async def deepsearchqa_evaluator(
         ]
 
 
-def _count_replanning_events(plan: Any) -> int:
-    """Count how many times the agent replanned during execution.
-
-    Parameters
-    ----------
-    plan : ResearchPlan
-        The research plan which tracks replanning.
-
-    Returns
-    -------
-    int
-        Number of replanning events (0 if no replanning occurred).
-    """
-    if not plan or not hasattr(plan, "reasoning"):
-        return 0
-
-    # Check if plan reasoning indicates replanning
-    # Replanning is marked by "Replanned:" prefix in reasoning field
-    if plan.reasoning.startswith("Replanned:"):
-        # Count by checking if there are completed steps preserved
-        # (replanning preserves completed steps and adds new ones)
-        completed_steps = [s for s in plan.steps if s.status == "completed"]
-        # If there are completed steps in a replanned plan, replanning occurred
-        # at least once. This is a conservative estimate - actual count may be
-        # higher with multiple replans
-        return 1 if completed_steps else 0
-
-    return 0
-
-
-async def trajectory_evaluator(
-    *,
-    input: str,  # noqa: A002
-    output: dict[str, Any],
-    **kwargs: Any,  # noqa: ARG001
-) -> list[Evaluation]:
-    """Evaluate the agent's trajectory with LLM-as-judge and quantitative metrics.
-
-    Computes both categorical quality assessment and quantitative metrics:
-    - Trajectory Quality: LLM judge rates trajectory as High/Medium/Low
-    - Replanning Frequency: How many times the agent adapted its plan
-
-    Parameters
-    ----------
-    input : str
-        The original question.
-    output : dict[str, Any]
-        Dictionary containing 'text' and 'agent_response'.
-    **kwargs : dict
-        Additional keyword arguments.
-
-    Returns
-    -------
-    list[Evaluation]
-        List of Langfuse Evaluations with trajectory metrics.
-    """
-    # Extract agent_response from output dict
-    output_text = output.get("text", "") if isinstance(output, dict) else str(output)
-
-    # Skip evaluation for items marked as already completed
-    if output_text == "__SKIP__":
-        logger.debug("Skipping trajectory evaluation for already-completed item")
-        return []
-
-    # Get agent_response from output dict
-    agent_response = output.get("agent_response") if isinstance(output, dict) else None
-
-    if not agent_response:
-        logger.error("No agent_response in output dict")
-        return []
-
-    logger.info("Computing trajectory metrics...")
-
-    try:
-        # Count replanning events from the plan reasoning
-        replanning_count = _count_replanning_events(agent_response.plan)
-
-        # Build replanning comment
-        if replanning_count == 0:
-            replanning_comment = "No replanning occurred - agent executed original plan."
-        elif replanning_count == 1:
-            replanning_comment = "Agent replanned once during execution to adapt to findings."
-        else:
-            replanning_comment = f"Agent replanned {replanning_count} times to adapt strategy."
-
-        # Extract search queries from tool calls
-        search_queries = [
-            tc.get("arguments", {}).get("query", "")
-            for tc in agent_response.tool_calls
-            if tc.get("name") == "google_search" and tc.get("arguments", {}).get("query")
-        ]
-
-        # Get LLM-based trajectory quality evaluation
-        quality_result = await _context.trajectory_judge.evaluate_async(
-            question=input,
-            plan=agent_response.plan,
-            tool_calls=agent_response.tool_calls,
-            search_queries=search_queries,
-        )
-
-        # Build detailed quality comment
-        quality_comment_parts = [
-            f"Quality: {quality_result.quality_category}",
-            f"\n{quality_result.explanation}",
-            f"\n\nEfficiency: {quality_result.efficiency_notes}",
-            f"Logical Soundness: {quality_result.logical_soundness_notes}",
-            f"Source Quality: {quality_result.source_quality_notes}",
-            f"Replanning: {quality_result.replanning_notes}",
-        ]
-        quality_comment = "\n".join(quality_comment_parts)
-
-        logger.info(
-            f"Trajectory evaluation complete: {quality_result.quality_category} quality, "
-            f"{replanning_count} replanning events"
-        )
-
-        # Return both evaluations: categorical quality and quantitative
-        # replanning frequency
-        return [
-            Evaluation(
-                name="Trajectory Quality",
-                value=quality_result.quality_category,
-                comment=quality_comment,
-            ),
-            Evaluation(
-                name="Replanning Frequency",
-                value=replanning_count,
-                comment=replanning_comment,
-            ),
-        ]
-
-    except Exception as e:
-        logger.error(f"Trajectory evaluation failed: {e}")
-        return [
-            Evaluation(name="Trajectory Quality", value="Medium", comment=f"Evaluation error: {e}"),
-            Evaluation(name="Replanning Frequency", value=0, comment=f"Evaluation error: {e}"),
-        ]
-
-
 def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set[str]:
     """Get dataset item IDs that have already been evaluated in a run.
 
@@ -473,12 +325,7 @@ async def process_single_item(item: Any, experiment_name: str) -> None:
                 metadata=item.metadata,
             )
 
-            trajectory_evaluations = await trajectory_evaluator(
-                input=item.input,
-                output=output_dict,
-            )
-
-            all_evaluations = outcome_evaluations + trajectory_evaluations
+            all_evaluations = outcome_evaluations
 
             # Add scores to the trace using root_span.score_trace()
             # This properly links scores to the dataset run item
@@ -583,9 +430,9 @@ async def run_evaluation(
         # No resume, use the convenient run_experiment API
         result = dataset.run_experiment(
             name=experiment_name,
-            description="Knowledge Agent evaluation with outcome (DeepSearchQA) and trajectory (process supervision) judges",
+            description="Knowledge Agent evaluation with outcome (DeepSearchQA) judge",
             task=agent_task,
-            evaluators=[deepsearchqa_evaluator, trajectory_evaluator],
+            evaluators=[deepsearchqa_evaluator],
             max_concurrency=max_concurrency,
         )
         logger.info("Experiment complete!")

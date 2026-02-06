@@ -152,11 +152,10 @@ def _detect_extension(content_type: str, url: str) -> str:
 
 
 async def fetch_file(url: str) -> dict[str, Any]:
-    """Download a file from a URL and save it locally.
+    """Download CSV, XLSX, or JSON data files. NOT for PDFs - use web_fetch for PDFs.
 
-    Use this tool to download data files (CSV, XLSX, JSON, text) that need
-    to be searched or read in sections. For HTML pages where you want to
-    extract specific information, use web_fetch instead.
+    This tool is ONLY for structured data files (CSV, XLSX, JSON, text) that need
+    to be searched or read in sections. PDFs and HTML pages use web_fetch instead.
 
     After downloading, use grep_file to search for patterns, or read_file
     to read specific sections.
@@ -197,7 +196,7 @@ async def fetch_file(url: str) -> dict[str, Any]:
             if "application/pdf" in content_type:
                 return {
                     "status": "error",
-                    "error": "URL points to a PDF. Use the read_pdf tool instead.",
+                    "error": "URL points to a PDF. Use web_fetch instead to read PDFs.",
                     "url": url,
                     "content_type": content_type,
                 }
@@ -246,7 +245,7 @@ async def fetch_file(url: str) -> dict[str, Any]:
             "url": url,
         }
     except Exception as e:
-        logger.exception(f"Unexpected error fetching {url}")
+        logger.error(f"Unexpected error fetching {url}: {e}")
         return {
             "status": "error",
             "error": f"Unexpected error: {e!s}",
@@ -260,7 +259,7 @@ def grep_file(
     context_lines: int = 5,
     max_results: int = 10,
 ) -> dict[str, Any]:
-    """Search a file for lines matching a pattern.
+    """Search a LOCAL file for lines matching a pattern.
 
     A grep-style tool that searches text files for matching lines
     and returns matches with surrounding context. Use this after
@@ -269,7 +268,7 @@ def grep_file(
     Parameters
     ----------
     file_path : str
-        Path to the file to search (from fetch_file result).
+        LOCAL file path returned by fetch_file (NOT a URL).
     pattern : str
         Search pattern. Can be comma-separated for OR matching.
         Example: "operating expenses, total costs" matches either term.
@@ -294,6 +293,13 @@ def grep_file(
         # Enforce hard caps to prevent context overflow
         max_results = min(max_results, MAX_GREP_RESULTS_HARD_CAP)
         context_lines = min(context_lines, MAX_CONTEXT_LINES_CAP)
+
+        # Reject URLs - this tool only works with local file paths
+        if file_path.startswith(("http://", "https://", "ftp://")):
+            return {
+                "status": "error",
+                "error": "Cannot search URLs directly. Use web_fetch for URLs, or fetch_file to download data files first.",
+            }
 
         if not os.path.exists(file_path):
             return {
@@ -389,7 +395,7 @@ def grep_file(
         return result
 
     except Exception as e:
-        logger.exception(f"Error in grep_file {file_path}")
+        logger.error(f"Error in grep_file {file_path}: {e}")
         return {
             "status": "error",
             "error": f"Grep failed: {e!s}",
@@ -401,15 +407,15 @@ def read_file(
     start_line: int = 1,
     num_lines: int = 100,
 ) -> dict[str, Any]:
-    """Read a specific section of a file.
+    """Read a specific section of a LOCAL file.
 
-    Use this to read portions of large documents, especially after
-    using grep_file to identify relevant sections.
+    Use this to read portions of large documents that were downloaded with fetch_file.
+    This tool works ONLY with local file paths, NOT URLs.
 
     Parameters
     ----------
     file_path : str
-        Path to the file to read (from fetch_file result).
+        LOCAL file path returned by fetch_file (NOT a URL).
     start_line : int, optional
         Line number to start from (1-indexed, default 1).
     num_lines : int, optional
@@ -428,6 +434,13 @@ def read_file(
     >>> print(result["content"])
     """
     try:
+        # Reject URLs - this tool only works with local file paths
+        if file_path.startswith(("http://", "https://", "ftp://")):
+            return {
+                "status": "error",
+                "error": "Cannot read URLs directly. Use web_fetch for URLs, or fetch_file to download data files first.",
+            }
+
         if not os.path.exists(file_path):
             return {
                 "status": "error",
@@ -453,7 +466,7 @@ def read_file(
         }
 
     except Exception as e:
-        logger.exception(f"Error reading {file_path}")
+        logger.error(f"Error reading {file_path}: {e}")
         return {
             "status": "error",
             "error": f"Read failed: {e!s}",

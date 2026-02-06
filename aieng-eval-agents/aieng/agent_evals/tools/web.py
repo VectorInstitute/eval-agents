@@ -15,7 +15,7 @@ import httpx
 from google.adk.tools.function_tool import FunctionTool
 from html_to_markdown import convert as html_to_markdown
 from pypdf import PdfReader
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
@@ -158,12 +158,13 @@ def _make_success_response(url: str, content: str, content_type: str, truncated:
 
 
 async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
-    """Fetch content from a URL (HTML page or PDF document).
+    """Fetch HTML pages and PDFs. Use this for ANY PDF URL.
 
-    This tool retrieves the full content from a URL for analysis. It handles
-    both HTML pages (converted to readable text) and PDF documents (text extracted).
+    Retrieves complete content from URLs including HTML pages (converted to text)
+    and PDF documents (text extracted). Returns full content ready to analyze.
 
-    For large data files (CSV, XLSX) that need searching, use fetch_file instead.
+    For data files like CSV or XLSX that need line-by-line searching,
+    use fetch_file instead.
 
     Parameters
     ----------
@@ -195,7 +196,7 @@ async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
         return _make_error_response("Invalid URL. Must start with http:// or https://", url)
 
     try:
-        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await _fetch_with_retry(client, url)
             content_type = response.headers.get("content-type", "")
             final_url = str(response.url)
@@ -219,8 +220,20 @@ async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
     except httpx.RequestError as e:
         logger.warning(f"Request error fetching {url}: {e}")
         return _make_error_response(f"Request failed: {e!s}", url)
+    except RetryError as e:
+        # Extract the underlying error from retry failure
+        # without showing full stack trace
+        original_error = e.last_attempt.exception()
+        if isinstance(original_error, httpx.HTTPStatusError):
+            logger.error(f"HTTP error fetching {url} (after 3 retries): {original_error}")
+            return _make_error_response(
+                f"HTTP {original_error.response.status_code}: {original_error.response.reason_phrase} (failed after 3 retries)",
+                url,
+            )
+        logger.error(f"Failed to fetch {url} after 3 retries: {original_error}")
+        return _make_error_response(f"Failed after 3 retries: {original_error!s}", url)
     except Exception as e:
-        logger.exception(f"Unexpected error in web_fetch for {url}")
+        logger.error(f"Unexpected error in web_fetch for {url}: {e}")
         return _make_error_response(f"Unexpected error: {e!s}", url)
 
 

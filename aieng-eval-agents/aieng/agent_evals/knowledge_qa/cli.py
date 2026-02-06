@@ -805,7 +805,8 @@ async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = Fals
         # Display formatted answer with sections
         answer_content = Text()
         if parsed_answer.get("answer"):
-            answer_content.append(parsed_answer["answer"], style="white")
+            # Parse markdown bold markers in the answer
+            answer_content = _parse_markdown_bold(parsed_answer["answer"], "white")
 
         console.print(
             Panel(
@@ -910,10 +911,11 @@ def _display_example_result(example, response, idx: int, total: int) -> dict[str
     parsed_answer = _parse_structured_answer(response.text)
 
     if parsed_answer and parsed_answer.get("answer"):
-        # Display formatted answer
+        # Display formatted answer (parse markdown bold markers)
+        answer_content = _parse_markdown_bold(parsed_answer["answer"], "white")
         console.print(
             Panel(
-                parsed_answer["answer"],
+                answer_content,
                 title="[bold cyan]🤖 Answer[/bold cyan]",
                 subtitle=f"[dim]Duration: {response.total_duration_ms / 1000:.1f}s[/dim]",
                 border_style="cyan",
