@@ -106,9 +106,9 @@ class AnalystOutput(BaseModel):
 class CaseRecord(BaseModel):
     """Combined case file and ground truth record."""
 
-    case: CaseFile = Field(..., description="Metadata for the laundering case.")
-    groundtruth: GroundTruth = Field(..., description="Ground truth information for the laundering case.")
-    analysis: AnalystOutput | None = Field(
+    input: CaseFile = Field(..., description="Metadata for the laundering case.")
+    expected_output: GroundTruth = Field(..., description="Ground truth information for the laundering case.")
+    output: AnalystOutput | None = Field(
         default=None,
         description="Optional analyst output for the laundering case. Typically populated after investigation.",
     )
@@ -246,7 +246,7 @@ def build_cases(
     laundering_attempt_txn_ids: set[str] = set()
     for case in laundering_cases:
         attempt_ids_list = []
-        attempt_ids_str = case.groundtruth.attempt_transaction_ids
+        attempt_ids_str = case.expected_output.attempt_transaction_ids
         if attempt_ids_str:
             attempt_ids_list = [item.strip() for item in attempt_ids_str.split(",") if item.strip()]
         laundering_attempt_txn_ids.update(attempt_ids_list)
@@ -257,7 +257,7 @@ def build_cases(
 
     false_positive_cases = _build_false_positive_cases(transactions, num_false_positive_cases)
 
-    fp_seed_ids = {case.case.seed_transaction_id for case in false_positive_cases}
+    fp_seed_ids = {case.input.seed_transaction_id for case in false_positive_cases}
     normal_cases = _build_normal_cases(transactions, num_normal_cases, fp_seed_ids, lookback_days, min_timestamp)
 
     return laundering_cases + false_negative_cases + false_positive_cases + normal_cases
@@ -367,7 +367,7 @@ def _finalize_attempt_block(
         pattern_description=current["pattern_description"],
         attempt_transaction_ids=attempt_ids,
     )
-    return CaseRecord(case=case_file, groundtruth=groundtruth)
+    return CaseRecord(input=case_file, expected_output=groundtruth)
 
 
 def _build_false_negative_cases(
@@ -377,24 +377,24 @@ def _build_false_negative_cases(
     false_negative_cases: list[CaseRecord] = []
     fn_attempts = remaining_attempts[:num_false_negative_cases]
     for case in fn_attempts:
-        if case.case.seed_transaction_id in laundering_attempt_txn_ids:
+        if case.input.seed_transaction_id in laundering_attempt_txn_ids:
             continue
         case_file = CaseFile(
-            case_id=_create_id(f"fn:{case.case.case_id}"),
-            seed_transaction_id=case.case.seed_transaction_id,
-            seed_timestamp=case.case.seed_timestamp,
-            window_start=_date_window_start(case.case.seed_timestamp)
-            if case.case.window_start == case.case.seed_timestamp
-            else case.case.window_start,
+            case_id=_create_id(f"fn:{case.input.case_id}"),
+            seed_transaction_id=case.input.seed_transaction_id,
+            seed_timestamp=case.input.seed_timestamp,
+            window_start=_date_window_start(case.input.seed_timestamp)
+            if case.input.window_start == case.input.seed_timestamp
+            else case.input.window_start,
             trigger_label=random.choice(_LOW_SIGNAL_REVIEW_LABELS),
         )
         groundtruth = GroundTruth(
-            is_laundering=case.groundtruth.is_laundering,
-            pattern_type=case.groundtruth.pattern_type,
-            pattern_description=case.groundtruth.pattern_description,
-            attempt_transaction_ids=case.groundtruth.attempt_transaction_ids,
+            is_laundering=case.expected_output.is_laundering,
+            pattern_type=case.expected_output.pattern_type,
+            pattern_description=case.expected_output.pattern_description,
+            attempt_transaction_ids=case.expected_output.attempt_transaction_ids,
         )
-        false_negative_cases.append(CaseRecord(case=case_file, groundtruth=groundtruth))
+        false_negative_cases.append(CaseRecord(input=case_file, expected_output=groundtruth))
 
     if len(false_negative_cases) < num_false_negative_cases:
         logger.warning(
@@ -444,7 +444,7 @@ def _build_false_positive_cases(transc_df: pd.DataFrame, num_false_positive_case
             pattern_description="Normal transaction",
             attempt_transaction_ids="",
         )
-        false_positive_cases.append(CaseRecord(case=case_file, groundtruth=groundtruth))
+        false_positive_cases.append(CaseRecord(input=case_file, expected_output=groundtruth))
 
     return false_positive_cases
 
@@ -484,7 +484,7 @@ def _build_normal_cases(
             pattern_description="Normal transaction",
             attempt_transaction_ids="",
         )
-        normal_cases.append(CaseRecord(case=case_file, groundtruth=groundtruth))
+        normal_cases.append(CaseRecord(input=case_file, expected_output=groundtruth))
 
     return normal_cases
 
