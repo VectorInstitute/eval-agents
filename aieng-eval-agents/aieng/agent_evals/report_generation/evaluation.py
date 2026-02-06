@@ -12,7 +12,6 @@ Example
 >>> )
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -30,7 +29,8 @@ from google.adk.agents import Agent
 from google.adk.events.event import Event
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.genai.types import Content, Part
+from google.genai import Client
+from google.genai.types import Content, GenerateContentConfig, Part
 from langfuse._client.datasets import DatasetItemClient
 from langfuse.experiment import Evaluation, LocalExperimentItem
 from pydantic import BaseModel
@@ -63,7 +63,7 @@ async def evaluate(
     sqlite_db_path: Path,
     reports_output_path: Path,
     langfuse_project_name: str,
-):
+) -> None:
     """Evaluate the report generation agent against a Langfuse dataset.
 
     Parameters
@@ -184,17 +184,17 @@ class ReportGenerationTask:
                     parameters.append(parsed_event.arguments)
 
                     # The final report will be the arguments sent by the
-                    # write tool call
-                    # If there is more than one call to the write tool call,
+                    # write_xlsx tool call
+                    # If there is more than one call to the write_xlsx tool call,
                     # the last one will be used because the previous
                     # calls are likely failed calls
-                    if parsed_event.text == "write":
+                    if parsed_event.text == "write_xlsx":
                         final_report = parsed_event.arguments
 
                 # Not tracking EventType.THOUGHT or EventType.TOOL_RESPONSE
 
         if final_report is None:
-            logger.warning("No call to `write` function found in the agent's response")
+            logger.warning("No call to `write_xlsx` function found in the agent's response")
 
         return {
             "final_report": final_report,
@@ -234,16 +234,9 @@ async def final_result_evaluator(
     Evaluation
         The evaluation result, including the reasoning behind the answer.
     """
-    additional_instructions = _get_additional_instructions(expected_output, "final_report")
-
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
-    evaluator_agent = Agent(
-        name="FinalResultEvaluatorAgent",
-        instruction=RESULT_EVALUATOR_INSTRUCTIONS + additional_instructions,
-        model=client_manager.configs.default_worker_model,
-        output_schema=EvaluatorResponse,
-    )
+
     # Format the input for the evaluator agent
     evaluator_input = RESULT_EVALUATOR_TEMPLATE.format(
         question=input,
@@ -251,11 +244,25 @@ async def final_result_evaluator(
         proposed_response=output["final_report"],
     )
 
-    # Run the evaluator agent with retry
-    events = await run_agent_with_retry(evaluator_agent, evaluator_input)
+    # Get the additional evaluation instructions if it
+    # exists for this specific sample
+    additional_instructions = _get_additional_instructions(expected_output, "final_report")
 
-    # Return the evaluation result
-    evaluator_response = get_evaluator_reponse(events)
+    client = Client()
+    response = client.models.generate_content(
+        model=client_manager.configs.default_worker_model,
+        contents=evaluator_input,
+        config=GenerateContentConfig(
+            system_instruction=RESULT_EVALUATOR_INSTRUCTIONS + additional_instructions,
+            response_mime_type="application/json",
+            response_schema=EvaluatorResponse.model_json_schema(),
+        ),
+    )
+
+    # Parsing and returning the evaluation result
+    assert isinstance(response.parsed, dict), f"response.parsed must be a dictionary: {response.parsed}"
+    evaluator_response = EvaluatorResponse(**response.parsed)
+
     return Evaluation(
         name="Final Result",
         value=evaluator_response.is_answer_correct,
@@ -292,16 +299,8 @@ async def trajectory_evaluator(
     Evaluation
         The evaluation result, including the reasoning behind the answer.
     """
-    additional_instructions = _get_additional_instructions(expected_output, "trajectory")
-
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
-    evaluator_agent = Agent(
-        name="TrajectoryEvaluatorAgent",
-        instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS + additional_instructions,
-        model=client_manager.configs.default_planner_model,
-        output_schema=EvaluatorResponse,
-    )
 
     assert isinstance(expected_output["trajectory"], dict), "Expected trajectory must be a dictionary"
     assert isinstance(output["trajectory"], dict), "Actual trajectory must be a dictionary"
@@ -314,43 +313,31 @@ async def trajectory_evaluator(
         actual_actions=output["trajectory"]["actions"],
         actual_parameters=output["trajectory"]["parameters"],
     )
-    # Run the evaluator agent with retry
-    events = await run_agent_with_retry(evaluator_agent, evaluator_input)
 
-    # Return the evaluation result
-    evaluator_response = get_evaluator_reponse(events)
+    # Get the additional evaluation instructions if it
+    # exists for this specific sample
+    additional_instructions = _get_additional_instructions(expected_output, "trajectory")
+
+    client = Client()
+    response = client.models.generate_content(
+        model=client_manager.configs.default_worker_model,
+        contents=evaluator_input,
+        config=GenerateContentConfig(
+            system_instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS + additional_instructions,
+            response_mime_type="application/json",
+            response_schema=EvaluatorResponse.model_json_schema(),
+        ),
+    )
+
+    # Parsing and returning the evaluation result
+    assert isinstance(response.parsed, dict), f"response.parsed must be a dictionary: {response.parsed}"
+    evaluator_response = EvaluatorResponse(**response.parsed)
+
     return Evaluation(
         name="Trajectory",
         value=evaluator_response.is_answer_correct,
         comment=evaluator_response.explanation,
     )
-
-
-def get_evaluator_reponse(events: list[Event]) -> EvaluatorResponse:
-    """Get the evaluator response from a list of events.
-
-    It must be a list of events from an evaluator that has
-    EvaluatorResponse as output schema
-
-    Parameters
-    ----------
-    events : list[Event]
-        The list of events to get the evaluator response from.
-
-    Returns
-    -------
-    EvaluatorResponse
-        The evaluator response.
-    """
-    for event in events:
-        if event.is_final_response():
-            assert event.content, "Event content must be present"
-            assert event.content.parts, "Event content parts must be present"
-            assert len(event.content.parts) > 0, "Event content parts must not be empty"
-            assert isinstance(event.content.parts[0].text, str), "Event content parts text must be a string"
-            return EvaluatorResponse(**json.loads(event.content.parts[0].text))
-
-    raise Exception("No final response found in the events")
 
 
 def _get_additional_instructions(expected_output: EvaluationOutput, key: str) -> str:

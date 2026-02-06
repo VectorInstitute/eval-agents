@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReportFileWriter:
-    """Write reports to an XLSX file."""
+    """Write reports to a file."""
 
     def __init__(self, reports_output_path: Path):
         """Initialize the report writer.
@@ -36,7 +36,7 @@ class ReportFileWriter:
         """
         self.reports_output_path = reports_output_path
 
-    def write(
+    def write_xlsx(
         self,
         report_data: list[Any],
         report_columns: list[str],

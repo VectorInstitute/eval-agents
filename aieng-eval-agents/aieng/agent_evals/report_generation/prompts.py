@@ -7,7 +7,7 @@ If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
-Make sure the "write" tool is called so it generates the report file. \
+Make sure the "write_xlsx" tool is called so it generates the report file. \
 At the end, provide the report file as a downloadable hyperlink to the user. \
 Make sure the link can be clicked on by the user.
 """

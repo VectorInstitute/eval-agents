@@ -70,7 +70,7 @@ def get_report_generation_agent(
         instruction=instructions,
         tools=[
             client_manager.sqlite_connection(sqlite_db_path).execute,
-            report_file_writer.write,
+            report_file_writer.write_xlsx,
         ],
     )
 
@@ -123,6 +123,9 @@ class EventParser:
 
             elif event.content.role == "user":
                 parsed_events.extend(cls._parse_user_response(event))
+
+            else:
+                logger.warning(f"Unknown content role '{event.content.role}': {event}")
 
         else:
             logger.warning(f"Unknown stream event: {event}")
