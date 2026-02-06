@@ -235,7 +235,7 @@ async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
         return _make_error_response("Invalid URL. Must start with http:// or https://", url)
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
             response = await _fetch_with_retry(client, url)
             content_type = response.headers.get("content-type", "")
             final_url = str(response.url)
