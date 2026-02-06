@@ -195,7 +195,7 @@ def serialize_for_prompt(value: Any) -> str:
         # Keep unicode characters readable and stabilize formatting for
         # deterministic prompt snapshots during tests.
         return json.dumps(value, ensure_ascii=False, indent=2, default=str)
-    except TypeError:
+    except (TypeError, ValueError):
         return str(value)
 
 

@@ -40,7 +40,7 @@ You are an impartial and expert evaluator. Your task is to grade the quality of 
 # Instructions
 1. **Analyze the Input**: Understand the user's intent and constraints.
 2. **Check Constraints**: Verify if all negative constraints (e.g., "no markdown", "under 100 words") were met.
-3. **Reason Step-by-Step**: Before assigning any scores, you must write a detailed explanation of your reasoning. Cite specific parts of the Candidate Output that support your decision.
+3. **Reasoning**: Before assigning any scores, you must write an explanation of your reasoning. Cite specific parts of the Candidate Output that support your decision.
 4. **Assign Scores**: specific metrics as defined in the Rubric.
 5. **Output JSON**: Return the result strictly as a valid JSON object.
 
@@ -50,7 +50,7 @@ You are an impartial and expert evaluator. Your task is to grade the quality of 
 Return valid JSON only. Do not use Markdown code blocks (```json).
 The JSON must follow this schema:
 {{
-  "explanation": "Detailed chain-of-thought reasoning explaining the judgment...",
+  "explanation": "A concise rationale for the judgment, referencing specific excerpts from the Candidate Output",
   "metrics": [
     {{
       "name": "Metric Name (e.g., Accuracy)",
@@ -192,7 +192,8 @@ def make_llm_as_judge_evaluator(
     config = model_config or LLMRequestConfig()
 
     # Load and render rubric text into the system prompt
-    rubric_text = load_markdown(rubric_markdown or DEFAULT_LLM_JUDGE_RUBRIC)
+    rubric_source = rubric_markdown if rubric_markdown is not None else DEFAULT_LLM_JUDGE_RUBRIC
+    rubric_text = load_markdown(rubric_source)
     rendered_system_prompt = render_system_prompt_with_optional_rubric(
         system_prompt_template=system_prompt_template, rubric_text=rubric_text
     )
