@@ -19,7 +19,6 @@ dependencies = [
     "plotly>=6.5.0",
     "pydantic>=2.12.4",
     "pydantic-settings>=2.7.0",
-    "pydantic-ai-slim[logfire]>=1.26.0",
     "scikit-learn>=1.7.0",
     "urllib3>=2.6.3",
     "openpyxl>=3.1.5",

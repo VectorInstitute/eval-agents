@@ -11,6 +11,7 @@ Example
 ... )
 """
 
+import logging
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -18,8 +19,12 @@ from typing import Any
 import pandas as pd
 
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+
 class ReportFileWriter:
-    """Write reports to an XLSX file."""
+    """Write reports to a file."""
 
     def __init__(self, reports_output_path: Path):
         """Initialize the report writer.
@@ -31,7 +36,7 @@ class ReportFileWriter:
         """
         self.reports_output_path = reports_output_path
 
-    def write(
+    def write_xlsx(
         self,
         report_data: list[Any],
         report_columns: list[str],
@@ -57,16 +62,22 @@ class ReportFileWriter:
         str
             The path to the report file. If `gradio_link` is True, will return
             a URL link that allows Gradio UI to download the file.
+            Returns a string with an error message if the report fails to write.
         """
-        # Create reports directory if it doesn't exist
-        self.reports_output_path.mkdir(exist_ok=True)
-        filepath = self.reports_output_path / filename
+        try:
+            # Create reports directory if it doesn't exist
+            self.reports_output_path.mkdir(exist_ok=True)
+            filepath = self.reports_output_path / filename
 
-        report_df = pd.DataFrame(report_data, columns=report_columns)
-        report_df.to_excel(filepath, index=False)
+            report_df = pd.DataFrame(report_data, columns=report_columns)
+            report_df.to_excel(filepath, index=False)
 
-        file_uri = str(filepath)
-        if gradio_link:
-            file_uri = f"gradio_api/file={urllib.parse.quote(str(file_uri), safe='')}"
+            file_uri = str(filepath)
+            if gradio_link:
+                file_uri = f"gradio_api/file={urllib.parse.quote(str(file_uri), safe='')}"
 
-        return file_uri
+            return file_uri
+
+        except Exception as e:
+            logger.exception(f"Error writing report: {e}")
+            return str(e)

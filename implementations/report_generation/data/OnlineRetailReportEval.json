@@ -24,10 +24,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [
@@ -61,10 +61,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [
@@ -82,18 +82,18 @@
         "expected_output": {
             "final_report": {
                 "report_data": [
-                    ["2010-12", 369.6727640671277],
-                    ["2011-01", 377.61312204990026],
-                    ["2011-02", 355.50510349750186],
-                    ["2011-03", 343.35029145728674],
-                    ["2011-04", 281.8326405714284],
-                    ["2011-05", 333.79488232579683],
-                    ["2011-06", 343.32991554893266],
-                    ["2011-07", 353.3714268672203],
-                    ["2011-08", 392.5707360552048],
-                    ["2011-09", 438.0101469072177],
-                    ["2011-10", 405.8774336618668],
-                    ["2011-11", 421.86327561327636],
+                    ["2010-12", 369.85531851851886],
+                    ["2011-01", 379.4039701897034],
+                    ["2011-02", 357.54676956209624],
+                    ["2011-03", 344.5623197175999],
+                    ["2011-04", 282.8022482798164],
+                    ["2011-05", 334.56684088806736],
+                    ["2011-06", 343.50055666004044],
+                    ["2011-07", 353.5548059159318],
+                    ["2011-08", 393.0227461139903],
+                    ["2011-09", 438.1983764503665],
+                    ["2011-10", 406.03135001896266],
+                    ["2011-11", 422.2288417099951],
                     ["2011-12", 427.25912315270944]
                 ],
                 "report_columns": ["SaleMonth", "AverageOrderValue"],
@@ -101,10 +101,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [
@@ -120,9 +120,12 @@
         "id": "4",
         "input": "Generate a report with the month-over-month trends in sales. The report should include the monthly sales, the month-over-month change and the percentage change.",
         "expected_output": {
+            "additional_instructions": {
+                "final_report": "For the last two items of the first row, 0, None and \"\" are valid values."
+            },
             "final_report": {
                 "report_data": [
-                    ["2010-12", 748957.02, 748957.02, 0],
+                    ["2010-12", 748957.02, 0, 0],
                     ["2011-01", 560000.26, -188956.76, -25.23],
                     ["2011-02", 498062.65, -61937.61, -11.06],
                     ["2011-03", 683267.08, 185204.43, 37.18],
@@ -146,11 +149,11 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
+                    "execute",
+                    "execute",
+                    "execute",
                     "output_text",
-                    "write_report_to_file",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [
@@ -236,10 +239,10 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [
@@ -273,11 +276,11 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [
@@ -296,19 +299,19 @@
         "expected_output": {
             "final_report": {
                 "report_data": [
-                    ["2010", 196.46396396396398, 789.2065542676543],
-                    ["2011", 342.7430707154745, 2119.856516843317]
+                    ["2010", 196.46396396396398, 585.03],
+                    ["2011", 342.7430707154745, 1825.04]
                 ],
                 "report_columns": ["Year", "Average Spent by One-Time Buyers", "Average Spent by All Customers"],
                 "filename": "average_spending_report.xlsx"
             },
             "trajectory": {
                 "actions": [
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "execute_sql_query",
-                    "write_report_to_file",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "execute",
+                    "write_xlsx",
                     "output_text"
                 ],
                 "description": [

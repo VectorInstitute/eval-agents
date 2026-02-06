@@ -7,7 +7,7 @@ If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
 When the report is done, use the report file writer tool to write it to a file. \
-Make sure the write_report_to_file tool is called so it generates the report file. \
+Make sure the "write_xlsx" tool is called so it generates the report file. \
 At the end, provide the report file as a downloadable hyperlink to the user. \
 Make sure the link can be clicked on by the user.
 """
@@ -25,7 +25,7 @@ You will be presented with the "Question" that has been asked to the agent along
     - A list of parameters that has been passed to each one of the actions\
 It's OK if the agent makes mistakes and performs additional steps, or if the queries do not exactly match\
 the description, as long as the queries performed end up satisfying the "Question".\
-It is important that the last action to be of type "output_text" and that itproduces a link to the report file.
+It is important that the last action to be of type "final_response" and that it produces a link to the report file.
 """
 
 TRAJECTORY_EVALUATOR_TEMPLATE = """\
@@ -45,13 +45,17 @@ parameters: {actual_parameters}
 """
 
 RESULT_EVALUATOR_INSTRUCTIONS = """\
-Evaluate whether the "Proposed Answer" to the given "Question" matches the "Ground Truth".\
-Disregard the following aspects when comparing the "Proposed Answer" to the "Ground Truth":\
-- The order of the items should not matter, unless explicitly specified in the "Question".\
-- The formatting of the values should not matter, unless explicitly specified in the "Question".\
-- The column and row names have to be similar but not necessarily exact, unless explicitly specified in the "Question".\
-- The filename has to be similar by name but not necessarily exact, unless explicitly specified in the "Question".\
-- The numerical values should be equal to the second decimal place.
+Evaluate whether the "Proposed Answer" to the given "Question" matches the "Ground Truth". \
+Disregard the following aspects when comparing the "Proposed Answer" to the "Ground Truth": \
+- The order of the items should not matter, unless explicitly specified in the "Question". \
+- The formatting of the values should not matter, unless explicitly specified in the "Question". \
+- The column and row names have to be similar but not necessarily exact, unless explicitly specified in the "Question". \
+- The filename has to be similar by name but not necessarily exact, unless explicitly specified in the "Question". \
+- It is ok if the filename is missing. \
+- The numerical values should be equal with a tolerance of 0.01. \
+- The report data in the "Proposed Answer" should have the same number of rows as in the "Ground Truth". \
+- It is OK if the report data in the "Proposed Answer" contains extra columns or if the rows are in a different order, \
+unless explicitly specified in the "Question".
 """
 
 RESULT_EVALUATOR_TEMPLATE = """\

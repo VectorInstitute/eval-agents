@@ -4,13 +4,17 @@ Provides idempotent initialization and proper cleanup of async clients
 like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse
-from openai import AsyncOpenAI
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class SQLiteConnection:
@@ -27,7 +31,7 @@ class SQLiteConnection:
         self.db_path = db_path
         self.connection = sqlite3.connect(db_path)
 
-    def execute(self, query: str) -> list[Any]:
+    def execute(self, query: str) -> list[Any] | str:
         """Execute a SQLite query.
 
         Parameters
@@ -37,11 +41,16 @@ class SQLiteConnection:
 
         Returns
         -------
-        list[Any]
+        list[Any] | str
             The result of the query. Will return the result of
             `execute(query).fetchall()`.
+            Returns a string with an error message if the query fails.
         """
-        return self.connection.execute(query).fetchall()
+        try:
+            return self.connection.execute(query).fetchall()
+        except Exception as e:
+            logger.exception(f"Error executing query: {e}")
+            return [str(e)]
 
     def close(self) -> None:
         """Close the SQLite connection."""
@@ -63,7 +72,7 @@ class AsyncClientManager:
     --------
     >>> manager = AsyncClientManager()
     >>> # Access clients (created on first access)
-    >>> openai = manager.openai_client
+    >>> sqlite_connection = manager.sqlite_connection("my_sqlite.db")
     >>> langfuse = manager.langfuse_client
     >>> # In finally block or cleanup
     >>> await manager.close()
@@ -94,7 +103,6 @@ class AsyncClientManager:
             is created.
         """
         self._configs: Configs | None = configs
-        self._openai_client: AsyncOpenAI | None = None
         self._sqlite_connection: SQLiteConnection | None = None
         self._langfuse_client: Langfuse | None = None
         self._otel_instrumented: bool = False
@@ -112,22 +120,6 @@ class AsyncClientManager:
         if self._configs is None:
             self._configs = Configs()  # type: ignore[call-arg]
         return self._configs
-
-    @property
-    def openai_client(self) -> AsyncOpenAI:
-        """Get or create OpenAI client.
-
-        Returns
-        -------
-        AsyncOpenAI
-            The OpenAI async client instance.
-        """
-        if self._openai_client is None:
-            api_key = self.configs.openai_api_key.get_secret_value()
-
-            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
-            self._initialized = True
-        return self._openai_client
 
     def sqlite_connection(self, db_path: Path) -> SQLiteConnection:
         """Get or create SQLite session.
@@ -192,13 +184,9 @@ class AsyncClientManager:
     async def close(self) -> None:
         """Close all initialized async clients.
 
-        This method closes the OpenAI client, SQLite connection, and Langfuse
+        This method closes the SQLite connection, and Langfuse
         client if they have been initialized.
         """
-        if self._openai_client is not None:
-            await self._openai_client.close()
-            self._openai_client = None
-
         if self._sqlite_connection is not None:
             self._sqlite_connection.close()
             self._sqlite_connection = None
