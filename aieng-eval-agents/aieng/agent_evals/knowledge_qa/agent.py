@@ -151,10 +151,6 @@ class KnowledgeGroundedAgent:
         self.enable_planning = enable_planning
         self._thinking_budget = thinking_budget
 
-        # Generate unique instance ID for this agent to avoid cache collisions
-        # in concurrent runs
-        self._instance_id = str(uuid.uuid4())[:8]
-
         # Create tools - use function tool for search so agent sees actual URLs
         self._search_tool = create_google_search_tool(config=config)
         self._web_fetch_tool = create_web_fetch_tool()
@@ -174,7 +170,7 @@ class KnowledgeGroundedAgent:
             thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
 
         self._agent = Agent(
-            name=f"knowledge_qa_{self._instance_id}",
+            name="knowledge_qa",
             model=self.model,
             instruction=build_system_instructions(),
             tools=[
@@ -207,7 +203,7 @@ class KnowledgeGroundedAgent:
         else:
             self._app = None
             self._runner = Runner(
-                app_name=f"knowledge_qa_{self._instance_id}",
+                app_name="knowledge_qa",
                 agent=self._agent,
                 session_service=self._session_service,
             )
@@ -223,7 +219,7 @@ class KnowledgeGroundedAgent:
     ) -> tuple[App, Runner]:
         """Create App and Runner with caching/compaction config."""
         app_kwargs: dict[str, Any] = {
-            "name": f"knowledge_qa_{self._instance_id}",
+            "name": "knowledge_qa",
             "root_agent": self._agent,
         }
 
@@ -277,7 +273,7 @@ class KnowledgeGroundedAgent:
             )
         else:
             self._runner = Runner(
-                app_name=f"knowledge_qa_{self._instance_id}",
+                app_name="knowledge_qa",
                 agent=self._agent,
                 session_service=self._session_service,
             )
@@ -318,7 +314,7 @@ class KnowledgeGroundedAgent:
 
         if session_id not in self._sessions:
             session = await self._session_service.create_session(
-                app_name=f"knowledge_qa_{self._instance_id}",
+                app_name="knowledge_qa",
                 user_id="user",
                 state={},
             )
@@ -610,7 +606,7 @@ class KnowledgeGroundedAgent:
                 )
                 # Create fresh session for retry to avoid polluted history
                 fresh_session = await self._session_service.create_session(
-                    app_name=f"knowledge_qa_{self._instance_id}",
+                    app_name="knowledge_qa",
                     user_id="user",
                     state={},
                 )
