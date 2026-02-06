@@ -157,6 +157,45 @@ def _make_success_response(url: str, content: str, content_type: str, truncated:
     return result
 
 
+def _handle_fetch_error(e: Exception, url: str) -> dict[str, Any]:
+    """Handle exceptions from web_fetch and return appropriate error response.
+
+    Parameters
+    ----------
+    e : Exception
+        The exception that occurred during fetching.
+    url : str
+        The URL that was being fetched.
+
+    Returns
+    -------
+    dict
+        Error response with 'status', 'error', and 'url' fields.
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        logger.warning(f"HTTP error fetching {url}: {e}")
+        return _make_error_response(f"HTTP {e.response.status_code}: {e.response.reason_phrase}", url)
+
+    if isinstance(e, httpx.RequestError):
+        logger.warning(f"Request error fetching {url}: {e}")
+        return _make_error_response(f"Request failed: {e!s}", url)
+
+    if isinstance(e, RetryError):
+        # Extract the underlying error from retry failure
+        # without showing full stack trace
+        original_error = e.last_attempt.exception()
+        if isinstance(original_error, httpx.HTTPStatusError):
+            logger.error(f"HTTP error fetching {url} (after 3 retries): {original_error}")
+            error_msg = f"HTTP {original_error.response.status_code}: {original_error.response.reason_phrase} (failed after 3 retries)"
+        else:
+            logger.error(f"Failed to fetch {url} after 3 retries: {original_error}")
+            error_msg = f"Failed after 3 retries: {original_error!s}"
+        return _make_error_response(error_msg, url)
+
+    logger.error(f"Unexpected error in web_fetch for {url}: {e}")
+    return _make_error_response(f"Unexpected error: {e!s}", url)
+
+
 async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
     """Fetch HTML pages and PDFs. Use this for ANY PDF URL.
 
@@ -214,27 +253,8 @@ async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
 
             return _make_success_response(final_url, text, content_type or "text/html", truncated)
 
-    except httpx.HTTPStatusError as e:
-        logger.warning(f"HTTP error fetching {url}: {e}")
-        return _make_error_response(f"HTTP {e.response.status_code}: {e.response.reason_phrase}", url)
-    except httpx.RequestError as e:
-        logger.warning(f"Request error fetching {url}: {e}")
-        return _make_error_response(f"Request failed: {e!s}", url)
-    except RetryError as e:
-        # Extract the underlying error from retry failure
-        # without showing full stack trace
-        original_error = e.last_attempt.exception()
-        if isinstance(original_error, httpx.HTTPStatusError):
-            logger.error(f"HTTP error fetching {url} (after 3 retries): {original_error}")
-            return _make_error_response(
-                f"HTTP {original_error.response.status_code}: {original_error.response.reason_phrase} (failed after 3 retries)",
-                url,
-            )
-        logger.error(f"Failed to fetch {url} after 3 retries: {original_error}")
-        return _make_error_response(f"Failed after 3 retries: {original_error!s}", url)
     except Exception as e:
-        logger.error(f"Unexpected error in web_fetch for {url}: {e}")
-        return _make_error_response(f"Unexpected error: {e!s}", url)
+        return _handle_fetch_error(e, url)
 
 
 def _handle_pdf_response(content: bytes, max_pages: int, final_url: str, url: str) -> dict[str, Any]:
