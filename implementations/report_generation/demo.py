@@ -22,11 +22,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 from gradio.components.chatbot import ChatMessage
 
-from implementations.report_generation.env_vars import (
-    get_langfuse_project_name,
-    get_reports_output_path,
-    get_sqlite_db_path,
-)
+from implementations.report_generation.env_vars import get_langfuse_project_name, get_reports_output_path
 from implementations.report_generation.gradio_utils import agent_event_to_gradio_messages
 
 
@@ -65,7 +61,6 @@ async def agent_session_handler(
 
     main_agent = get_report_generation_agent(
         instructions=MAIN_AGENT_INSTRUCTIONS,
-        sqlite_db_path=get_sqlite_db_path(),
         reports_output_path=get_reports_output_path(),
         langfuse_project_name=get_langfuse_project_name() if enable_trace else None,
     )
