@@ -74,7 +74,6 @@ class AsyncClientManager:
     >>> manager = AsyncClientManager()
     >>> # Access clients (created on first access)
     >>> openai = manager.openai_client
-    >>> sqlite_connection = manager.sqlite_connection("my_sqlite.db")
     >>> langfuse = manager.langfuse_client
     >>> # In finally block or cleanup
     >>> await manager.close()
@@ -135,6 +134,7 @@ class AsyncClientManager:
         """
         if self._openai_client is None:
             api_key = self.configs.openai_api_key.get_secret_value()
+
             self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
             self._initialized = True
         return self._openai_client
