@@ -8,8 +8,6 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 
-import logfire
-import nest_asyncio
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.progress import track_with_progress
@@ -22,19 +20,6 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcess
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-def configure_oai_agents_sdk(service_name: str) -> None:
-    """Register Langfuse as tracing provider for OAI Agents SDK.
-
-    Parameters
-    ----------
-    service_name : str
-        The name of the service to configure.
-    """
-    nest_asyncio.apply()
-    logfire.configure(service_name=service_name, send_to_logfire=False, scrubbing=False)
-    logfire.instrument_openai_agents()
 
 
 def set_up_langfuse_otlp_env_vars():
@@ -71,7 +56,6 @@ def setup_langfuse_tracer(service_name: str = "aieng-eval-agents") -> "trace.Tra
     tracer: OpenTelemetry Tracer
     """
     set_up_langfuse_otlp_env_vars()
-    configure_oai_agents_sdk(service_name)
 
     # Create a TracerProvider for OpenTelemetry
     trace_provider = TracerProvider()

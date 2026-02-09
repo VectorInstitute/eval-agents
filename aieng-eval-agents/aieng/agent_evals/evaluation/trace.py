@@ -349,6 +349,7 @@ def _sum_token_usage(observations: list[ObservationsView], *, token_type: str) -
     usage_keys = _usage_keys_for_token_type(token_type)
 
     for observation in observations:
+        assert observation.usage_details is not None, "Usage details must be present"
         usage_details = observation.usage_details
         for key in usage_keys:
             value = usage_details.get(key)
