@@ -5,6 +5,7 @@ like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
 import asyncio
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,10 @@ from typing import Any
 from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse
 from openai import AsyncOpenAI
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class SQLiteConnection:
@@ -28,7 +33,7 @@ class SQLiteConnection:
         self.db_path = db_path
         self.connection = sqlite3.connect(db_path)
 
-    def execute(self, query: str) -> list[Any]:
+    def execute(self, query: str) -> list[Any] | str:
         """Execute a SQLite query.
 
         Parameters
@@ -38,11 +43,16 @@ class SQLiteConnection:
 
         Returns
         -------
-        list[Any]
+        list[Any] | str
             The result of the query. Will return the result of
             `execute(query).fetchall()`.
+            Returns a string with an error message if the query fails.
         """
-        return self.connection.execute(query).fetchall()
+        try:
+            return self.connection.execute(query).fetchall()
+        except Exception as e:
+            logger.exception(f"Error executing query: {e}")
+            return [str(e)]
 
     def close(self) -> None:
         """Close the SQLite connection."""

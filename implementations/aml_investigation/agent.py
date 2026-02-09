@@ -163,12 +163,12 @@ def _write_results(output_path: Path, input_records: list[CaseRecord], results_b
 
     with tmp_path.open("w", encoding="utf-8") as outfile:
         for record in input_records:
-            case_id = record.case.case_id
+            case_id = record.input.case_id
             if case_id in written:
                 continue
             written.add(case_id)
             out_record = results_by_id.get(case_id, record)
-            analyzed += int(out_record.analysis is not None)
+            analyzed += int(out_record.output is not None)
             outfile.write(out_record.model_dump_json() + "\n")
 
     tmp_path.replace(output_path)
@@ -178,7 +178,7 @@ def _write_results(output_path: Path, input_records: list[CaseRecord], results_b
 async def _analyze_case(runner: Runner, record: CaseRecord) -> CaseRecord:
     """Run the agent on one case and attach the validated AnalystOutput."""
     message = google.genai.types.Content(
-        role="user", parts=[google.genai.types.Part(text=record.case.model_dump_json())]
+        role="user", parts=[google.genai.types.Part(text=record.input.model_dump_json())]
     )
     events_async = runner.run_async(session_id=str(uuid.uuid4()), user_id=getpass.getuser(), new_message=message)
 
@@ -188,10 +188,10 @@ async def _analyze_case(runner: Runner, record: CaseRecord) -> CaseRecord:
             final_text = "".join(part.text or "" for part in event.content.parts if part.text)
 
     if not final_text:
-        logger.warning("No analyst output produced for case_id=%s", record.case.case_id)
+        logger.warning("No analyst output produced for case_id=%s", record.input.case_id)
         return record
 
-    record.analysis = AnalystOutput.model_validate(_extract_json(final_text.strip()))
+    record.output = AnalystOutput.model_validate(_extract_json(final_text.strip()))
     return record
 
 
@@ -200,7 +200,7 @@ async def _safe_analyze_case(runner: Runner, record: CaseRecord) -> CaseRecord:
     try:
         return await _analyze_case(runner, record)
     except Exception as exc:
-        logger.exception("Case failed (case_id=%s): %s", record.case.case_id, exc)
+        logger.exception("Case failed (case_id=%s): %s", record.input.case_id, exc)
         return record
 
 
@@ -234,7 +234,7 @@ async def _analyze_cases_to_jsonl(
 
         for finished in asyncio.as_completed(tasks):
             record = await finished
-            analyzed_by_id[record.case.case_id] = record
+            analyzed_by_id[record.input.case_id] = record
             outfile.write(record.model_dump_json() + "\n")
             outfile.flush()
             os.fsync(outfile.fileno())
@@ -253,8 +253,8 @@ async def _main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     input_records = _load_records(input_path)
-    existing_results = {record.case.case_id: record for record in _load_records(output_path)}
-    to_run = [r for r in input_records if existing_results.get(r.case.case_id, r).analysis is None]
+    existing_results = {record.input.case_id: record for record in _load_records(output_path)}
+    to_run = [r for r in input_records if existing_results.get(r.input.case_id, r).output is None]
 
     logger.info("Resume: %d/%d done; %d remaining.", len(input_records) - len(to_run), len(input_records), len(to_run))
 
@@ -272,16 +272,16 @@ async def _main() -> None:
         analyzed_count = _write_results(output_path, input_records, existing_results)
         logger.info("Wrote %d analyzed cases to %s", analyzed_count, output_path)
 
-        final_records = [existing_results.get(r.case.case_id, r) for r in input_records]
-        scored = [r for r in final_records if r.analysis is not None]
+        final_records = [existing_results.get(r.input.case_id, r) for r in input_records]
+        scored = [r for r in final_records if r.output is not None]
         if not scored:
             logger.info("Metrics: N/A (no analyzed cases)")
         else:
             tp = fp = fn = tn = 0
             for r in scored:
-                gt = r.groundtruth.is_laundering
-                assert r.analysis is not None  # Guaranteed by filter above
-                pred = r.analysis.is_laundering
+                gt = r.expected_output.is_laundering
+                assert r.output is not None  # Guaranteed by filter above
+                pred = r.output.is_laundering
                 if gt and pred:
                     tp += 1
                 elif (not gt) and pred:

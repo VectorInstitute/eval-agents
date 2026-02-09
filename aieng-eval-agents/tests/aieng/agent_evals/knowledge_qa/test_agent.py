@@ -351,7 +351,7 @@ class TestKnowledgeGroundedAgent:
     def mock_config(self):
         """Create a mock config for testing."""
         config = MagicMock()
-        config.openai_api_key = "test-api-key"
+        config.gemini_api_key = "test-api-key"
         config.default_worker_model = "gemini-2.5-flash"
         config.default_temperature = 0.0
         return config

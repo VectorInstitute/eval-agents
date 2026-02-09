@@ -16,9 +16,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import agents
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.report_generation.agent import get_report_generation_agent
+from aieng.agent_evals.report_generation.agent import EventParser, EventType, get_report_generation_agent
 from aieng.agent_evals.report_generation.prompts import (
     MAIN_AGENT_INSTRUCTIONS,
     RESULT_EVALUATOR_INSTRUCTIONS,
@@ -26,12 +25,14 @@ from aieng.agent_evals.report_generation.prompts import (
     TRAJECTORY_EVALUATOR_INSTRUCTIONS,
     TRAJECTORY_EVALUATOR_TEMPLATE,
 )
+from google.adk.agents import Agent
+from google.adk.events.event import Event
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import Client
+from google.genai.types import Content, GenerateContentConfig, Part
 from langfuse._client.datasets import DatasetItemClient
 from langfuse.experiment import Evaluation, LocalExperimentItem
-from openai.types.responses.response_function_tool_call import ResponseFunctionToolCall
-from openai.types.responses.response_output_message import ResponseOutputMessage
-from openai.types.responses.response_output_refusal import ResponseOutputRefusal
-from openai.types.responses.response_output_text import ResponseOutputText
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -62,7 +63,7 @@ async def evaluate(
     sqlite_db_path: Path,
     reports_output_path: Path,
     langfuse_project_name: str,
-):
+) -> None:
     """Evaluate the report generation agent against a Langfuse dataset.
 
     Parameters
@@ -159,38 +160,41 @@ class ReportGenerationTask:
         )
         # Handle both TypedDict and class access patterns
         item_input = item["input"] if isinstance(item, dict) else item.input
-        result = await run_agent_with_retry(report_generation_agent, item_input)
+        events = await run_agent_with_retry(report_generation_agent, item_input)
 
         # Extract the report data and trajectory from the agent's response
-        actions = []
-        parameters = []
-        final_report = None
-        for raw_response in result.raw_responses:
-            for output in raw_response.output:
-                # The trajectory will be the list of actions and the
-                # parameters passed to each one of them
-                if isinstance(output, ResponseFunctionToolCall):
-                    actions.append(output.name)
-                    parameters.append(output.arguments)
+        actions: list[str] = []
+        parameters: list[Any | None] = []
+        final_report: str | None = None
+
+        # The trajectory will be the list of actions and the
+        # parameters passed to each one of them
+        for event in events:
+            parsed_events = EventParser.parse(event)
+
+            for parsed_event in parsed_events:
+                if parsed_event.type == EventType.FINAL_RESPONSE:
+                    # Picking up the final message displayed to the user
+                    actions.append("final_response")
+                    parameters.append(parsed_event.text)
+
+                if parsed_event.type == EventType.TOOL_CALL:
+                    # Picking up tool calls and their arguments
+                    actions.append(parsed_event.text)
+                    parameters.append(parsed_event.arguments)
 
                     # The final report will be the arguments sent by the
-                    # write_report_to_file function call
-                    # If there is more than one call to the write_report_to_file
-                    # function, the last one will be used because the previous
-                    # calls were likely be failed calls
-                    if isinstance(output, ResponseFunctionToolCall) and "write_report_to_file" in output.name:
-                        final_report = output.arguments
+                    # write_xlsx tool call
+                    # If there is more than one call to the write_xlsx tool call,
+                    # the last one will be used because the previous
+                    # calls are likely failed calls
+                    if parsed_event.text == "write_xlsx":
+                        final_report = parsed_event.arguments
 
-                if isinstance(output, ResponseOutputMessage):
-                    for content in output.content:
-                        actions.append(content.type)
-                        if isinstance(content, ResponseOutputText):
-                            parameters.append(content.text)
-                        elif isinstance(content, ResponseOutputRefusal):
-                            parameters.append(content.refusal)
+                # Not tracking EventType.THOUGHT or EventType.TOOL_RESPONSE
 
         if final_report is None:
-            logger.warning("No call to write_report_to_file function found in the agent's response")
+            logger.warning("No call to `write_xlsx` function found in the agent's response")
 
         return {
             "final_report": final_report,
@@ -232,30 +236,37 @@ async def final_result_evaluator(
     """
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
-    evaluator_agent = agents.Agent(
-        name="Final Result Evaluator Agent",
-        instructions=RESULT_EVALUATOR_INSTRUCTIONS,
-        output_type=EvaluatorResponse,
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_planner_model,
-            openai_client=client_manager.openai_client,
-        ),
-    )
+
     # Format the input for the evaluator agent
     evaluator_input = RESULT_EVALUATOR_TEMPLATE.format(
         question=input,
         ground_truth=expected_output["final_report"],
         proposed_response=output["final_report"],
     )
-    # Run the evaluator agent with retry
-    result = await run_agent_with_retry(evaluator_agent, evaluator_input)
-    evaluation_response = result.final_output_as(EvaluatorResponse)
 
-    # Return the evaluation result
+    # Get the additional evaluation instructions if it
+    # exists for this specific sample
+    additional_instructions = _get_additional_instructions(expected_output, "final_report")
+
+    client = Client()
+    response = client.models.generate_content(
+        model=client_manager.configs.default_worker_model,
+        contents=evaluator_input,
+        config=GenerateContentConfig(
+            system_instruction=RESULT_EVALUATOR_INSTRUCTIONS + additional_instructions,
+            response_mime_type="application/json",
+            response_schema=EvaluatorResponse.model_json_schema(),
+        ),
+    )
+
+    # Parsing and returning the evaluation result
+    assert isinstance(response.parsed, dict), f"response.parsed must be a dictionary: {response.parsed}"
+    evaluator_response = EvaluatorResponse(**response.parsed)
+
     return Evaluation(
         name="Final Result",
-        value=evaluation_response.is_answer_correct,
-        comment=evaluation_response.explanation,
+        value=evaluator_response.is_answer_correct,
+        comment=evaluator_response.explanation,
     )
 
 
@@ -290,15 +301,6 @@ async def trajectory_evaluator(
     """
     # Define the evaluator agent
     client_manager = AsyncClientManager.get_instance()
-    evaluator_agent = agents.Agent(
-        name="Trajectory Evaluator Agent",
-        instructions=TRAJECTORY_EVALUATOR_INSTRUCTIONS,
-        output_type=EvaluatorResponse,
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_planner_model,
-            openai_client=client_manager.openai_client,
-        ),
-    )
 
     assert isinstance(expected_output["trajectory"], dict), "Expected trajectory must be a dictionary"
     assert isinstance(output["trajectory"], dict), "Actual trajectory must be a dictionary"
@@ -311,20 +313,43 @@ async def trajectory_evaluator(
         actual_actions=output["trajectory"]["actions"],
         actual_parameters=output["trajectory"]["parameters"],
     )
-    # Run the evaluator agent with retry
-    result = await run_agent_with_retry(evaluator_agent, evaluator_input)
-    evaluation_response = result.final_output_as(EvaluatorResponse)
 
-    # Return the evaluation result
+    # Get the additional evaluation instructions if it
+    # exists for this specific sample
+    additional_instructions = _get_additional_instructions(expected_output, "trajectory")
+
+    client = Client()
+    response = client.models.generate_content(
+        model=client_manager.configs.default_worker_model,
+        contents=evaluator_input,
+        config=GenerateContentConfig(
+            system_instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS + additional_instructions,
+            response_mime_type="application/json",
+            response_schema=EvaluatorResponse.model_json_schema(),
+        ),
+    )
+
+    # Parsing and returning the evaluation result
+    assert isinstance(response.parsed, dict), f"response.parsed must be a dictionary: {response.parsed}"
+    evaluator_response = EvaluatorResponse(**response.parsed)
+
     return Evaluation(
         name="Trajectory",
-        value=evaluation_response.is_answer_correct,
-        comment=evaluation_response.explanation,
+        value=evaluator_response.is_answer_correct,
+        comment=evaluator_response.explanation,
     )
 
 
+def _get_additional_instructions(expected_output: EvaluationOutput, key: str) -> str:
+    additional_instructions_dict = expected_output.get("additional_instructions", {})
+    if additional_instructions_dict:
+        return additional_instructions_dict.get(key, "")
+
+    return ""
+
+
 @retry(stop=stop_after_attempt(5), wait=wait_exponential())
-async def run_agent_with_retry(agent: agents.Agent, agent_input: str) -> agents.RunResult:
+async def run_agent_with_retry(agent: Agent, agent_input: str) -> list[Event]:
     """Run an agent with Tenacity's retry mechanism.
 
     Parameters
@@ -336,8 +361,28 @@ async def run_agent_with_retry(agent: agents.Agent, agent_input: str) -> agents.
 
     Returns
     -------
-    agents.RunnerResult
-        The result of the agent run.
+    list[Event]
+        The events from the agent run.
     """
     logger.info(f"Running agent {agent.name} with input '{agent_input[:100]}...'")
-    return await agents.Runner.run(agent, input=agent_input)
+
+    # Create session and runner
+    session_service = InMemorySessionService()
+    runner = Runner(app_name=agent.name, agent=agent, session_service=session_service)
+    current_session = await session_service.create_session(
+        app_name=agent.name,
+        user_id="user",
+        state={},
+    )
+
+    # create the user message and run the agent
+    content = Content(role="user", parts=[Part(text=agent_input)])
+    events = []
+    async for event in runner.run_async(
+        user_id="user",
+        session_id=current_session.id,
+        new_message=content,
+    ):
+        events.append(event)
+
+    return events

@@ -99,17 +99,19 @@ def test_parse_patterns_file_parses_attempts_and_sets_seed_and_window(patterns_f
     }
 
     for record in cases:
-        assert record.groundtruth.is_laundering is True
-        assert record.case.seed_transaction_id
-        assert record.case.case_id
-        assert record.case.window_start == min_timestamp
+        assert record.expected_output.is_laundering is True
+        assert record.input.seed_transaction_id
+        assert record.input.case_id
+        assert record.input.window_start == min_timestamp
 
-        seed_timestamp, expected_count = expected_by_pattern[record.groundtruth.pattern_type]
-        assert record.case.seed_timestamp == seed_timestamp
+        seed_timestamp, expected_count = expected_by_pattern[record.expected_output.pattern_type]
+        assert record.input.seed_timestamp == seed_timestamp
 
-        attempt_ids = [item.strip() for item in record.groundtruth.attempt_transaction_ids.split(",") if item.strip()]
+        attempt_ids = [
+            item.strip() for item in record.expected_output.attempt_transaction_ids.split(",") if item.strip()
+        ]
         assert len(attempt_ids) == expected_count
-        assert attempt_ids[-1] == record.case.seed_transaction_id
+        assert attempt_ids[-1] == record.input.seed_transaction_id
 
 
 def test_parse_patterns_file_rejects_negative_lookback(patterns_file: Path) -> None:
@@ -175,36 +177,38 @@ def test_build_cases_builds_each_case_type(patterns_file: Path, transactions_df:
     laundering = [
         case
         for case in cases
-        if case.groundtruth.is_laundering and case.case.trigger_label == case.groundtruth.pattern_type.value
+        if case.expected_output.is_laundering and case.input.trigger_label == case.expected_output.pattern_type.value
     ]
     false_negatives = [
-        case for case in cases if case.groundtruth.is_laundering and case.case.trigger_label in low_signal_labels
+        case for case in cases if case.expected_output.is_laundering and case.input.trigger_label in low_signal_labels
     ]
     false_positives = [
         case
         for case in cases
-        if (not case.groundtruth.is_laundering) and case.case.trigger_label not in low_signal_labels
+        if (not case.expected_output.is_laundering) and case.input.trigger_label not in low_signal_labels
     ]
     normals = [
-        case for case in cases if (not case.groundtruth.is_laundering) and case.case.trigger_label in low_signal_labels
+        case
+        for case in cases
+        if (not case.expected_output.is_laundering) and case.input.trigger_label in low_signal_labels
     ]
 
     assert len(laundering) == 1
-    assert laundering[0].groundtruth.pattern_type in {
+    assert laundering[0].expected_output.pattern_type in {
         LaunderingPattern.CYCLE,
         LaunderingPattern.STACK,
         LaunderingPattern.GATHER_SCATTER,
     }
 
     assert len(false_negatives) == 1
-    assert false_negatives[0].groundtruth.is_laundering is True
-    assert false_negatives[0].groundtruth.pattern_type != LaunderingPattern.NONE
+    assert false_negatives[0].expected_output.is_laundering is True
+    assert false_negatives[0].expected_output.pattern_type != LaunderingPattern.NONE
 
     assert len(false_positives) == 1
-    assert false_positives[0].groundtruth.pattern_type == LaunderingPattern.NONE
+    assert false_positives[0].expected_output.pattern_type == LaunderingPattern.NONE
 
     assert len(normals) == 1
-    assert normals[0].groundtruth.pattern_type == LaunderingPattern.NONE
+    assert normals[0].expected_output.pattern_type == LaunderingPattern.NONE
 
 
 @pytest.mark.parametrize(

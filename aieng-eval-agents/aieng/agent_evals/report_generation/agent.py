@@ -13,12 +13,21 @@ Example
 >>> )
 """
 
+import logging
+from enum import Enum
 from pathlib import Path
+from typing import Any
 
-import agents
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.langfuse import setup_langfuse_tracer
 from aieng.agent_evals.report_generation.file_writer import ReportFileWriter
+from google.adk.agents import Agent
+from google.adk.events.event import Event
+from pydantic import BaseModel
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 def get_report_generation_agent(
@@ -26,7 +35,7 @@ def get_report_generation_agent(
     sqlite_db_path: Path,
     reports_output_path: Path,
     langfuse_project_name: str | None,
-) -> agents.Agent:
+) -> Agent:
     """
     Define the report generation agent.
 
@@ -54,29 +63,156 @@ def get_report_generation_agent(
     client_manager = AsyncClientManager.get_instance()
     report_file_writer = ReportFileWriter(reports_output_path)
 
-    # Define an agent using the OpenAI Agent SDK
-    return agents.Agent(
-        name="Report Generation Agent",  # Agent name for logging and debugging purposes
-        instructions=instructions,  # System instructions for the agent
-        # Tools available to the agent
-        # We wrap the `execute_sql_query` and `write_report_to_file` methods
-        # with `function_tool`, which will construct the tool definition JSON
-        # schema by extracting the necessary information from the method
-        # signature and docstring.
+    # Define an agent using Google ADK
+    return Agent(
+        name="ReportGenerationAgent",
+        model=client_manager.configs.default_worker_model,
+        instruction=instructions,
         tools=[
-            agents.function_tool(
-                client_manager.sqlite_connection(sqlite_db_path).execute,
-                name_override="execute_sql_query",
-                description_override="Execute a SQL query against the SQLite database.",
-            ),
-            agents.function_tool(
-                report_file_writer.write,
-                name_override="write_report_to_file",
-                description_override="Write the report data to a downloadable XLSX file.",
-            ),
+            client_manager.sqlite_connection(sqlite_db_path).execute,
+            report_file_writer.write_xlsx,
         ],
-        model=agents.OpenAIChatCompletionsModel(
-            model=client_manager.configs.default_worker_model,
-            openai_client=client_manager.openai_client,
-        ),
     )
+
+
+class EventType(Enum):
+    """Types of events from agents."""
+
+    FINAL_RESPONSE = "final_response"
+    TOOL_CALL = "tool_call"
+    THOUGHT = "thought"
+    TOOL_RESPONSE = "tool_response"
+
+
+class ParsedEvent(BaseModel):
+    """Parsed event from an agent."""
+
+    type: EventType
+    text: str
+    arguments: Any | None = None
+
+
+class EventParser:
+    """Parser for agent events."""
+
+    @classmethod
+    def parse(cls, event: Event) -> list[ParsedEvent]:
+        """Parse an agent event into a list of parsed events.
+
+        The event can be a final response, a thought, a tool call,
+        or a tool response.
+
+        Parameters
+        ----------
+        event : Event
+            The event to parse.
+
+        Returns
+        -------
+        list[ParsedEvent]
+            A list of parsed events.
+        """
+        parsed_events = []
+
+        if event.is_final_response():
+            parsed_events.extend(cls._parse_final_response(event))
+
+        elif event.content:
+            if event.content.role == "model":
+                parsed_events.extend(cls._parse_model_response(event))
+
+            elif event.content.role == "user":
+                parsed_events.extend(cls._parse_user_response(event))
+
+            else:
+                logger.warning(f"Unknown content role '{event.content.role}': {event}")
+
+        else:
+            logger.warning(f"Unknown stream event: {event}")
+
+        return parsed_events
+
+    @classmethod
+    def _parse_final_response(cls, event: Event) -> list[ParsedEvent]:
+        if (
+            not event.content
+            or not event.content.parts
+            or len(event.content.parts) == 0
+            or not event.content.parts[0].text
+        ):
+            logger.warning(f"Final response's content is not valid: {event}")
+            return []
+
+        return [
+            ParsedEvent(
+                type=EventType.FINAL_RESPONSE,
+                text=event.content.parts[0].text,
+            )
+        ]
+
+    @classmethod
+    def _parse_model_response(cls, event: Event) -> list[ParsedEvent]:
+        if not event.content or not event.content.parts:
+            logger.warning(f"Model response's content is not valid: {event}")
+            return []
+
+        parsed_events = []
+
+        for part in event.content.parts:
+            # Parsing tool calls and their arguments
+            if part.function_call:
+                if not part.function_call.name:
+                    logger.warning(f"No name in function call: {part}")
+                    continue
+
+                parsed_events.append(
+                    ParsedEvent(
+                        type=EventType.TOOL_CALL,
+                        text=part.function_call.name,
+                        arguments=part.function_call.args,
+                    )
+                )
+
+            # Parsing the agent's thoughts
+            elif part.thought_signature or (part.text and not part.thought_signature):
+                if not part.text:
+                    logger.warning(f"No text in part: {part}")
+                    continue
+
+                parsed_events.append(
+                    ParsedEvent(
+                        type=EventType.THOUGHT,
+                        text=part.text,
+                    )
+                )
+
+            else:
+                logger.warning(f"Unknown part type: {part}")
+
+        return parsed_events
+
+    @classmethod
+    def _parse_user_response(cls, event: Event) -> list[ParsedEvent]:
+        if not event.content or not event.content.parts:
+            logger.warning(f"Model response's content is not valid: {event}")
+            return []
+
+        parsed_events = []
+
+        for part in event.content.parts:
+            if part.function_response:
+                if not part.function_response.name:
+                    logger.warning(f"No name in function response: {part}")
+                    continue
+
+                parsed_events.append(
+                    ParsedEvent(
+                        type=EventType.TOOL_RESPONSE,
+                        text=part.function_response.name,
+                        arguments=part.function_response.response,
+                    )
+                )
+            else:
+                logger.warning(f"Unknown part type: {part}")
+
+        return parsed_events

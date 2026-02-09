@@ -11,14 +11,15 @@ import logging
 from functools import partial
 from typing import Any, AsyncGenerator
 
-import agents
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.report_generation.agent import get_report_generation_agent
 from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
-from aieng.agent_evals.utils import get_or_create_session, oai_agent_stream_to_gradio_messages
 from dotenv import load_dotenv
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai.types import Content, Part
 from gradio.components.chatbot import ChatMessage
 
 from implementations.report_generation.env_vars import (
@@ -26,6 +27,7 @@ from implementations.report_generation.env_vars import (
     get_reports_output_path,
     get_sqlite_db_path,
 )
+from implementations.report_generation.gradio_utils import agent_event_to_gradio_messages
 
 
 load_dotenv(verbose=True)
@@ -61,12 +63,6 @@ async def agent_session_handler(
     # Initialize list of chat messages for a single turn
     turn_messages: list[ChatMessage] = []
 
-    # Construct an in-memory SQLite session for the agent to maintain
-    # conversation history across multiple turns of a chat
-    # This makes it possible to ask follow-up questions that refer to
-    # previous turns in the conversation
-    session = get_or_create_session(history, session_state)
-
     main_agent = get_report_generation_agent(
         instructions=MAIN_AGENT_INSTRUCTIONS,
         sqlite_db_path=get_sqlite_db_path(),
@@ -74,13 +70,30 @@ async def agent_session_handler(
         langfuse_project_name=get_langfuse_project_name() if enable_trace else None,
     )
 
-    # Run the agent in streaming mode to get and display intermediate outputs
-    result_stream = agents.Runner.run_streamed(main_agent, input=query, session=session)
+    # Construct an in-memory session for the agent to maintain
+    # conversation history across multiple turns of a chat
+    # This makes it possible to ask follow-up questions that refer to
+    # previous turns in the conversation
+    session_service = InMemorySessionService()
+    runner = Runner(app_name=main_agent.name, agent=main_agent, session_service=session_service)
+    current_session = await session_service.create_session(
+        app_name=main_agent.name,
+        user_id="user",
+        state={},
+    )
 
-    async for _item in result_stream.stream_events():
+    # create the user message
+    content = Content(role="user", parts=[Part(text=query)])
+
+    # Run the agent in streaming mode to get and display intermediate outputs
+    async for event in runner.run_async(
+        user_id="user",
+        session_id=current_session.id,
+        new_message=content,
+    ):
         # Parse the stream events, convert to Gradio chat messages and append to
         # the chat history
-        turn_messages += oai_agent_stream_to_gradio_messages(_item)
+        turn_messages += agent_event_to_gradio_messages(event)
         if len(turn_messages) > 0:
             yield turn_messages
 
