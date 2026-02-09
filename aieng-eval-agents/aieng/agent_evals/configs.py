@@ -105,7 +105,7 @@ class Configs(BaseSettings):
         description="Model name for LLM-as-judge evaluation tasks.",
     )
     default_temperature: float = Field(
-        default=0.3,
+        default=1.0,
         ge=0.0,
         le=2.0,
         description="Default temperature for LLM generation. Lower values (0.0-0.3) produce more consistent outputs.",

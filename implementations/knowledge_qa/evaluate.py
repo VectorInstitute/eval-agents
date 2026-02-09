@@ -6,13 +6,13 @@ logged to Langfuse for analysis and comparison.
 
 Usage:
     # Run a full evaluation
-    python langfuse_evaluate.py
+    python evaluate.py
 
     # Run with custom dataset and experiment name
-    python langfuse_evaluate.py --dataset-name "MyDataset" --experiment-name "v2-test"
+    python evaluate.py --dataset-name "MyDataset" --experiment-name "v2-test"
 
     # Resume an interrupted evaluation (skips already-evaluated items)
-    python langfuse_evaluate.py --experiment-name "v2-test" --resume
+    python evaluate.py --experiment-name "v2-test" --resume
 
 Resume Feature:
     Use --resume to continue an interrupted evaluation. The script will:
@@ -30,8 +30,9 @@ from typing import Any
 
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.evaluation import run_experiment, run_experiment_on_items
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge
+from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge, DeepSearchQAResult
 from aieng.agent_evals.logging_config import setup_logging
 from dotenv import load_dotenv
 from langfuse.experiment import Evaluation
@@ -45,77 +46,53 @@ logger = logging.getLogger(__name__)
 DEFAULT_DATASET_NAME = "DeepSearchQA-Subset"
 DEFAULT_EXPERIMENT_NAME = "Knowledge Agent Evaluation"
 
-
-class EvaluationContext:
-    """Holds shared instances for the evaluation run."""
-
-    def __init__(self) -> None:
-        self._agent: KnowledgeGroundedAgent | None = None
-        self._judge: DeepSearchQAJudge | None = None
-        self.completed_item_ids: set[str] = set()
-
-    @property
-    def agent(self) -> KnowledgeGroundedAgent:
-        """Get or create the Knowledge Agent instance."""
-        if self._agent is None:
-            self._agent = KnowledgeGroundedAgent(enable_planning=True)
-        return self._agent
-
-    @property
-    def judge(self) -> DeepSearchQAJudge:
-        """Get or create the DeepSearchQA Judge instance."""
-        if self._judge is None:
-            self._judge = DeepSearchQAJudge()
-        return self._judge
-
-    def reset_completed_ids(self) -> None:
-        """Reset the completed item IDs for a new evaluation run."""
-        self.completed_item_ids.clear()
-
-    def close(self) -> None:
-        """Close all judge clients to clean up resources."""
-        if self._judge is not None:
-            self._judge.close()
+# Module-level lazy judge instance
+_judge: DeepSearchQAJudge | None = None
 
 
-# Shared context for the evaluation run
-_context = EvaluationContext()
+def _get_judge() -> DeepSearchQAJudge:
+    """Get or create the shared DeepSearchQA Judge instance."""
+    global _judge  # noqa: PLW0603
+    if _judge is None:
+        _judge = DeepSearchQAJudge()
+    return _judge
+
+
+def _close_judge() -> None:
+    """Close the shared judge instance to clean up resources."""
+    global _judge  # noqa: PLW0603
+    if _judge is not None:
+        _judge.close()
+        _judge = None
 
 
 async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG001
     """Run the Knowledge Agent on a dataset item.
 
+    This is the task function used by the evaluation harness.
+
     Parameters
     ----------
-    item : ExperimentItem
+    item : Any
         The Langfuse experiment item containing the question.
+    **kwargs : Any
+        Additional arguments from the harness (unused).
 
     Returns
     -------
     dict[str, Any]
-        Dictionary containing 'text' (the response) and 'agent_response'
+        Dictionary containing 'text' (response) and 'agent_response'
         (full response object).
     """
     question = item.input
-    item_id = item.id
-
-    # Skip if already completed (for resume mode)
-    if item_id in _context.completed_item_ids:
-        logger.info(f"Skipping completed item {item_id}")
-        # Return a marker that tells evaluator to skip
-        return {"text": "__SKIP__", "agent_response": None}
-
     logger.info(f"Running agent on: {question[:80]}...")
 
     try:
         # Create a fresh agent for each task to avoid shared state issues
-        # The agent has mutable state (_current_plan, _sessions) that causes
-        # race conditions when shared across concurrent tasks
         agent = KnowledgeGroundedAgent(enable_planning=True)
         response = await agent.answer_async(question)
         logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
 
-        # Return both text and full response for trajectory evaluation
         return {
             "text": response.text,
             "agent_response": response,
@@ -130,12 +107,12 @@ async def deepsearchqa_evaluator(
     input: str,  # noqa: A002
     output: dict[str, Any],
     expected_output: str,
-    **kwargs: Any,
+    metadata: dict[str, Any] | None = None,
+    **kwargs: Any,  # noqa: ARG001
 ) -> list[Evaluation]:
     """Evaluate the agent's response using DeepSearchQA methodology.
 
-    Uses the official DeepSearchQA LLM-as-judge to compute precision, recall,
-    and F1 score based on semantic matching of answer components.
+    This is the evaluator function used by the evaluation harness.
 
     Parameters
     ----------
@@ -145,87 +122,37 @@ async def deepsearchqa_evaluator(
         Dictionary containing 'text' and 'agent_response'.
     expected_output : str
         The ground truth answer.
+    metadata : dict[str, Any] | None, optional
+        Item metadata (contains answer_type).
+    **kwargs : Any
+        Additional arguments from the harness (unused).
 
     Returns
     -------
     list[Evaluation]
-        List of Langfuse Evaluations with F1, precision, and recall scores.
+        List of Langfuse Evaluations with F1, precision, recall, and outcome scores.
     """
-    # Extract text from output dict
     output_text = output.get("text", "") if isinstance(output, dict) else str(output)
-
-    # Skip evaluation for items marked as already completed
-    if output_text == "__SKIP__":
-        logger.debug("Skipping evaluation for already-completed item")
-        return []
-
-    # Get metadata for answer_type (default to "Set Answer" for multi-part answers)
-    metadata = kwargs.get("metadata", {})
-    answer_type = metadata.get("answer_type", "Set Answer")
+    answer_type = metadata.get("answer_type", "Set Answer") if metadata else "Set Answer"
 
     logger.info(f"Evaluating response (answer_type: {answer_type})...")
 
     try:
-        _, result = await _context.judge.evaluate_with_details_async(
+        judge = _get_judge()
+        _, result = await judge.evaluate_with_details_async(
             question=input,
             answer=output_text,
             ground_truth=expected_output,
             answer_type=answer_type,
         )
 
-        # Build detailed comment
-        comment_parts = [
-            f"Outcome: {result.outcome}",
-            f"Precision: {result.precision:.2f}",
-            f"Recall: {result.recall:.2f}",
-            f"F1: {result.f1_score:.2f}",
-        ]
-
-        if result.explanation:
-            comment_parts.append(f"\nExplanation: {result.explanation}")
-
-        if result.correctness_details:
-            found = sum(1 for v in result.correctness_details.values() if v)
-            total = len(result.correctness_details)
-            comment_parts.append(f"\nCorrectness: {found}/{total} items found")
-
-        if result.extraneous_items:
-            comment_parts.append(f"\nExtraneous: {len(result.extraneous_items)} items")
-
+        evaluations = result.to_evaluations()
         logger.info(f"Evaluation complete: {result.outcome} (F1: {result.f1_score:.2f})")
-
-        comment = "\n".join(comment_parts)
-
-        # Map outcome to categorical value for Langfuse
-        # These match the paper's four disjoint categories
-        outcome_display = {
-            "fully_correct": "Fully Correct",
-            "correct_with_extraneous": "Correct with Extraneous",
-            "partially_correct": "Partially Correct",
-            "fully_incorrect": "Fully Incorrect",
-        }
-
-        # Return multiple evaluations for better visibility in Langfuse
-        return [
-            # Categorical outcome - the primary classification from the paper
-            Evaluation(
-                name="Outcome",
-                value=outcome_display.get(result.outcome, result.outcome),
-                comment=result.explanation,
-            ),
-            # Continuous metrics
-            Evaluation(name="F1", value=result.f1_score, comment=comment),
-            Evaluation(name="Precision", value=result.precision, comment=comment),
-            Evaluation(name="Recall", value=result.recall, comment=comment),
-        ]
+        return evaluations
 
     except Exception as e:
         logger.error(f"Evaluation failed: {e}")
-        return [
-            Evaluation(name="F1", value=0.0, comment=f"Evaluation error: {e}"),
-            Evaluation(name="Precision", value=0.0, comment=f"Evaluation error: {e}"),
-            Evaluation(name="Recall", value=0.0, comment=f"Evaluation error: {e}"),
-        ]
+        return DeepSearchQAResult.error_evaluations(str(e))
 
 
 def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set[str]:
@@ -236,25 +163,22 @@ def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set
     langfuse : Langfuse
         The Langfuse client.
     run_name : str
-        Name of the experiment run (the dataset run name).
+        Name of the experiment run.
     dataset_id : str
         ID of the dataset.
 
     Returns
     -------
     set[str]
-        Set of dataset item IDs that have completed evaluations.
+        Set of completed dataset item IDs.
     """
     try:
-        # Use dataset_run_items API to get items for this specific run
         logger.info(f"Checking for existing evaluations in run '{run_name}'...")
-
         completed_ids = set()
         page = 1
         limit = 50
 
         while True:
-            # Query dataset run items for this specific run
             run_items_response = langfuse.api.dataset_run_items.list(
                 dataset_id=dataset_id,
                 run_name=run_name,
@@ -266,17 +190,10 @@ def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set
                 break
 
             for run_item in run_items_response.data:
-                # Check if this item has a trace with evaluation scores
-                if run_item.trace_id:
-                    try:
-                        trace = langfuse.api.trace.get(run_item.trace_id)
-                        if hasattr(trace, "scores") and trace.scores:
-                            completed_ids.add(run_item.dataset_item_id)
-                            logger.debug(f"Found completed evaluation for item {run_item.dataset_item_id}")
-                    except Exception as e:
-                        logger.debug(f"Could not fetch trace {run_item.trace_id}: {e}")
+                if run_item.trace_id and _has_evaluation_scores(langfuse, run_item.trace_id):
+                    completed_ids.add(run_item.dataset_item_id)
+                    logger.debug(f"Found completed evaluation for item {run_item.dataset_item_id}")
 
-            # Check if we've fetched all items
             if len(run_items_response.data) < limit:
                 break
 
@@ -291,83 +208,21 @@ def get_completed_item_ids(langfuse: Any, run_name: str, dataset_id: str) -> set
         return set()
 
 
-async def process_single_item(item: Any, experiment_name: str) -> None:
-    """Process a single dataset item using item.run() for manual trace linking.
-
-    Parameters
-    ----------
-    item : DatasetItemClient
-        The dataset item to process.
-    experiment_name : str
-        The run name to link this trace to.
-    """
+def _has_evaluation_scores(langfuse: Any, trace_id: str) -> bool:
+    """Check if a trace has evaluation scores."""
     try:
-        with item.run(run_name=experiment_name) as root_span:
-            logger.info(f"Processing item {item.id}: {item.input[:80]}...")
-
-            # Run the agent
-            agent = KnowledgeGroundedAgent(enable_planning=True)
-            response = await agent.answer_async(item.input)
-
-            logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
-
-            # Create output dict in same format as agent_task
-            output_dict = {
-                "text": response.text,
-                "agent_response": response,
-            }
-
-            # Run evaluations
-            outcome_evaluations = await deepsearchqa_evaluator(
-                input=item.input,
-                output=output_dict,
-                expected_output=item.expected_output,
-                metadata=item.metadata,
-            )
-
-            all_evaluations = outcome_evaluations
-
-            # Add scores to the trace using root_span.score_trace()
-            # This properly links scores to the dataset run item
-            for evaluation in all_evaluations:
-                root_span.score_trace(
-                    name=evaluation.name,
-                    value=evaluation.value,
-                    comment=evaluation.comment,
-                )
-
-            logger.info(f"Item {item.id} complete with {len(all_evaluations)} evaluations")
-
+        trace = langfuse.api.trace.get(trace_id)
+        return hasattr(trace, "scores") and bool(trace.scores)
     except Exception as e:
-        logger.error(f"Item {item.id} failed: {e}")
-
-
-async def process_items_manually(items: list[Any], experiment_name: str, max_concurrency: int) -> None:
-    """Process items manually using item.run() to append to existing run.
-
-    Parameters
-    ----------
-    items : list[DatasetItemClient]
-        Items to process.
-    experiment_name : str
-        The run name to link traces to.
-    max_concurrency : int
-        Maximum concurrent tasks.
-    """
-    semaphore = asyncio.Semaphore(max_concurrency)
-
-    async def process_with_limit(item: Any) -> None:
-        async with semaphore:
-            await process_single_item(item, experiment_name)
-
-    tasks = [process_with_limit(item) for item in items]
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-    logger.info("Manual processing complete!")
+        logger.debug(f"Could not fetch trace {trace_id}: {e}")
+        return False
 
 
 async def run_evaluation(
-    dataset_name: str, experiment_name: str, max_concurrency: int = 1, resume: bool = False
+    dataset_name: str,
+    experiment_name: str,
+    max_concurrency: int = 1,
+    resume: bool = False,
 ) -> None:
     """Run the full evaluation experiment.
 
@@ -377,86 +232,78 @@ async def run_evaluation(
         Name of the Langfuse dataset to evaluate against.
     experiment_name : str
         Name for this experiment run.
-    max_concurrency : int
-        Maximum concurrent agent runs (default 1 for sequential).
-    resume : bool
-        If True, skip items that have already been evaluated in this run.
+    max_concurrency : int, optional
+        Maximum concurrent agent runs, by default 1.
+    resume : bool, optional
+        If True, skip items that have already been evaluated, by default False.
     """
     client_manager = AsyncClientManager.get_instance()
     langfuse = client_manager.langfuse_client
 
-    # Get the dataset
-    logger.info(f"Loading dataset '{dataset_name}' from Langfuse...")
     try:
-        dataset = langfuse.get_dataset(dataset_name)
-    except Exception as e:
-        logger.error(f"Failed to load dataset: {e}")
-        logger.info("Run langfuse_upload.py first to create the dataset.")
-        return
-
-    logger.info(f"Found dataset with {len(dataset.items)} items")
-
-    # Handle resume: get completed item IDs and store in context
-    if resume:
-        _context.completed_item_ids = get_completed_item_ids(langfuse, experiment_name, dataset.id)
-
-        if _context.completed_item_ids:
-            remaining = len(dataset.items) - len(_context.completed_item_ids)
-            logger.info(f"Resume mode: Found {len(_context.completed_item_ids)} completed items")
-            logger.info(f"Will process {remaining} remaining items")
-
-            if remaining == 0:
-                logger.info("All items already evaluated. Nothing to do.")
-                await client_manager.close()
+        if resume:
+            # Resume: fetch dataset, filter completed items, run remaining
+            logger.info(f"Loading dataset '{dataset_name}' from Langfuse...")
+            try:
+                dataset = langfuse.get_dataset(dataset_name)
+            except Exception as e:
+                logger.error(f"Failed to load dataset: {e}")
+                logger.info("Run the dataset upload script first to create the dataset.")
                 return
+
+            logger.info(f"Found dataset with {len(dataset.items)} items")
+
+            completed_ids = get_completed_item_ids(langfuse, experiment_name, dataset.id)
+            items_to_process = [item for item in dataset.items if item.id not in completed_ids]
+
+            if not items_to_process:
+                logger.info("All items already evaluated. Nothing to do.")
+                return
+
+            logger.info(f"Resume mode: Processing {len(items_to_process)} remaining items")
+            logger.info(f"Starting experiment: {experiment_name}")
+            logger.info(f"Max concurrency: {max_concurrency}")
+
+            result = run_experiment_on_items(
+                items_to_process,
+                name=experiment_name,
+                run_name=experiment_name,
+                description="Knowledge Agent evaluation with DeepSearchQA judge (resumed)",
+                task=agent_task,
+                evaluators=[deepsearchqa_evaluator],
+                max_concurrency=max_concurrency,
+            )
+
+            logger.info("Resume experiment complete!")
+            logger.info(result.format().replace("\\n", "\n"))
         else:
-            logger.info("Resume mode: No completed items found, processing all")
-    else:
-        # Reset completed IDs for a fresh run
-        _context.reset_completed_ids()
+            # Normal mode: use the evaluation harness (fetches dataset internally)
+            logger.info(f"Starting experiment: {experiment_name}")
+            logger.info(f"Max concurrency: {max_concurrency}")
 
-    logger.info(f"Starting experiment: {experiment_name}")
-    logger.info(f"Max concurrency: {max_concurrency}")
+            result = run_experiment(
+                dataset_name=dataset_name,
+                name=experiment_name,
+                description="Knowledge Agent evaluation with DeepSearchQA judge",
+                task=agent_task,
+                evaluators=[deepsearchqa_evaluator],
+                max_concurrency=max_concurrency,
+            )
 
-    # If resuming, use item.run() to append to existing run
-    # Otherwise use dataset.run_experiment for convenience
-    if resume and _context.completed_item_ids:
-        logger.info("Using manual trace creation to append to existing run...")
-        items_to_process = [item for item in dataset.items if item.id not in _context.completed_item_ids]
+            logger.info("Experiment complete!")
+            logger.info(result.format().replace("\\n", "\n"))
 
-        # Process items manually using item.run() to link to the same run_name
-        await process_items_manually(items_to_process, experiment_name, max_concurrency)
-    else:
-        # No resume, use the convenient run_experiment API
-        result = dataset.run_experiment(
-            name=experiment_name,
-            description="Knowledge Agent evaluation with outcome (DeepSearchQA) judge",
-            task=agent_task,
-            evaluators=[deepsearchqa_evaluator],
-            max_concurrency=max_concurrency,
-        )
-        logger.info("Experiment complete!")
-        logger.info(result.format().replace("\\n", "\n"))
-
-    # Manual processing path doesn't have a result object
-    if resume and _context.completed_item_ids:
-        logger.info("Resume processing complete!")
-
-    # Cleanup - close judges and client_manager
-    logger.info("Closing client manager and flushing data...")
-    try:
-        # Close judge clients to properly clean up aiohttp sessions
-        _context.close()
-        # Close client manager to flush Langfuse
-        await client_manager.close()
-
-        # Give the event loop time to process any pending cleanup tasks
-        # This prevents aiohttp cleanup errors during Python shutdown
-        await asyncio.sleep(0.1)
-
-        logger.info("Cleanup complete")
-    except Exception as e:
-        logger.warning(f"Cleanup warning: {e}")
+    finally:
+        # Cleanup
+        logger.info("Closing client manager and flushing data...")
+        try:
+            _close_judge()
+            await client_manager.close()
+            # Give event loop time to process cleanup tasks
+            await asyncio.sleep(0.1)
+            logger.info("Cleanup complete")
+        except Exception as e:
+            logger.warning(f"Cleanup warning: {e}")
 
 
 @click.command()

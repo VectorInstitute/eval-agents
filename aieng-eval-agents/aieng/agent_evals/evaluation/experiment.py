@@ -210,4 +210,68 @@ def run_experiment_with_trace_evals(
     return EvaluationResult(experiment=experiment_result, trace_evaluations=trace_result)
 
 
-__all__ = ["run_experiment", "run_experiment_with_trace_evals"]
+def run_experiment_on_items(
+    items: list,
+    *,
+    name: str,
+    task: TaskFunction,
+    evaluators: list[EvaluatorFunction],
+    composite_evaluator: CompositeEvaluatorFunction | None = None,
+    run_evaluators: list[RunEvaluatorFunction] | None = None,
+    description: str | None = None,
+    run_name: str | None = None,
+    max_concurrency: int = 10,
+    metadata: dict[str, Any] | None = None,
+) -> ExperimentResult:
+    """Run evaluators over a pre-fetched list of dataset items.
+
+    This is identical to :func:`run_experiment` but accepts items directly
+    instead of fetching a dataset by name.  This is useful for resume
+    workflows where only a subset of items need to be processed.
+
+    Parameters
+    ----------
+    items : list
+        List of ``DatasetItemClient`` objects to evaluate.
+    name : str
+        Human-readable name for the experiment run.
+    task : TaskFunction
+        Function that executes the agent for a single dataset item.
+    evaluators : list[EvaluatorFunction]
+        Item-level evaluators that grade each output.
+    composite_evaluator : CompositeEvaluatorFunction | None, optional, default=None
+        Evaluator that receives all item-level evaluations.
+    run_evaluators : list[RunEvaluatorFunction] | None, optional, default=None
+        Run-level evaluators that compute aggregate metrics.
+    description : str | None, optional, default=None
+        Description of the experiment for the Langfuse UI.
+    run_name : str | None, optional, default=None
+        Explicit dataset run name override.
+    max_concurrency : int, optional, default=10
+        Maximum number of concurrent task executions.
+    metadata : dict[str, Any] | None, optional, default=None
+        Metadata attached to the dataset run and traces.
+
+    Returns
+    -------
+    ExperimentResult
+        The Langfuse experiment result with item and run evaluations.
+    """
+    client_manager = AsyncClientManager.get_instance()
+    langfuse_client = client_manager.langfuse_client
+
+    return langfuse_client.run_experiment(
+        data=items,
+        name=name,
+        run_name=run_name,
+        description=description,
+        task=task,
+        evaluators=evaluators,
+        composite_evaluator=composite_evaluator,
+        run_evaluators=run_evaluators or [],
+        max_concurrency=max_concurrency,
+        metadata=metadata,
+    )
+
+
+__all__ = ["run_experiment", "run_experiment_on_items", "run_experiment_with_trace_evals"]

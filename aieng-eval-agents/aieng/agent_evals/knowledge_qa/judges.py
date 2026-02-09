@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 
 if TYPE_CHECKING:
-    pass
+    from langfuse.experiment import Evaluation
 
 
 logger = logging.getLogger(__name__)
@@ -194,6 +194,77 @@ class DeepSearchQAResult(BaseModel):
     correctness_details: dict[str, bool] = Field(default_factory=dict)
     extraneous_items: list[str] = Field(default_factory=list)
     explanation: str = ""
+
+    def to_evaluations(self) -> list["Evaluation"]:
+        """Convert this result to Langfuse Evaluation objects.
+
+        Returns
+        -------
+        list[Evaluation]
+            Four evaluations: Outcome (categorical), F1, Precision, Recall (numeric).
+        """
+        from langfuse.experiment import Evaluation  # noqa: PLC0415
+
+        comment_parts = [
+            f"Outcome: {self.outcome}",
+            f"Precision: {self.precision:.2f}",
+            f"Recall: {self.recall:.2f}",
+            f"F1: {self.f1_score:.2f}",
+        ]
+
+        if self.explanation:
+            comment_parts.append(f"\nExplanation: {self.explanation}")
+
+        if self.correctness_details:
+            found = sum(1 for v in self.correctness_details.values() if v)
+            total = len(self.correctness_details)
+            comment_parts.append(f"\nCorrectness: {found}/{total} items found")
+
+        if self.extraneous_items:
+            comment_parts.append(f"\nExtraneous: {len(self.extraneous_items)} items")
+
+        comment = "\n".join(comment_parts)
+
+        outcome_display = {
+            "fully_correct": "Fully Correct",
+            "correct_with_extraneous": "Correct with Extraneous",
+            "partially_correct": "Partially Correct",
+            "fully_incorrect": "Fully Incorrect",
+        }
+
+        return [
+            Evaluation(
+                name="Outcome",
+                value=outcome_display.get(self.outcome, self.outcome),
+                comment=self.explanation,
+            ),
+            Evaluation(name="F1", value=self.f1_score, comment=comment),
+            Evaluation(name="Precision", value=self.precision, comment=comment),
+            Evaluation(name="Recall", value=self.recall, comment=comment),
+        ]
+
+    @staticmethod
+    def error_evaluations(error_msg: str) -> list["Evaluation"]:
+        """Create error evaluations when evaluation fails.
+
+        Parameters
+        ----------
+        error_msg : str
+            Description of the error that occurred.
+
+        Returns
+        -------
+        list[Evaluation]
+            Three evaluations (F1, Precision, Recall) all set to 0.0.
+        """
+        from langfuse.experiment import Evaluation  # noqa: PLC0415
+
+        comment = f"Evaluation error: {error_msg}"
+        return [
+            Evaluation(name="F1", value=0.0, comment=comment),
+            Evaluation(name="Precision", value=0.0, comment=comment),
+            Evaluation(name="Recall", value=0.0, comment=comment),
+        ]
 
 
 # Official DeepSearchQA grader prompt from Appendix A of the paper
