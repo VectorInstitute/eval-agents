@@ -15,7 +15,7 @@ import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.report_generation.agent import get_report_generation_agent
-from aieng.agent_evals.report_generation.evaluation.online import report_if_final_response
+from aieng.agent_evals.report_generation.evaluation.online import report_final_response_score, report_usage_scores
 from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 from dotenv import load_dotenv
 from google.adk.runners import Runner
@@ -90,14 +90,18 @@ async def agent_session_handler(
         session_id=current_session.id,
         new_message=content,
     ):
-        # Report the final response evaluation to Langfuse
-        report_if_final_response(event, langfuse_client, string_match="](gradio_api/file=")
-
         # Parse the stream events, convert to Gradio chat messages and append to
         # the chat history
         turn_messages += agent_event_to_gradio_messages(event)
         if len(turn_messages) > 0:
             yield turn_messages
+
+        if event.is_final_response():
+            # Report the final response evaluation to Langfuse
+            report_final_response_score(event, string_match="](gradio_api/file=")
+
+            # TODO: need to put this in a thread
+            report_usage_scores(token_threshold=10000, latency_threshold=60)
 
     langfuse_client.flush()
 
