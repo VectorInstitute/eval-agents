@@ -97,8 +97,16 @@ resource "coder_agent" "main" {
     echo "Directory contents: $(ls -la)"
 
     # Run project init steps
-    echo "Creating virtual environment and installing dependencies..."
-    uv venv .venv
+    echo "Setting up virtual environment and installing dependencies..."
+
+    # Create virtual environment only if it doesn't exist (idempotent)
+    if [ ! -d ".venv" ]; then
+      echo "Creating new virtual environment..."
+      uv venv .venv
+    else
+      echo "Virtual environment already exists, skipping creation"
+    fi
+
     source .venv/bin/activate
 
     # Run sync synchronously and wait for completion only if pyproject.toml exists
