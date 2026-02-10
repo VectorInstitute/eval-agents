@@ -11,7 +11,7 @@ from aieng.agent_evals.evaluation.graders.llm_judge import (
     LLMJudgeMetric,
     LLMJudgeResponse,
     _to_evaluations,
-    make_llm_as_judge_evaluator,
+    create_llm_as_judge_evaluator,
 )
 from pydantic import ValidationError
 
@@ -57,7 +57,7 @@ async def test_make_evaluator_success_with_custom_rubric_maps_and_wires_calls(fa
     monkeypatch.setattr("aieng.agent_evals.evaluation.graders.llm_judge.run_structured_parse_call", fake_parse_call)
 
     config = LLMRequestConfig(model="gpt-test-judge", temperature=0.0)
-    evaluator = make_llm_as_judge_evaluator(
+    evaluator = create_llm_as_judge_evaluator(
         name="quality_judge", model_config=config, rubric_markdown="- Reward factual correctness."
     )
 
@@ -112,7 +112,7 @@ async def test_make_evaluator_uses_default_rubric_when_none(fake_manager, monkey
 
     monkeypatch.setattr("aieng.agent_evals.evaluation.graders.llm_judge.run_structured_parse_call", fake_parse_call)
 
-    evaluator = make_llm_as_judge_evaluator(name="default_rubric")
+    evaluator = create_llm_as_judge_evaluator(name="default_rubric")
     evaluations = await evaluator(
         input={"prompt": "hello"},
         output={"answer": "world"},
@@ -148,11 +148,11 @@ async def test_make_evaluator_error_paths_return_deterministic_error_metric(
     monkeypatch.setattr("aieng.agent_evals.evaluation.graders.llm_judge.run_structured_parse_call", parse_mock)
 
     if scenario == "parse_error":
-        evaluator = make_llm_as_judge_evaluator(
+        evaluator = create_llm_as_judge_evaluator(
             name="quality_judge", model_config=None, error_metric_name=error_metric_name
         )
     else:
-        evaluator = make_llm_as_judge_evaluator(
+        evaluator = create_llm_as_judge_evaluator(
             name="quality_judge",
             model_config=LLMRequestConfig(),
             prompt_template="Broken template: {missing_required_key}",

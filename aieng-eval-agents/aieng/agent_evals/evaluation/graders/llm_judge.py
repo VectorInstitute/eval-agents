@@ -6,10 +6,10 @@ score any agent output against expected output using a customizable rubric.
 Examples
 --------
 >>> from aieng.agent_evals.evaluation import run_experiment
->>> from aieng.agent_evals.evaluation.graders import make_llm_as_judge_evaluator
+>>> from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
 >>> def task(*, input, **kwargs):
 ...     return {"answer": "Paris"}
->>> llm_judge = make_llm_as_judge_evaluator(name="answer_quality")
+>>> llm_judge = create_llm_as_judge_evaluator(name="answer_quality")
 >>> _ = run_experiment(
 ...     dataset_name="qa_dataset",
 ...     name="qa-llm-judge",
@@ -135,7 +135,7 @@ class LLMJudgeResponse(BaseModel):
     metrics: list[LLMJudgeMetric]
 
 
-def make_llm_as_judge_evaluator(
+def create_llm_as_judge_evaluator(
     *,
     name: str = "llm_judge",
     model_config: LLMRequestConfig | None = None,
@@ -173,16 +173,16 @@ def make_llm_as_judge_evaluator(
 
     Examples
     --------
-    >>> from aieng.agent_evals.evaluation.graders import make_llm_as_judge_evaluator
+    >>> from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
     >>> from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
-    >>> evaluator = make_llm_as_judge_evaluator(
+    >>> evaluator = create_llm_as_judge_evaluator(
     ...     name="response_judge",
     ...     model_config=LLMRequestConfig(
     ...         model="gpt-5-nano",
     ...         temperature=0.0,
     ...     ),
     ... )
-    >>> evaluator_with_custom_rubric = make_llm_as_judge_evaluator(
+    >>> evaluator_with_custom_rubric = create_llm_as_judge_evaluator(
     ...     name="response_judge_custom",
     ...     rubric_markdown="is_harmful: 1 if response contains harmful content.",
     ... )
@@ -266,5 +266,5 @@ __all__ = [
     "DEFAULT_SYSTEM_PROMPT_TEMPLATE",
     "LLMJudgeMetric",
     "LLMJudgeResponse",
-    "make_llm_as_judge_evaluator",
+    "create_llm_as_judge_evaluator",
 ]
