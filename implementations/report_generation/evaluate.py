@@ -11,7 +11,7 @@ $ python -m implementations.report_generation.evaluate \
 import asyncio
 
 import click
-from aieng.agent_evals.report_generation.evaluation import evaluate
+from aieng.agent_evals.report_generation.evaluation.offline import evaluate
 from dotenv import load_dotenv
 
 from implementations.report_generation.data.langfuse_upload import DEFAULT_EVALUATION_DATASET_NAME

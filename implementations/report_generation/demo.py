@@ -15,6 +15,7 @@ import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.report_generation.agent import get_report_generation_agent
+from aieng.agent_evals.report_generation.evaluation.online import report_if_final_response
 from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 from dotenv import load_dotenv
 from google.adk.runners import Runner
@@ -65,6 +66,9 @@ async def agent_session_handler(
         langfuse_project_name=get_langfuse_project_name() if enable_trace else None,
     )
 
+    # Get the Langfuse client for online reporting
+    langfuse_client = AsyncClientManager.get_instance().langfuse_client
+
     # Construct an in-memory session for the agent to maintain
     # conversation history across multiple turns of a chat
     # This makes it possible to ask follow-up questions that refer to
@@ -86,11 +90,16 @@ async def agent_session_handler(
         session_id=current_session.id,
         new_message=content,
     ):
+        # Report the final response evaluation to Langfuse
+        report_if_final_response(event, langfuse_client, string_match="](gradio_api/file=")
+
         # Parse the stream events, convert to Gradio chat messages and append to
         # the chat history
         turn_messages += agent_event_to_gradio_messages(event)
         if len(turn_messages) > 0:
             yield turn_messages
+
+    langfuse_client.flush()
 
 
 @click.command()

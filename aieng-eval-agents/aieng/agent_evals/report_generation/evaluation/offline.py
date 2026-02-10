@@ -3,7 +3,7 @@ Evaluate the report generation agent against a Langfuse dataset.
 
 Example
 -------
->>> from aieng.agent_evals.report_generation.evaluation import evaluate
+>>> from aieng.agent_evals.report_generation.evaluation.offline import evaluate
 >>> evaluate(
 >>>     dataset_name="OnlineRetailReportEval",
 >>>     reports_output_path=Path("reports/"),
