@@ -90,7 +90,7 @@ async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: AR
 
     try:
         # Create a fresh agent for each task to avoid shared state issues
-        agent = KnowledgeGroundedAgent(enable_planning=True)
+        agent = KnowledgeGroundedAgent(enable_planning=True)  # type: ignore[call-arg]
         response = await agent.answer_async(question)
         logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
 
