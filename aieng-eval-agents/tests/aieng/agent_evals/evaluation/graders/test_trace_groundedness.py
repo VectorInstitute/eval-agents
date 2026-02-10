@@ -264,3 +264,6 @@ def test_trace_groundedness_models_validate_bounds_and_literals() -> None:
 
     with pytest.raises(ValidationError):
         TraceGroundednessResponse(explanation="bad", claims=[claim], score=1.1)
+
+    with pytest.raises(ValueError, match="must be non-negative"):
+        create_trace_groundedness_evaluator(max_unsupported_claims_in_metadata=-1)

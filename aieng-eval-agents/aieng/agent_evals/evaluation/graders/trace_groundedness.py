@@ -150,7 +150,16 @@ def create_trace_groundedness_evaluator(
     -------
     TraceEvaluatorFunction
         Async trace evaluator that emits one groundedness metric or one error metric.
+
+    Raises
+    ------
+    ValueError
+        If the judge returns no claims or if ``max_unsupported_claims_in_metadata`` is
+        negative.
     """
+    if max_unsupported_claims_in_metadata < 0:
+        raise ValueError("``max_unsupported_claims_in_metadata`` must be non-negative.")
+
     resolved_model_config = model_config or LLMRequestConfig()
 
     # Load and render rubric text into the system prompt
@@ -218,7 +227,7 @@ def _to_groundedness_evaluation(
 
     unsupported_claim_metadata = [
         {"text": claim.text, "reason": claim.reason}
-        for claim in unsupported_claims[: max(max_unsupported_claims_in_metadata, 0)]
+        for claim in unsupported_claims[:max_unsupported_claims_in_metadata]
     ]
 
     metadata: dict[str, Any] = {

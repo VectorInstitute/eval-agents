@@ -7,19 +7,13 @@ evaluation harness.
 """
 
 from .llm_judge import DEFAULT_LLM_JUDGE_RUBRIC, LLMJudgeMetric, LLMJudgeResponse, create_llm_as_judge_evaluator
-from .trace_groundedness import (
-    TraceEvaluatorFunction,
-    TraceGroundednessClaim,
-    TraceGroundednessResponse,
-    create_trace_groundedness_evaluator,
-)
+from .trace_groundedness import TraceGroundednessClaim, TraceGroundednessResponse, create_trace_groundedness_evaluator
 
 
 __all__ = [
     "DEFAULT_LLM_JUDGE_RUBRIC",
     "LLMJudgeMetric",
     "LLMJudgeResponse",
-    "TraceEvaluatorFunction",
     "TraceGroundednessClaim",
     "TraceGroundednessResponse",
     "create_llm_as_judge_evaluator",
