@@ -45,7 +45,7 @@ def get_cache_dir() -> str:
 def _url_to_filename(url: str, extension: str = ".txt") -> str:
     """Convert URL to a safe filename."""
     url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
-    safe_name = re.sub(r"[^\w\-.]", "_", url.split("//")[-1][:50])
+    safe_name = re.sub(r"[^\w\-.]", "_", url.rsplit("//", maxsplit=1)[-1][:50])
     return f"{safe_name}_{url_hash}{extension}"
 
 

@@ -30,11 +30,12 @@ from typing import Any
 
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.evaluation import run_experiment, run_experiment_on_items
+from aieng.agent_evals.evaluation import run_experiment
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
 from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge, DeepSearchQAResult
 from aieng.agent_evals.logging_config import setup_logging
 from dotenv import load_dotenv
+from langfuse._client.datasets import DatasetItemClient
 from langfuse.experiment import Evaluation
 
 
@@ -218,6 +219,77 @@ def _has_evaluation_scores(langfuse: Any, trace_id: str) -> bool:
         return False
 
 
+async def _process_item_with_resume(
+    item: DatasetItemClient,
+    run_name: str,
+) -> None:
+    """Process a single dataset item with Langfuse trace linking (for resume mode).
+
+    Uses ``item.run()`` to create a proper dataset-run-item link so that
+    traces appear under the existing experiment run in the Langfuse UI.
+
+    Parameters
+    ----------
+    item : DatasetItemClient
+        The dataset item to process.
+    run_name : str
+        The experiment run name for trace linking.
+    """
+    try:
+        with item.run(run_name=run_name) as root_span:
+            logger.info(f"Processing item {item.id}: {item.input[:80]}...")
+
+            agent_output = await agent_task(item=item)
+
+            answer_type = item.metadata.get("answer_type", "Set Answer") if item.metadata else "Set Answer"
+            evaluations = await deepsearchqa_evaluator(
+                input=item.input,
+                output=agent_output,
+                expected_output=item.expected_output or "",
+                metadata={"answer_type": answer_type},
+            )
+
+            for evaluation in evaluations:
+                root_span.score_trace(
+                    name=evaluation.name,
+                    value=evaluation.value,
+                    comment=evaluation.comment,
+                )
+
+            logger.info(f"Item {item.id} complete with {len(evaluations)} evaluations")
+
+    except Exception as e:
+        logger.error(f"Item {item.id} failed: {e}")
+
+
+async def _process_items_for_resume(
+    items: list[DatasetItemClient],
+    run_name: str,
+    max_concurrency: int,
+) -> None:
+    """Process multiple items concurrently for resume mode.
+
+    Parameters
+    ----------
+    items : list[DatasetItemClient]
+        Items to process.
+    run_name : str
+        The experiment run name.
+    max_concurrency : int
+        Maximum concurrent tasks.
+    """
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def process_with_limit(item: DatasetItemClient) -> None:
+        async with semaphore:
+            await _process_item_with_resume(item, run_name)
+
+    tasks = [process_with_limit(item) for item in items]
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+    logger.info("Resume processing complete!")
+
+
 async def run_evaluation(
     dataset_name: str,
     experiment_name: str,
@@ -264,18 +336,11 @@ async def run_evaluation(
             logger.info(f"Starting experiment: {experiment_name}")
             logger.info(f"Max concurrency: {max_concurrency}")
 
-            result = run_experiment_on_items(
-                items_to_process,
-                name=experiment_name,
+            await _process_items_for_resume(
+                items=items_to_process,
                 run_name=experiment_name,
-                description="Knowledge Agent evaluation with DeepSearchQA judge (resumed)",
-                task=agent_task,
-                evaluators=[deepsearchqa_evaluator],
                 max_concurrency=max_concurrency,
             )
-
-            logger.info("Resume experiment complete!")
-            logger.info(result.format().replace("\\n", "\n"))
         else:
             # Normal mode: use the evaluation harness (fetches dataset internally)
             logger.info(f"Starting experiment: {experiment_name}")

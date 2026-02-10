@@ -5,7 +5,7 @@ This package provides a beginner-friendly wrapper around Langfuse's
 second-pass evaluators.
 """
 
-from .experiment import run_experiment, run_experiment_on_items, run_experiment_with_trace_evals
+from .experiment import run_experiment, run_experiment_with_trace_evals
 from .trace import extract_trace_metrics, run_trace_evaluations
 from .types import (
     CompositeEvaluatorFunction,
@@ -27,7 +27,6 @@ from .types import (
 
 __all__ = [
     "run_experiment",
-    "run_experiment_on_items",
     "run_experiment_with_trace_evals",
     "run_trace_evaluations",
     "extract_trace_metrics",
