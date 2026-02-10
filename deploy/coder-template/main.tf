@@ -148,7 +148,9 @@ resource "coder_agent" "main" {
 VSCODE_SETTINGS
 
     # Configure shell to always start in repo with venv activated
-    cat >> "/home/${local.username}/.bashrc" <<BASHRC
+    # Only add to bashrc if not already present (idempotent)
+    if ! grep -q "Auto-navigate to ${local.repo_name}" "/home/${local.username}/.bashrc" 2>/dev/null; then
+      cat >> "/home/${local.username}/.bashrc" <<BASHRC
 
 # Auto-navigate to ${local.repo_name} and activate venv
 if [ -f ~/${local.repo_name}/.venv/bin/activate ]; then
@@ -156,6 +158,7 @@ if [ -f ~/${local.repo_name}/.venv/bin/activate ]; then
     source .venv/bin/activate
 fi
 BASHRC
+    fi
 
     echo "Startup script ran successfully!"
 
