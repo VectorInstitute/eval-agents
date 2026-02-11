@@ -1,13 +1,15 @@
 """
 Definitions for the the report generation agent.
 
+The database connection to the report generation database is obtained
+from the environment variable `REPORT_GENERATION_DB__DATABASE`.
+
 Example
 -------
 >>> from aieng.agent_evals.report_generation.agent import get_report_generation_agent
 >>> from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 >>> agent = get_report_generation_agent(
 >>>     instructions=MAIN_AGENT_INSTRUCTIONS,
->>>     sqlite_db_path=Path("data/OnlineRetail.db"),
 >>>     reports_output_path=Path("reports/"),
 >>>     langfuse_project_name="Report Generation",
 >>> )
@@ -32,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 def get_report_generation_agent(
     instructions: str,
-    sqlite_db_path: Path,
     reports_output_path: Path,
     langfuse_project_name: str | None,
 ) -> Agent:
@@ -43,8 +44,6 @@ def get_report_generation_agent(
     ----------
     instructions : str
         The instructions for the agent.
-    sqlite_db_path : Path
-        The path to the SQLite database.
     reports_output_path : Path
         The path to the reports output directory.
     langfuse_project_name : str | None
@@ -69,7 +68,8 @@ def get_report_generation_agent(
         model=client_manager.configs.default_worker_model,
         instruction=instructions,
         tools=[
-            client_manager.sqlite_connection(sqlite_db_path).execute,
+            client_manager.report_generation_db().execute,
+            client_manager.report_generation_db().get_schema_info,
             report_file_writer.write_xlsx,
         ],
     )

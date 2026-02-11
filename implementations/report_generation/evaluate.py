@@ -15,10 +15,9 @@ from aieng.agent_evals.report_generation.evaluation import evaluate
 from dotenv import load_dotenv
 
 from implementations.report_generation.data.langfuse_upload import DEFAULT_EVALUATION_DATASET_NAME
-from implementations.report_generation.demo import (
+from implementations.report_generation.env_vars import (
     get_langfuse_project_name,
     get_reports_output_path,
-    get_sqlite_db_path,
 )
 
 
@@ -44,7 +43,6 @@ def cli(dataset_name: str):
     asyncio.run(
         evaluate(
             dataset_name,
-            sqlite_db_path=get_sqlite_db_path(),
             reports_output_path=get_reports_output_path(),
             langfuse_project_name=get_langfuse_project_name(),
         )
