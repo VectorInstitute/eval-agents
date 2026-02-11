@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 
-DEFAULT_SQLITE_DB_PATH = "implementations/report_generation/data/OnlineRetail.db"
 DEFAULT_REPORTS_OUTPUT_PATH = "implementations/report_generation/reports/"
 DEFAULT_LANGFUSE_PROJECT_NAME = "Report Generation"
 
@@ -21,20 +20,6 @@ def get_reports_output_path() -> Path:
         The reports output path.
     """
     return Path(os.getenv("REPORT_GENERATION_OUTPUT_PATH", DEFAULT_REPORTS_OUTPUT_PATH))
-
-
-def get_sqlite_db_path() -> Path:
-    """Get the SQLite database path for report generation.
-
-    If no path is provided in the REPORT_GENERATION_DB_PATH env var, will use the
-    default path in DEFAULT_SQLITE_DB_PATH.
-
-    Returns
-    -------
-    Path
-        The default SQLite database path for report generation.
-    """
-    return Path(os.getenv("REPORT_GENERATION_DB_PATH", DEFAULT_SQLITE_DB_PATH))
 
 
 def get_langfuse_project_name() -> str:
