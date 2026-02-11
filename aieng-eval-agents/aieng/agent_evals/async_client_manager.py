@@ -5,57 +5,15 @@ like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
 import logging
-import sqlite3
-from pathlib import Path
-from typing import Any
 
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.tools import ReadOnlySqlDatabase
 from langfuse import Langfuse
 from openai import AsyncOpenAI
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
-
-
-class SQLiteConnection:
-    """SQLite connection."""
-
-    def __init__(self, db_path: Path) -> None:
-        """Initialize the SQLite connection.
-
-        Parameters
-        ----------
-        db_path : Path
-            The path to the SQLite database.
-        """
-        self.db_path = db_path
-        self.connection = sqlite3.connect(db_path)
-
-    def execute(self, query: str) -> list[Any] | str:
-        """Execute a SQLite query.
-
-        Parameters
-        ----------
-        query : str
-            The SQLite query to execute.
-
-        Returns
-        -------
-        list[Any] | str
-            The result of the query. Will return the result of
-            `execute(query).fetchall()`.
-            Returns a string with an error message if the query fails.
-        """
-        try:
-            return self.connection.execute(query).fetchall()
-        except Exception as e:
-            logger.exception(f"Error executing query: {e}")
-            return [str(e)]
-
-    def close(self) -> None:
-        """Close the SQLite connection."""
-        self.connection.close()
 
 
 class AsyncClientManager:
@@ -105,7 +63,8 @@ class AsyncClientManager:
         """
         self._configs: Configs | None = configs
         self._openai_client: AsyncOpenAI | None = None
-        self._sqlite_connection: SQLiteConnection | None = None
+        self._aml_db: ReadOnlySqlDatabase | None = None
+        self._report_generation_db: ReadOnlySqlDatabase | None = None
         self._langfuse_client: Langfuse | None = None
         self._otel_instrumented: bool = False
         self._initialized: bool = False
@@ -139,23 +98,45 @@ class AsyncClientManager:
             self._initialized = True
         return self._openai_client
 
-    def sqlite_connection(self, db_path: Path) -> SQLiteConnection:
-        """Get or create SQLite session.
-
-        Parameters
-        ----------
-        db_path : Path
-            The path to the SQLite database.
+    def report_generation_db(self, agent_name: str = "ReportGenerationAgent") -> ReadOnlySqlDatabase:
+        """Get or create Report Generation database connection.
 
         Returns
         -------
-        SQLiteConnection
-            The SQLite connection instance.
+        ReadOnlySqlDatabase
+            The Report Generation database connection instance.
         """
-        if self._sqlite_connection is None or self._sqlite_connection.db_path != db_path:
-            self._sqlite_connection = SQLiteConnection(db_path)
+        if self._report_generation_db is None:
+            if self.configs.report_generation_db is None:
+                raise ValueError("Report Generation database configuration is missing.")
+
+            self._report_generation_db = ReadOnlySqlDatabase(
+                connection_uri=self.configs.report_generation_db.build_uri(),
+                agent_name=agent_name,
+            )
             self._initialized = True
-        return self._sqlite_connection
+
+        return self._report_generation_db
+
+    def aml_db(self, agent_name: str = "FraudInvestigationAnalyst") -> ReadOnlySqlDatabase:
+        """Get or create AML database connection.
+
+        Returns
+        -------
+        ReadOnlySqlDatabase
+            The Report Generation database connection instance.
+        """
+        if self._aml_db is None:
+            if self.configs.aml_db is None:
+                raise ValueError("AML database configuration is missing.")
+
+            self._aml_db = ReadOnlySqlDatabase(
+                connection_uri=self.configs.aml_db.build_uri(),
+                agent_name=agent_name,
+            )
+            self._initialized = True
+
+        return self._aml_db
 
     @property
     def langfuse_client(self) -> Langfuse:
@@ -202,16 +183,20 @@ class AsyncClientManager:
     async def close(self) -> None:
         """Close all initialized async clients.
 
-        This method closes the OpenAI client, SQLite connection, and Langfuse
+        This method closes the OpenAI client, database connections, and Langfuse
         client if they have been initialized.
         """
         if self._openai_client is not None:
             await self._openai_client.close()
             self._openai_client = None
 
-        if self._sqlite_connection is not None:
-            self._sqlite_connection.close()
-            self._sqlite_connection = None
+        if self._aml_db is not None:
+            self._aml_db.close()
+            self._aml_db = None
+
+        if self._report_generation_db is not None:
+            self._report_generation_db.close()
+            self._report_generation_db = None
 
         if self._langfuse_client is not None:
             self._langfuse_client.flush()

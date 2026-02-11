@@ -246,8 +246,6 @@ class ReadOnlySqlDatabase:
         ------
         PermissionError
             If the query attempts to perform a write operation.
-        Exception
-            For any database execution errors.
 
         Notes
         -----

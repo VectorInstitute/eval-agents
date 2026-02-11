@@ -14,9 +14,8 @@ from pathlib import Path
 
 import click
 import pandas as pd
+from aieng.agent_evals.async_client_manager import AsyncClientManager
 from dotenv import load_dotenv
-
-from implementations.report_generation.demo import get_sqlite_db_path
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -36,7 +35,12 @@ def main(dataset_path: str):
     dataset_path : str
         The path to the CSV file containing the dataset.
     """
-    db_path = get_sqlite_db_path()
+    client_manager = AsyncClientManager().get_instance()
+
+    assert client_manager.configs.report_generation_db, "Report generation database configuration is missing"
+    assert client_manager.configs.report_generation_db.database, "Report generation database path is missing"
+
+    db_path = client_manager.configs.report_generation_db.database
 
     assert Path(dataset_path).exists(), f"Dataset path {dataset_path} does not exist"
     assert Path(db_path).parent.exists(), f"Database path {db_path} does not exist"

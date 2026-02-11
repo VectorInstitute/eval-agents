@@ -82,6 +82,11 @@ class Configs(BaseSettings):
         description="Anti-Money Laundering database configuration. Used by the Fraud Investigation Agent.",
     )
 
+    report_generation_db: DatabaseConfig | None = Field(
+        default=None,
+        description="Database configuration for the the Report Generation Agent.",
+    )
+
     # === Core LLM Settings ===
     openai_base_url: str = Field(
         default="https://generativelanguage.googleapis.com/v1beta/openai/",
