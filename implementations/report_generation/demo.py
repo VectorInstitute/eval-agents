@@ -8,14 +8,16 @@ $ python -m implementations.report_generation.demo
 
 import asyncio
 import logging
+import threading
 from functools import partial
 from typing import Any, AsyncGenerator
 
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.langfuse import report_usage_scores
 from aieng.agent_evals.report_generation.agent import get_report_generation_agent
-from aieng.agent_evals.report_generation.evaluation.online import report_final_response_score, report_usage_scores
+from aieng.agent_evals.report_generation.evaluation.online import report_final_response_score
 from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 from dotenv import load_dotenv
 from google.adk.runners import Runner
@@ -100,8 +102,17 @@ async def agent_session_handler(
             # Report the final response evaluation to Langfuse
             report_final_response_score(event, string_match="](gradio_api/file=")
 
-            # TODO: need to put this in a thread
-            report_usage_scores(token_threshold=10000, latency_threshold=60)
+            # Run usage scoring in a thread so it doesn't block the UI
+            thread = threading.Thread(
+                target=report_usage_scores,
+                kwargs={
+                    "trace_id": langfuse_client.get_current_trace_id(),
+                    "token_threshold": 10000,
+                    "latency_threshold": 60,
+                },
+                daemon=True,
+            )
+            thread.start()
 
     langfuse_client.flush()
 
