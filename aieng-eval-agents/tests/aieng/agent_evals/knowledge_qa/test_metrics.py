@@ -1,7 +1,7 @@
 """Tests for the metrics aggregation module."""
 
 import pytest
-from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAResult, JudgeResult
+from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAResult, EvaluationOutcome, JudgeResult
 from aieng.agent_evals.knowledge_qa.metrics import (
     EnhancedEvaluationResult,
     EvaluationMetrics,
@@ -19,7 +19,10 @@ class TestEvaluationMetrics:
             overall_f1=0.85,
             avg_precision=0.9,
             avg_recall=0.8,
-            outcome_distribution={"fully_correct": 7, "partially_correct": 3},
+            outcome_distribution={
+                EvaluationOutcome.FULLY_CORRECT.value: 7,
+                EvaluationOutcome.PARTIALLY_CORRECT.value: 3,
+            },
         )
         assert metrics.total_examples == 10
         assert metrics.overall_f1 == 0.85
@@ -56,7 +59,7 @@ class TestEnhancedEvaluationResult:
             precision=1.0,
             recall=1.0,
             f1_score=1.0,
-            outcome="fully_correct",
+            outcome=EvaluationOutcome.FULLY_CORRECT,
         )
         comprehensiveness = JudgeResult(
             dimension="comprehensiveness",
@@ -97,7 +100,7 @@ class TestMetricsAggregator:
                 precision=1.0,
                 recall=1.0,
                 f1_score=1.0,
-                outcome="fully_correct",
+                outcome=EvaluationOutcome.FULLY_CORRECT,
             ),
         )
 
@@ -108,7 +111,7 @@ class TestMetricsAggregator:
         assert metrics.overall_f1 == 1.0
         assert metrics.avg_precision == 1.0
         assert metrics.avg_recall == 1.0
-        assert metrics.outcome_distribution == {"fully_correct": 1}
+        assert metrics.outcome_distribution == {EvaluationOutcome.FULLY_CORRECT.value: 1}
 
     def test_multiple_results(self):
         """Test with multiple results."""
@@ -120,7 +123,7 @@ class TestMetricsAggregator:
                 prediction="A",
                 complexity="simple",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=1.0, recall=1.0, f1_score=1.0, outcome="fully_correct"
+                    precision=1.0, recall=1.0, f1_score=1.0, outcome=EvaluationOutcome.FULLY_CORRECT
                 ),
             ),
             EnhancedEvaluationResult(
@@ -130,7 +133,7 @@ class TestMetricsAggregator:
                 prediction="B",
                 complexity="moderate",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=1.0, recall=0.5, f1_score=0.67, outcome="partially_correct"
+                    precision=1.0, recall=0.5, f1_score=0.67, outcome=EvaluationOutcome.PARTIALLY_CORRECT
                 ),
             ),
             EnhancedEvaluationResult(
@@ -140,7 +143,7 @@ class TestMetricsAggregator:
                 prediction="X",
                 complexity="complex",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=0.0, recall=0.0, f1_score=0.0, outcome="fully_incorrect"
+                    precision=0.0, recall=0.0, f1_score=0.0, outcome=EvaluationOutcome.FULLY_INCORRECT
                 ),
             ),
         ]
@@ -150,9 +153,9 @@ class TestMetricsAggregator:
 
         assert metrics.total_examples == 3
         assert metrics.overall_f1 == pytest.approx((1.0 + 0.67 + 0.0) / 3, rel=0.01)
-        assert metrics.outcome_distribution["fully_correct"] == 1
-        assert metrics.outcome_distribution["partially_correct"] == 1
-        assert metrics.outcome_distribution["fully_incorrect"] == 1
+        assert metrics.outcome_distribution[EvaluationOutcome.FULLY_CORRECT.value] == 1
+        assert metrics.outcome_distribution[EvaluationOutcome.PARTIALLY_CORRECT.value] == 1
+        assert metrics.outcome_distribution[EvaluationOutcome.FULLY_INCORRECT.value] == 1
 
     def test_by_complexity_breakdown(self):
         """Test metrics breakdown by complexity."""
@@ -164,7 +167,7 @@ class TestMetricsAggregator:
                 prediction="A",
                 complexity="simple",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=1.0, recall=1.0, f1_score=1.0, outcome="fully_correct"
+                    precision=1.0, recall=1.0, f1_score=1.0, outcome=EvaluationOutcome.FULLY_CORRECT
                 ),
             ),
             EnhancedEvaluationResult(
@@ -174,7 +177,7 @@ class TestMetricsAggregator:
                 prediction="B",
                 complexity="simple",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=1.0, recall=1.0, f1_score=1.0, outcome="fully_correct"
+                    precision=1.0, recall=1.0, f1_score=1.0, outcome=EvaluationOutcome.FULLY_CORRECT
                 ),
             ),
             EnhancedEvaluationResult(
@@ -184,7 +187,7 @@ class TestMetricsAggregator:
                 prediction="X",
                 complexity="complex",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=0.0, recall=0.0, f1_score=0.0, outcome="fully_incorrect"
+                    precision=0.0, recall=0.0, f1_score=0.0, outcome=EvaluationOutcome.FULLY_INCORRECT
                 ),
             ),
         ]
@@ -261,7 +264,7 @@ class TestMetricsAggregator:
                 ground_truth="A",
                 prediction="A",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=0.8, recall=0.8, f1_score=0.8, outcome="partially_correct"
+                    precision=0.8, recall=0.8, f1_score=0.8, outcome=EvaluationOutcome.PARTIALLY_CORRECT
                 ),
             ),
         ]
@@ -273,7 +276,7 @@ class TestMetricsAggregator:
                 ground_truth="A",
                 prediction="A",
                 deepsearchqa_result=DeepSearchQAResult(
-                    precision=1.0, recall=1.0, f1_score=1.0, outcome="fully_correct"
+                    precision=1.0, recall=1.0, f1_score=1.0, outcome=EvaluationOutcome.FULLY_CORRECT
                 ),
             ),
         ]

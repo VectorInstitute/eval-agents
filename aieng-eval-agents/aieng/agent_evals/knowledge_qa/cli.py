@@ -21,6 +21,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
+from aieng.agent_evals.knowledge_qa.judges import EvaluationOutcome
 from dotenv import load_dotenv
 from rich import box
 from rich.console import Console, Group
@@ -852,16 +853,16 @@ async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = Fals
 
 # Outcome display configuration
 OUTCOME_COLORS = {
-    "fully_correct": "green",
-    "correct_with_extraneous": "yellow",
-    "partially_correct": "orange1",
-    "fully_incorrect": "red",
+    EvaluationOutcome.FULLY_CORRECT.value: "green",
+    EvaluationOutcome.CORRECT_WITH_EXTRANEOUS.value: "yellow",
+    EvaluationOutcome.PARTIALLY_CORRECT.value: "orange1",
+    EvaluationOutcome.FULLY_INCORRECT.value: "red",
 }
 OUTCOME_ICONS = {
-    "fully_correct": "✅",
-    "correct_with_extraneous": "🟡",
-    "partially_correct": "🔶",
-    "fully_incorrect": "❌",
+    EvaluationOutcome.FULLY_CORRECT.value: "✅",
+    EvaluationOutcome.CORRECT_WITH_EXTRANEOUS.value: "🟡",
+    EvaluationOutcome.PARTIALLY_CORRECT.value: "🔶",
+    EvaluationOutcome.FULLY_INCORRECT.value: "❌",
 }
 
 
@@ -951,14 +952,14 @@ def _display_example_result(example, response, idx: int, total: int) -> dict[str
 
 def _display_eval_result(result) -> None:
     """Display evaluation metrics for a result."""
-    color = OUTCOME_COLORS.get(result.outcome, "white")
-    icon = OUTCOME_ICONS.get(result.outcome, "•")
+    color = OUTCOME_COLORS.get(result.outcome.value, "white")
+    icon = OUTCOME_ICONS.get(result.outcome.value, "•")
 
     # Main metrics table
     metrics_table = Table(show_header=False, box=None, padding=(0, 2))
     metrics_table.add_column("Metric", style="bold")
     metrics_table.add_column("Value", justify="right")
-    metrics_table.add_row("Outcome", f"[{color}]{icon} {result.outcome}[/{color}]")
+    metrics_table.add_row("Outcome", f"[{color}]{icon} {result.outcome.value}[/{color}]")
     metrics_table.add_row("Precision", f"[bold]{result.precision:.2f}[/bold]")
     metrics_table.add_row("Recall", f"[bold]{result.recall:.2f}[/bold]")
     metrics_table.add_row("F1 Score", f"[bold]{result.f1_score:.2f}[/bold]")
@@ -1032,11 +1033,11 @@ def _display_eval_summary(results: list) -> None:
     sample_table.add_column("F1", justify="right", width=10)
 
     for example_id, result, _ in results:
-        color = OUTCOME_COLORS.get(result.outcome, "white")
-        icon = OUTCOME_ICONS.get(result.outcome, "•")
+        color = OUTCOME_COLORS.get(result.outcome.value, "white")
+        icon = OUTCOME_ICONS.get(result.outcome.value, "•")
         sample_table.add_row(
             str(example_id),
-            f"[{color}]{icon} {result.outcome}[/{color}]",
+            f"[{color}]{icon} {result.outcome.value}[/{color}]",
             f"{result.precision:.2f}",
             f"{result.recall:.2f}",
             f"{result.f1_score:.2f}",
@@ -1047,14 +1048,14 @@ def _display_eval_summary(results: list) -> None:
 
     # Count outcomes
     outcome_counts = {
-        "fully_correct": 0,
-        "correct_with_extraneous": 0,
-        "partially_correct": 0,
-        "fully_incorrect": 0,
+        EvaluationOutcome.FULLY_CORRECT.value: 0,
+        EvaluationOutcome.CORRECT_WITH_EXTRANEOUS.value: 0,
+        EvaluationOutcome.PARTIALLY_CORRECT.value: 0,
+        EvaluationOutcome.FULLY_INCORRECT.value: 0,
     }
     for _, result, _ in results:
-        if result.outcome in outcome_counts:
-            outcome_counts[result.outcome] += 1
+        if result.outcome.value in outcome_counts:
+            outcome_counts[result.outcome.value] += 1
 
     total = len(results)
 
@@ -1071,10 +1072,10 @@ def _display_eval_summary(results: list) -> None:
     outcome_table.add_column("Percentage", justify="right", width=12)
 
     outcome_display = [
-        ("fully_correct", "Fully Correct", "green"),
-        ("correct_with_extraneous", "Correct with Extraneous", "yellow"),
-        ("partially_correct", "Partially Correct", "orange1"),
-        ("fully_incorrect", "Fully Incorrect", "red"),
+        (EvaluationOutcome.FULLY_CORRECT.value, "Fully Correct", "green"),
+        (EvaluationOutcome.CORRECT_WITH_EXTRANEOUS.value, "Correct with Extraneous", "yellow"),
+        (EvaluationOutcome.PARTIALLY_CORRECT.value, "Partially Correct", "orange1"),
+        (EvaluationOutcome.FULLY_INCORRECT.value, "Fully Incorrect", "red"),
     ]
 
     for key, label, color in outcome_display:

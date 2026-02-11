@@ -6,6 +6,7 @@ import pytest
 from aieng.agent_evals.knowledge_qa.judges import (
     DeepSearchQAJudge,
     DeepSearchQAResult,
+    EvaluationOutcome,
     JudgeResult,
     _calculate_metrics_from_grader,
 )
@@ -44,7 +45,7 @@ class TestDeepSearchQAResult:
             precision=0.8,
             recall=0.9,
             f1_score=0.847,
-            outcome="correct_with_extraneous",
+            outcome=EvaluationOutcome.CORRECT_WITH_EXTRANEOUS,
             correctness_details={"item1": True, "item2": True, "item3": False},
             extraneous_items=["extra1"],
             explanation="Found 2 out of 3 items with 1 extraneous",
@@ -52,7 +53,7 @@ class TestDeepSearchQAResult:
         assert result.precision == 0.8
         assert result.recall == 0.9
         assert result.f1_score == 0.847
-        assert result.outcome == "correct_with_extraneous"
+        assert result.outcome == EvaluationOutcome.CORRECT_WITH_EXTRANEOUS
         assert result.correctness_details["item1"] is True
         assert len(result.extraneous_items) == 1
 
@@ -62,7 +63,7 @@ class TestDeepSearchQAResult:
         assert result.precision == 0.0
         assert result.recall == 0.0
         assert result.f1_score == 0.0
-        assert result.outcome == "fully_incorrect"
+        assert result.outcome == EvaluationOutcome.FULLY_INCORRECT
         assert result.correctness_details == {}
         assert result.extraneous_items == []
 
@@ -84,7 +85,7 @@ class TestCalculateMetrics:
         assert result.precision == 1.0
         assert result.recall == 1.0
         assert result.f1_score == 1.0
-        assert result.outcome == "fully_correct"
+        assert result.outcome == EvaluationOutcome.FULLY_CORRECT
 
     def test_calculate_metrics_with_extraneous(self):
         """Test metrics calculation with extraneous items (correct_with_extraneous)."""
@@ -99,7 +100,7 @@ class TestCalculateMetrics:
 
         assert result.precision == 0.75  # 3/(3+1)
         assert result.recall == 1.0  # 3/3
-        assert result.outcome == "correct_with_extraneous"
+        assert result.outcome == EvaluationOutcome.CORRECT_WITH_EXTRANEOUS
         assert "D" in result.extraneous_items
 
     def test_calculate_metrics_with_missed(self):
@@ -115,7 +116,7 @@ class TestCalculateMetrics:
 
         assert result.precision == 1.0  # 2/2 (no extraneous)
         assert result.recall == pytest.approx(2 / 3)  # 2/3
-        assert result.outcome == "partially_correct"
+        assert result.outcome == EvaluationOutcome.PARTIALLY_CORRECT
         assert result.correctness_details["C"] is False
 
     def test_calculate_metrics_fully_incorrect(self):
@@ -132,7 +133,7 @@ class TestCalculateMetrics:
         assert result.precision == 0.0
         assert result.recall == 0.0
         assert result.f1_score == 0.0
-        assert result.outcome == "fully_incorrect"
+        assert result.outcome == EvaluationOutcome.FULLY_INCORRECT
 
     def test_calculate_metrics_empty_ground_truth(self):
         """Test metrics calculation with empty ground truth."""
@@ -146,7 +147,7 @@ class TestCalculateMetrics:
         result = _calculate_metrics_from_grader(grader_result)
 
         assert result.recall == 1.0  # Edge case handling
-        assert result.outcome == "fully_correct"
+        assert result.outcome == EvaluationOutcome.FULLY_CORRECT
 
 
 @pytest.fixture
@@ -174,7 +175,7 @@ class TestDeepSearchQAJudge:
             precision=1.0,
             recall=1.0,
             f1_score=1.0,
-            outcome="fully_correct",
+            outcome=EvaluationOutcome.FULLY_CORRECT,
             correctness_details={"USA": True, "UK": True},
             extraneous_items=[],
             explanation="Both USA and UK found correctly",
@@ -193,7 +194,7 @@ class TestDeepSearchQAJudge:
         assert result.score == 5.0  # F1=1.0 -> score=5
         assert "Precision: 1.00" in result.evidence[0]
         assert "Recall: 1.00" in result.evidence[1]
-        assert "fully_correct" in result.evidence[3]
+        assert EvaluationOutcome.FULLY_CORRECT.value in result.evidence[3]
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
     def test_evaluate_partial_match(self, mock_evaluate_async, mock_configs_cls, mock_configs):
@@ -206,7 +207,7 @@ class TestDeepSearchQAJudge:
             precision=1.0,
             recall=2 / 3,
             f1_score=0.8,
-            outcome="partially_correct",
+            outcome=EvaluationOutcome.PARTIALLY_CORRECT,
             correctness_details={"George Washington": True, "John Adams": True, "Thomas Jefferson": False},
             extraneous_items=[],
             explanation="Found Washington and Adams, missed Jefferson",
@@ -222,7 +223,7 @@ class TestDeepSearchQAJudge:
         )
 
         assert result.dimension == "deepsearchqa"
-        assert "partially_correct" in result.evidence[3]
+        assert EvaluationOutcome.PARTIALLY_CORRECT.value in result.evidence[3]
         assert result.score < 5.0  # Not perfect
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
@@ -235,7 +236,7 @@ class TestDeepSearchQAJudge:
             precision=1.0,
             recall=1.0,
             f1_score=1.0,
-            outcome="fully_correct",
+            outcome=EvaluationOutcome.FULLY_CORRECT,
             correctness_details={"Paris": True},
             extraneous_items=[],
             explanation="Correct answer found",
@@ -253,7 +254,7 @@ class TestDeepSearchQAJudge:
         assert isinstance(judge_result, JudgeResult)
         assert isinstance(detailed_result, DeepSearchQAResult)
         assert detailed_result.f1_score == 1.0
-        assert detailed_result.outcome == "fully_correct"
+        assert detailed_result.outcome == EvaluationOutcome.FULLY_CORRECT
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
     def test_evaluate_single_answer_type(self, mock_evaluate_async, mock_configs_cls, mock_configs):
@@ -265,7 +266,7 @@ class TestDeepSearchQAJudge:
             precision=1.0,
             recall=1.0,
             f1_score=1.0,
-            outcome="fully_correct",
+            outcome=EvaluationOutcome.FULLY_CORRECT,
             correctness_details={"42": True},
             extraneous_items=[],
             explanation="Answer is semantically equivalent",
@@ -294,7 +295,7 @@ class TestDeepSearchQAJudge:
                 precision=1.0,
                 recall=1.0,
                 f1_score=1.0,
-                outcome="fully_correct",
+                outcome=EvaluationOutcome.FULLY_CORRECT,
                 correctness_details={"test": True},
                 extraneous_items=[],
                 explanation="Test passed",
