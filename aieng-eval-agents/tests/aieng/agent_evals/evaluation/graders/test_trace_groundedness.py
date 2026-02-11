@@ -169,6 +169,50 @@ async def test_create_trace_groundedness_evaluator_success_wires_parse_call_and_
 
 
 @pytest.mark.asyncio
+async def test_create_trace_groundedness_evaluator_default_has_no_tool_field_truncation(
+    fake_manager, monkeypatch
+) -> None:
+    """Do not truncate tool fields when ``max_field_chars`` is left as default."""
+    captured_kwargs: dict[str, object] = {}
+    long_tool_output = "LONG-EVIDENCE-" + ("X" * 200)
+
+    async def fake_parse_call(**kwargs) -> SimpleNamespace:
+        captured_kwargs.update(kwargs)
+        return _completion(
+            TraceGroundednessResponse(
+                explanation="All claims grounded.",
+                claims=[TraceGroundednessClaim(text="Claim 1", verdict="Supported", reason="Evidence present.")],
+                score=1.0,
+            )
+        )
+
+    monkeypatch.setattr(
+        "aieng.agent_evals.evaluation.graders.trace_groundedness.run_structured_parse_call", fake_parse_call
+    )
+
+    evaluator = create_trace_groundedness_evaluator()
+    trace = _make_trace(
+        observations=[
+            _make_observation(
+                obs_id="obs-1",
+                obs_type="tool_call",
+                name="search_tool",
+                input_payload={"query": "evidence"},
+                output_payload={"result": long_tool_output},
+                start_time=datetime(2024, 1, 1, 12, 0, 0),
+            )
+        ]
+    )
+
+    await evaluator(trace=trace, item_result=_make_item_result({"answer": "candidate"}))
+
+    user_prompt = str(captured_kwargs["user_prompt"])
+    assert "...[truncated]" not in user_prompt
+    assert long_tool_output in user_prompt
+    assert captured_kwargs["openai_client"] is fake_manager.openai_client
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("scenario", "error_metric_name", "expected_error_type", "expected_metric_name", "expect_parse_called"),
     [

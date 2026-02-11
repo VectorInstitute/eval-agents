@@ -112,7 +112,7 @@ def create_trace_groundedness_evaluator(
     rubric_markdown: str | Path | None = None,
     error_metric_name: str | None = None,
     max_tool_observations: int = 100,
-    max_field_chars: int = 4000,
+    max_field_chars: int | None = None,
     max_unsupported_claims_in_metadata: int = 25,
     tool_observation_predicate: TraceObservationPredicate | None = None,
 ) -> TraceEvaluatorFunction:
@@ -135,8 +135,9 @@ def create_trace_groundedness_evaluator(
     max_tool_observations : int, optional, default=100
         Maximum number of tool observations to include in prompt context.
         When more are present, the most recent observations are kept.
-    max_field_chars : int, optional, default=4000
+    max_field_chars : int | None, optional, default=None
         Maximum character length for each serialized tool input/output field.
+        Use ``None`` for no truncation.
     max_unsupported_claims_in_metadata : int, optional, default=25
         Maximum number of unsupported claims to include in metric metadata.
     tool_observation_predicate : TraceObservationPredicate | None, optional,
@@ -254,7 +255,7 @@ def _build_tool_context(
     *,
     trace: TraceWithFullDetails,
     max_tool_observations: int,
-    max_field_chars: int,
+    max_field_chars: int | None,
     tool_observation_predicate: TraceObservationPredicate | None,
 ) -> tuple[str, int]:
     """Build serialized tool-evidence context from a trace."""
@@ -330,8 +331,10 @@ def _observation_is_excluded_for_groundedness(observation: ObservationsView) -> 
     return False
 
 
-def _truncate_text(text: str, *, max_chars: int) -> str:
+def _truncate_text(text: str, *, max_chars: int | None) -> str:
     """Truncate text to ``max_chars`` with explicit marker."""
+    if max_chars is None:
+        return text
     if max_chars <= 0:
         return ""
     if len(text) <= max_chars:
