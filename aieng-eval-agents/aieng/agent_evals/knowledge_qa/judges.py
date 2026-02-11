@@ -506,7 +506,26 @@ class DeepSearchQAJudge:
         ground_truth: str,
         answer_type: str = "Single Answer",
     ) -> JudgeResult:
-        """Async version of evaluate."""
+        """Evaluate an answer using DeepSearchQA methodology (async).
+
+        This is the async version of evaluate() for use in async contexts.
+
+        Parameters
+        ----------
+        question : str
+            The original question.
+        answer : str
+            The agent's answer.
+        ground_truth : str
+            The expected ground truth answer.
+        answer_type : str, optional
+            Type of answer: "Single Answer" or "Set Answer", by default "Single Answer".
+
+        Returns
+        -------
+        JudgeResult
+            The evaluation result with precision, recall, and F1 in evidence.
+        """
         result = await evaluate_deepsearchqa_async(
             question=question,
             answer=answer,
