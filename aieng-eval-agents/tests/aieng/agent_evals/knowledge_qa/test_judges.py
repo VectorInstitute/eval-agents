@@ -1,6 +1,6 @@
 """Tests for the LLM-as-judge evaluators."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_qa.judges import (
@@ -9,6 +9,7 @@ from aieng.agent_evals.knowledge_qa.judges import (
     JudgeResult,
     _calculate_metrics_from_grader,
 )
+from pydantic import SecretStr
 
 
 class TestJudgeResult:
@@ -148,12 +149,26 @@ class TestCalculateMetrics:
         assert result.outcome == "fully_correct"
 
 
+@pytest.fixture
+def mock_configs():
+    """Fixture to mock the Configs class."""
+    mock_config = MagicMock()
+    mock_config.openai_api_key = SecretStr("test-api-key")
+    mock_config.default_evaluator_model = "gemini-2.5-pro"
+    mock_config.default_evaluator_temperature = 0.0
+    return mock_config
+
+
+@patch("aieng.agent_evals.knowledge_qa.judges.Configs")
 class TestDeepSearchQAJudge:
     """Tests for the DeepSearchQAJudge."""
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
-    def test_evaluate_full(self, mock_evaluate_async):
+    def test_evaluate_full(self, mock_evaluate_async, mock_configs_cls, mock_configs):
         """Test full evaluation flow."""
+        # Configure the Configs mock to return our mock_configs
+        mock_configs_cls.return_value = mock_configs
+
         # Mock the async evaluator to return a result
         mock_result = DeepSearchQAResult(
             precision=1.0,
@@ -181,8 +196,11 @@ class TestDeepSearchQAJudge:
         assert "fully_correct" in result.evidence[3]
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
-    def test_evaluate_partial_match(self, mock_evaluate_async):
+    def test_evaluate_partial_match(self, mock_evaluate_async, mock_configs_cls, mock_configs):
         """Test evaluation with partial match."""
+        # Configure the Configs mock
+        mock_configs_cls.return_value = mock_configs
+
         # Mock partial match result
         mock_result = DeepSearchQAResult(
             precision=1.0,
@@ -208,8 +226,11 @@ class TestDeepSearchQAJudge:
         assert result.score < 5.0  # Not perfect
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
-    def test_evaluate_with_details(self, mock_evaluate_async):
+    def test_evaluate_with_details(self, mock_evaluate_async, mock_configs_cls, mock_configs):
         """Test evaluation with detailed results."""
+        # Configure the Configs mock
+        mock_configs_cls.return_value = mock_configs
+
         mock_result = DeepSearchQAResult(
             precision=1.0,
             recall=1.0,
@@ -235,8 +256,11 @@ class TestDeepSearchQAJudge:
         assert detailed_result.outcome == "fully_correct"
 
     @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
-    def test_evaluate_single_answer_type(self, mock_evaluate_async):
+    def test_evaluate_single_answer_type(self, mock_evaluate_async, mock_configs_cls, mock_configs):
         """Test evaluation with Single Answer type."""
+        # Configure the Configs mock
+        mock_configs_cls.return_value = mock_configs
+
         mock_result = DeepSearchQAResult(
             precision=1.0,
             recall=1.0,
@@ -260,8 +284,11 @@ class TestDeepSearchQAJudge:
         assert result.score == 5.0  # Perfect match
 
     @pytest.mark.asyncio
-    async def test_evaluate_async(self):
+    async def test_evaluate_async(self, mock_configs_cls, mock_configs):
         """Test async evaluation."""
+        # Configure the Configs mock
+        mock_configs_cls.return_value = mock_configs
+
         with patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async") as mock_evaluate:
             mock_result = DeepSearchQAResult(
                 precision=1.0,
