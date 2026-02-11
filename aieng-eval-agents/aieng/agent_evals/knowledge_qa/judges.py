@@ -10,6 +10,7 @@ while maintaining backward compatibility with the original API.
 
 import asyncio
 import logging
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
@@ -27,25 +28,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class JudgeResult(BaseModel):
-    """Result from an LLM judge evaluation.
+class EvaluationOutcome(str, Enum):
+    """Possible outcomes for DeepSearchQA evaluation.
 
-    Attributes
-    ----------
-    dimension : str
-        The evaluation dimension (e.g., "comprehensiveness", "causal_chain").
-    score : float
-        Score on a 1-5 scale.
-    explanation : str
-        Detailed explanation of the score.
-    evidence : list[str]
-        Specific examples supporting the score.
+    The four disjoint categories represent the relationship between
+    the submitted answer set (S) and ground truth set (G).
     """
 
-    dimension: str
-    score: float  # 1-5 scale
-    explanation: str = ""
-    evidence: list[str] = Field(default_factory=list)
+    FULLY_CORRECT = "fully_correct"
+    CORRECT_WITH_EXTRANEOUS = "correct_with_extraneous"
+    PARTIALLY_CORRECT = "partially_correct"
+    FULLY_INCORRECT = "fully_incorrect"
+
+
+class JudgeResult(BaseModel):
+    """Result from an LLM judge evaluation."""
+
+    dimension: str = Field(description='The evaluation dimension (e.g., "comprehensiveness", "causal_chain")')
+    score: float = Field(description="Score on a 1-5 scale")
+    explanation: str = Field(default="", description="Detailed explanation of the score")
+    evidence: list[str] = Field(default_factory=list, description="Specific examples supporting the score")
 
 
 class DeepSearchQAResult(BaseModel):
@@ -53,36 +55,28 @@ class DeepSearchQAResult(BaseModel):
 
     This follows the official DeepSearchQA evaluation methodology from:
     https://www.kaggle.com/benchmarks/google/dsqa
-
-    Attributes
-    ----------
-    precision : float
-        Fraction of predicted items that are correct (0-1).
-        P = |S ∩ G| / |S|
-    recall : float
-        Fraction of ground truth items that were found (0-1).
-        R = |S ∩ G| / |G|
-    f1_score : float
-        Harmonic mean of precision and recall (0-1).
-        F1 = 2 * P * R / (P + R)
-    outcome : str
-        One of: "fully_correct", "correct_with_extraneous",
-        "partially_correct", "fully_incorrect".
-    correctness_details : dict[str, bool]
-        For each ground truth item, whether it was found in the response.
-    extraneous_items : list[str]
-        Items in the response that are not in the ground truth.
-    explanation : str
-        Explanation from the judge about the evaluation.
     """
 
-    precision: float = 0.0
-    recall: float = 0.0
-    f1_score: float = 0.0
-    outcome: str = "fully_incorrect"
-    correctness_details: dict[str, bool] = Field(default_factory=dict)
-    extraneous_items: list[str] = Field(default_factory=list)
-    explanation: str = ""
+    precision: float = Field(
+        default=0.0, description="Fraction of predicted items that are correct (0-1). P = |S ∩ G| / |S|"
+    )
+    recall: float = Field(
+        default=0.0, description="Fraction of ground truth items that were found (0-1). R = |S ∩ G| / |G|"
+    )
+    f1_score: float = Field(
+        default=0.0, description="Harmonic mean of precision and recall (0-1). F1 = 2 * P * R / (P + R)"
+    )
+    outcome: EvaluationOutcome = Field(
+        default=EvaluationOutcome.FULLY_INCORRECT,
+        description="Evaluation outcome indicating the relationship between submitted and ground truth answer sets",
+    )
+    correctness_details: dict[str, bool] = Field(
+        default_factory=dict, description="For each ground truth item, whether it was found in the response"
+    )
+    extraneous_items: list[str] = Field(
+        default_factory=list, description="Items in the response that are not in the ground truth"
+    )
+    explanation: str = Field(default="", description="Explanation from the judge about the evaluation")
 
     def to_evaluations(self) -> list[Evaluation]:
         """Convert this result to Langfuse Evaluation objects.
@@ -113,16 +107,16 @@ class DeepSearchQAResult(BaseModel):
         comment = "\n".join(comment_parts)
 
         outcome_display = {
-            "fully_correct": "Fully Correct",
-            "correct_with_extraneous": "Correct with Extraneous",
-            "partially_correct": "Partially Correct",
-            "fully_incorrect": "Fully Incorrect",
+            EvaluationOutcome.FULLY_CORRECT: "Fully Correct",
+            EvaluationOutcome.CORRECT_WITH_EXTRANEOUS: "Correct with Extraneous",
+            EvaluationOutcome.PARTIALLY_CORRECT: "Partially Correct",
+            EvaluationOutcome.FULLY_INCORRECT: "Fully Incorrect",
         }
 
         return [
             Evaluation(
                 name="Outcome",
-                value=outcome_display.get(self.outcome, self.outcome),
+                value=outcome_display.get(self.outcome, self.outcome.value),
                 comment=self.explanation,
             ),
             Evaluation(name="F1", value=self.f1_score, comment=comment),
@@ -156,17 +150,17 @@ class DeepSearchQAGraderResponse(BaseModel):
     """Structured response from the DeepSearchQA grader.
 
     This matches the official DeepSearchQA grader output format.
-
-    Attributes
-    ----------
-    answer_correctness : dict[str, Any]
-        Dictionary containing:
-        - Explanation: str - Explanation of the evaluation
-        - Correctness Details: dict[str, bool] - Per-item correctness
-        - Excessive Answers: list[str] - Extra items not in ground truth
     """
 
-    answer_correctness: dict[str, Any] = Field(alias="Answer Correctness")
+    answer_correctness: dict[str, Any] = Field(
+        alias="Answer Correctness",
+        description=(
+            "Dictionary containing: "
+            "Explanation (str) - Explanation of the evaluation; "
+            "Correctness Details (dict[str, bool]) - Per-item correctness; "
+            "Excessive Answers (list[str]) - Extra items not in ground truth"
+        ),
+    )
 
 
 # Official DeepSearchQA grader prompt from Appendix A of the paper
@@ -293,13 +287,13 @@ def _calculate_metrics_from_grader(
 
     # Determine outcome based on set relationships
     if num_matched == num_ground_truth and num_extraneous == 0:
-        outcome = "fully_correct"
+        outcome = EvaluationOutcome.FULLY_CORRECT
     elif num_matched == num_ground_truth and num_extraneous > 0:
-        outcome = "correct_with_extraneous"
+        outcome = EvaluationOutcome.CORRECT_WITH_EXTRANEOUS
     elif num_matched > 0:
-        outcome = "partially_correct"
+        outcome = EvaluationOutcome.PARTIALLY_CORRECT
     else:
-        outcome = "fully_incorrect"
+        outcome = EvaluationOutcome.FULLY_INCORRECT
 
     return DeepSearchQAResult(
         precision=precision,
@@ -376,7 +370,7 @@ async def evaluate_deepsearchqa_async(
             precision=0.0,
             recall=0.0,
             f1_score=0.0,
-            outcome="fully_incorrect",
+            outcome=EvaluationOutcome.FULLY_INCORRECT,
             correctness_details={},
             extraneous_items=[],
             explanation=f"Grader error: {e}",
@@ -494,12 +488,12 @@ class DeepSearchQAJudge:
         return JudgeResult(
             dimension=self.dimension,
             score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome}. {result.explanation}",
+            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}. {result.explanation}",
             evidence=[
                 f"Precision: {result.precision:.2f}",
                 f"Recall: {result.recall:.2f}",
                 f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome}",
+                f"Outcome: {result.outcome.value}",
                 f"Correctness: {result.correctness_details}",
                 f"Extraneous: {result.extraneous_items}",
             ],
@@ -526,12 +520,12 @@ class DeepSearchQAJudge:
         return JudgeResult(
             dimension=self.dimension,
             score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome}. {result.explanation}",
+            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}. {result.explanation}",
             evidence=[
                 f"Precision: {result.precision:.2f}",
                 f"Recall: {result.recall:.2f}",
                 f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome}",
+                f"Outcome: {result.outcome.value}",
                 f"Correctness: {result.correctness_details}",
                 f"Extraneous: {result.extraneous_items}",
             ],
@@ -587,12 +581,12 @@ class DeepSearchQAJudge:
         judge_result = JudgeResult(
             dimension=self.dimension,
             score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome}",
+            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}",
             evidence=[
                 f"Precision: {result.precision:.2f}",
                 f"Recall: {result.recall:.2f}",
                 f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome}",
+                f"Outcome: {result.outcome.value}",
             ],
         )
 
@@ -636,12 +630,12 @@ class DeepSearchQAJudge:
         judge_result = JudgeResult(
             dimension=self.dimension,
             score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome}",
+            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}",
             evidence=[
                 f"Precision: {result.precision:.2f}",
                 f"Recall: {result.recall:.2f}",
                 f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome}",
+                f"Outcome: {result.outcome.value}",
             ],
         )
 
