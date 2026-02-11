@@ -95,19 +95,14 @@ Use `pattern_type = "NONE"` when no laundering pattern is supported by evidence 
 def _get_db() -> ReadOnlySqlDatabase:
     """Lazily construct the read-only database tool from environment configuration."""
     client_manager = AsyncClientManager().get_instance()
-    if client_manager.configs.aml_db is None:
-        raise ValueError("AML database configuration is missing.")
-
-    return ReadOnlySqlDatabase(
-        connection_uri=client_manager.configs.aml_db.build_uri(),
-        agent_name="FraudInvestigationAnalyst",
-    )
+    return client_manager.aml_db()
 
 
-def _try_close_db() -> None:
+async def _try_close_db() -> None:
     """Close the lazily initialized database tool if it was created."""
     if _get_db.cache_info().currsize:
-        _get_db().close()
+        client_manager = AsyncClientManager().get_instance()
+        await client_manager.close()
         _get_db.cache_clear()
 
 
@@ -294,7 +289,7 @@ async def _main() -> None:
             logger.info("  TP=%d  FP=%d", tp, fp)
             logger.info("  FN=%d  TN=%d", fn, tn)
     finally:
-        _try_close_db()
+        await _try_close_db()
 
 
 if __name__ == "__main__":

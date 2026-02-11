@@ -6,7 +6,6 @@ Example
 >>> from aieng.agent_evals.report_generation.evaluation import evaluate
 >>> evaluate(
 >>>     dataset_name="OnlineRetailReportEval",
->>>     sqlite_db_path=Path("data/OnlineRetail.db"),
 >>>     reports_output_path=Path("reports/"),
 >>>     langfuse_project_name="Report Generation",
 >>> )
@@ -60,18 +59,18 @@ class EvaluatorResponse(BaseModel):
 
 async def evaluate(
     dataset_name: str,
-    sqlite_db_path: Path,
     reports_output_path: Path,
     langfuse_project_name: str,
 ) -> None:
     """Evaluate the report generation agent against a Langfuse dataset.
 
+    The database connection to the report generation database is obtained
+    from the environment variable `REPORT_GENERATION_DB__DATABASE`.
+
     Parameters
     ----------
     dataset_name : str
         Name of the Langfuse dataset to evaluate against.
-    sqlite_db_path : Path
-        The path to the SQLite database.
     reports_output_path : Path
         The path to the reports output directory.
     langfuse_project_name : str
@@ -88,7 +87,6 @@ async def evaluate(
     # We need this task so we can pass parameters to the agent, since
     # the agent has to be instantiated inside the task function
     report_generation_task = ReportGenerationTask(
-        sqlite_db_path=sqlite_db_path,
         reports_output_path=reports_output_path,
         langfuse_project_name=langfuse_project_name,
     )
@@ -118,7 +116,6 @@ class ReportGenerationTask:
 
     def __init__(
         self,
-        sqlite_db_path: Path,
         reports_output_path: Path,
         langfuse_project_name: str,
     ):
@@ -126,14 +123,11 @@ class ReportGenerationTask:
 
         Parameters
         ----------
-        sqlite_db_path : Path
-            The path to the SQLite database.
         reports_output_path : Path
             The path to the reports output directory.
         langfuse_project_name : str
             The name of the Langfuse project to use for tracing.
         """
-        self.sqlite_db_path = sqlite_db_path
         self.reports_output_path = reports_output_path
         self.langfuse_project_name = langfuse_project_name
 
@@ -154,7 +148,6 @@ class ReportGenerationTask:
         # Run the report generation agent
         report_generation_agent = get_report_generation_agent(
             instructions=MAIN_AGENT_INSTRUCTIONS,
-            sqlite_db_path=self.sqlite_db_path,
             reports_output_path=self.reports_output_path,
             langfuse_project_name=self.langfuse_project_name,
         )
