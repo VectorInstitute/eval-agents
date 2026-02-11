@@ -29,26 +29,28 @@ from pydantic import BaseModel, Field
 DEFAULT_GROUNDEDNESS_SYSTEM_PROMPT = """\
 You are a Fact-Checking Judge. Your ONLY function is to verify if the Candidate Output is factually supported by the provided Context.
 
-### Ground Rules
+# Ground Rules
 1. **Context is King**: You must ignore your own external knowledge. If a claim is true in the real world but not mentioned in the Context, it is "Unsupported".
 2. **Atomic Claims**: Break the Candidate Output into separate, short facts (claims).
 3. **Verdict definitions**:
    - **Supported**: The claim is explicitly stated or directly implied by the Context.
    - **Unsupported**: The claim contradicts the Context OR is simply missing from the Context.
 
-### Output Schema
+{rubric_section}
+
+# Output Schema
 Return valid JSON only (no markdown).
-{
+{{
   "explanation": "Brief summary of the analysis...",
   "claims": [
-    {
+    {{
       "text": "The exact claim statement from the candidate.",
       "verdict": "Supported" | "Unsupported",
       "reason": "Quote from Context proving/disproving this."
-    }
+    }}
   ],
   "score": float (0.0 to 1.0)
-}
+}}
 """
 
 DEFAULT_GROUNDEDNESS_USER_PROMPT = """\
@@ -58,7 +60,7 @@ DEFAULT_GROUNDEDNESS_USER_PROMPT = """\
 # Candidate Output (To Verify)
 {output}
 
-### Task
+# Task
 1. Extract all verifiable claims from the Candidate Output.
 2. Verify each against the Context.
 3. Calculate the score as: (Number of Supported Claims) / (Total Claims).
@@ -125,11 +127,16 @@ def create_trace_groundedness_evaluator(
     model_config : LLMRequestConfig | None, optional, default=None
         Model request and retry configuration reused from ``llm_judge``.
     system_prompt_template : str, optional, default=DEFAULT_GROUNDEDNESS_SYSTEM_PROMPT
-        System prompt template for the groundedness judge.
+        System prompt template for the groundedness judge. If it contains
+        ``{rubric_section}``, rubric text is inserted at that location;
+        otherwise the rubric section is appended to the end.
     prompt_template : str, optional, default=DEFAULT_GROUNDEDNESS_USER_PROMPT
         User prompt template supporting ``{context}`` and ``{output}``.
     rubric_markdown : str | Path | None, optional, default=None
-        Optional rubric markdown text or path.
+        Optional rubric markdown text or path. This is rendered and injected into
+        the system prompt to provide additional guidance to the judge without
+        requiring users to fully rewrite the system prompt when customizing
+        evaluation guidance.
     error_metric_name : str | None, optional, default=None
         Optional override for deterministic error metric name.
     max_tool_observations : int, optional, default=100
