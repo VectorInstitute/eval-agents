@@ -4,26 +4,36 @@ This script runs the Knowledge Agent against a Langfuse dataset and evaluates
 results using the DeepSearchQA LLM-as-judge methodology. Results are automatically
 logged to Langfuse for analysis and comparison.
 
+Optionally, trace-level groundedness evaluation can be enabled to check if agent
+outputs are supported by tool observations.
+
 Usage:
     # Run a full evaluation
     python evaluate.py
 
     # Run with custom dataset and experiment name
     python evaluate.py --dataset-name "MyDataset" --experiment-name "v2-test"
+
+    # Enable trace groundedness evaluation
+    ENABLE_TRACE_GROUNDEDNESS=true python evaluate.py
 """
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.evaluation import run_experiment
+from aieng.agent_evals.evaluation import run_experiment, run_experiment_with_trace_evals
+from aieng.agent_evals.evaluation.graders import create_trace_groundedness_evaluator
+from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
+from aieng.agent_evals.evaluation.types import EvaluationResult
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAJudge, DeepSearchQAResult
+from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAResult, evaluate_deepsearchqa_async
 from aieng.agent_evals.logging_config import setup_logging
 from dotenv import load_dotenv
-from langfuse.experiment import Evaluation
+from langfuse.experiment import Evaluation, ExperimentResult
 
 
 load_dotenv(verbose=True)
@@ -34,24 +44,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_DATASET_NAME = "DeepSearchQA-Subset"
 DEFAULT_EXPERIMENT_NAME = "Knowledge Agent Evaluation"
 
-# Module-level lazy judge instance
-_judge: DeepSearchQAJudge | None = None
-
-
-def _get_judge() -> DeepSearchQAJudge:
-    """Get or create the shared DeepSearchQA Judge instance."""
-    global _judge  # noqa: PLW0603
-    if _judge is None:
-        _judge = DeepSearchQAJudge()
-    return _judge
-
-
-def _close_judge() -> None:
-    """Close the shared judge instance to clean up resources."""
-    global _judge  # noqa: PLW0603
-    if _judge is not None:
-        _judge.close()
-        _judge = None
+# Configuration for trace groundedness evaluation
+ENABLE_TRACE_GROUNDEDNESS = os.getenv("ENABLE_TRACE_GROUNDEDNESS", "false").lower() in ("true", "1", "yes")
 
 
 async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG001
@@ -97,6 +91,9 @@ async def deepsearchqa_evaluator(
 ) -> list[Evaluation]:
     """Evaluate the agent's response using DeepSearchQA methodology.
 
+    This evaluator uses the modern async infrastructure with shared client
+    management and retry logic.
+
     Parameters
     ----------
     input : str
@@ -121,12 +118,13 @@ async def deepsearchqa_evaluator(
     logger.info(f"Evaluating response (answer_type: {answer_type})...")
 
     try:
-        judge = _get_judge()
-        _, result = await judge.evaluate_with_details_async(
+        # Use the modern async evaluator with default config
+        result = await evaluate_deepsearchqa_async(
             question=input,
             answer=output_text,
             ground_truth=expected_output,
             answer_type=answer_type,
+            model_config=LLMRequestConfig(temperature=0.0),
         )
 
         evaluations = result.to_evaluations()
@@ -142,7 +140,8 @@ async def run_evaluation(
     dataset_name: str,
     experiment_name: str,
     max_concurrency: int = 1,
-) -> None:
+    enable_trace_groundedness: bool = False,
+) -> ExperimentResult | EvaluationResult:
     """Run the full evaluation experiment.
 
     Parameters
@@ -153,29 +152,67 @@ async def run_evaluation(
         Name for this experiment run.
     max_concurrency : int, optional
         Maximum concurrent agent runs, by default 1.
+    enable_trace_groundedness : bool, optional
+        Whether to enable trace-level groundedness evaluation, by default False.
     """
     client_manager = AsyncClientManager.get_instance()
 
     try:
         logger.info(f"Starting experiment '{experiment_name}' on dataset '{dataset_name}'")
         logger.info(f"Max concurrency: {max_concurrency}")
+        logger.info(f"Trace groundedness: {'enabled' if enable_trace_groundedness else 'disabled'}")
 
-        result = run_experiment(
-            dataset_name=dataset_name,
-            name=experiment_name,
-            description="Knowledge Agent evaluation with DeepSearchQA judge",
-            task=agent_task,
-            evaluators=[deepsearchqa_evaluator],
-            max_concurrency=max_concurrency,
-        )
+        result: ExperimentResult | EvaluationResult
+        if enable_trace_groundedness:
+            # Create trace groundedness evaluator
+            # Only consider web_fetch and google_search tools as evidence
+            groundedness_evaluator = create_trace_groundedness_evaluator(
+                name="trace_groundedness",
+                model_config=LLMRequestConfig(temperature=0.0),
+                max_tool_observations=10,  # Limit context size
+            )
+
+            # Run with trace evaluations
+            result = run_experiment_with_trace_evals(
+                dataset_name=dataset_name,
+                name=experiment_name,
+                description="Knowledge Agent evaluation with DeepSearchQA judge and trace groundedness",
+                task=agent_task,
+                evaluators=[deepsearchqa_evaluator],  # Item-level evaluators
+                trace_evaluators=[groundedness_evaluator],  # Trace-level evaluators
+                max_concurrency=max_concurrency,
+            )
+        else:
+            # Run without trace evaluations
+            result = run_experiment(
+                dataset_name=dataset_name,
+                name=experiment_name,
+                description="Knowledge Agent evaluation with DeepSearchQA judge",
+                task=agent_task,
+                evaluators=[deepsearchqa_evaluator],
+                max_concurrency=max_concurrency,
+            )
 
         logger.info("Experiment complete!")
-        logger.info(result.format().replace("\\n", "\n"))
+        # Handle both ExperimentResult and EvaluationResult
+        if isinstance(result, EvaluationResult):
+            # EvaluationResult from run_experiment_with_trace_evals
+            logger.info(f"Results: {result.experiment}")
+            if result.trace_evaluations:
+                trace_evals = result.trace_evaluations
+                logger.info(
+                    f"Trace evaluations: {len(trace_evals.evaluations_by_trace_id)} traces, "
+                    f"{len(trace_evals.skipped_trace_ids)} skipped, {len(trace_evals.failed_trace_ids)} failed"
+                )
+        else:
+            # ExperimentResult from run_experiment
+            logger.info(f"Results: {result}")
+
+        return result
 
     finally:
         logger.info("Closing client manager and flushing data...")
         try:
-            _close_judge()
             await client_manager.close()
             await asyncio.sleep(0.1)
             logger.info("Cleanup complete")
@@ -200,9 +237,22 @@ async def run_evaluation(
     type=int,
     help="Maximum concurrent agent runs (default: 1).",
 )
-def cli(dataset_name: str, experiment_name: str, max_concurrency: int) -> None:
+@click.option(
+    "--enable-trace-groundedness",
+    is_flag=True,
+    default=ENABLE_TRACE_GROUNDEDNESS,
+    help="Enable trace-level groundedness evaluation.",
+)
+def cli(dataset_name: str, experiment_name: str, max_concurrency: int, enable_trace_groundedness: bool) -> None:
     """Run Knowledge Agent evaluation using Langfuse experiments."""
-    asyncio.run(run_evaluation(dataset_name, experiment_name, max_concurrency))
+    asyncio.run(
+        run_evaluation(
+            dataset_name,
+            experiment_name,
+            max_concurrency,
+            enable_trace_groundedness,
+        )
+    )
 
 
 if __name__ == "__main__":
