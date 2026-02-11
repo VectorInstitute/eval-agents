@@ -1,22 +1,27 @@
 """LLM-as-judge evaluators for knowledge agent responses.
 
-This module provides comprehensive evaluation using LLM judges across
-multiple dimensions: comprehensiveness, causal reasoning, exhaustiveness,
-source quality, and plan quality.
+This module provides comprehensive evaluation using LLM judges for the
+DeepSearchQA benchmark. The implementation follows the official DeepSearchQA
+evaluation methodology with precision, recall, and F1 metrics.
+
+The evaluator has been refactored to use shared evaluation infrastructure
+while maintaining backward compatibility with the original API.
 """
 
-import json
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.configs import Configs
-from google import genai
-from google.genai import types
+from aieng.agent_evals.evaluation.graders._utils import run_structured_parse_call
+from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
+from aieng.agent_evals.evaluation.types import Evaluation
 from pydantic import BaseModel, Field
 
 
 if TYPE_CHECKING:
-    from langfuse.experiment import Evaluation
+    pass
 
 
 logger = logging.getLogger(__name__)
@@ -41,122 +46,6 @@ class JudgeResult(BaseModel):
     score: float  # 1-5 scale
     explanation: str = ""
     evidence: list[str] = Field(default_factory=list)
-
-
-def _parse_judge_response(response_text: str, dimension: str) -> JudgeResult:
-    """Parse a judge's response into a JudgeResult.
-
-    Parameters
-    ----------
-    response_text : str
-        Raw response from the judge LLM.
-    dimension : str
-        The dimension being evaluated.
-
-    Returns
-    -------
-    JudgeResult
-        Parsed result.
-    """
-    try:
-        text = response_text.strip()
-
-        # Handle markdown code blocks
-        if "```json" in text:
-            start = text.find("```json") + 7
-            end = text.find("```", start)
-            text = text[start:end].strip()
-        elif "```" in text:
-            start = text.find("```") + 3
-            end = text.find("```", start)
-            text = text[start:end].strip()
-
-        data = json.loads(text)
-
-        return JudgeResult(
-            dimension=dimension,
-            score=float(data.get("score", 3)),
-            explanation=data.get("explanation", ""),
-            evidence=data.get("evidence", []),
-        )
-
-    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-        logger.warning(f"Failed to parse judge response for {dimension}: {e}")
-        return JudgeResult(
-            dimension=dimension,
-            score=3.0,  # Default middle score
-            explanation=f"Parse error: {e}. Raw response: {response_text[:200]}",
-            evidence=[],
-        )
-
-
-class BaseJudge:
-    """Base class for LLM-as-judge evaluators.
-
-    Parameters
-    ----------
-    config : Configs, optional
-        Configuration settings.
-    model : str, optional
-        Model to use for judging. Defaults to planner model.
-    """
-
-    dimension: str = "base"
-    system_prompt: str = ""
-
-    def __init__(
-        self,
-        config: "Configs | None" = None,
-        model: str | None = None,
-    ) -> None:
-        """Initialize the judge."""
-        # Load config from environment if not provided
-        if config is None:
-            config = Configs()  # type: ignore[call-arg]
-        self._config = config
-
-        if model is not None:
-            self._model = model
-        else:
-            self._model = config.default_evaluator_model
-
-        self._client = genai.Client()
-        self._temperature = config.default_evaluator_temperature
-
-    def _call_llm(self, prompt: str) -> str:
-        """Call the LLM with the given prompt."""
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=types.Content(
-                role="user",
-                parts=[types.Part(text=prompt)],
-            ),
-            config=types.GenerateContentConfig(
-                system_instruction=self.system_prompt,
-                temperature=self._temperature,
-            ),
-        )
-        return response.text or ""
-
-    async def _call_llm_async(self, prompt: str) -> str:
-        """Call the LLM asynchronously."""
-        response = await self._client.aio.models.generate_content(
-            model=self._model,
-            contents=types.Content(
-                role="user",
-                parts=[types.Part(text=prompt)],
-            ),
-            config=types.GenerateContentConfig(
-                system_instruction=self.system_prompt,
-                temperature=self._temperature,
-            ),
-        )
-        return response.text or ""
-
-    def close(self) -> None:
-        """Close the judge's client to clean up resources."""
-        if hasattr(self, "_client") and self._client is not None:
-            self._client.close()
 
 
 class DeepSearchQAResult(BaseModel):
@@ -195,7 +84,7 @@ class DeepSearchQAResult(BaseModel):
     extraneous_items: list[str] = Field(default_factory=list)
     explanation: str = ""
 
-    def to_evaluations(self) -> list["Evaluation"]:
+    def to_evaluations(self) -> list[Evaluation]:
         """Convert this result to Langfuse Evaluation objects.
 
         Returns
@@ -203,8 +92,6 @@ class DeepSearchQAResult(BaseModel):
         list[Evaluation]
             Four evaluations: Outcome (categorical), F1, Precision, Recall (numeric).
         """
-        from langfuse.experiment import Evaluation  # noqa: PLC0415
-
         comment_parts = [
             f"Outcome: {self.outcome}",
             f"Precision: {self.precision:.2f}",
@@ -244,7 +131,7 @@ class DeepSearchQAResult(BaseModel):
         ]
 
     @staticmethod
-    def error_evaluations(error_msg: str) -> list["Evaluation"]:
+    def error_evaluations(error_msg: str) -> list[Evaluation]:
         """Create error evaluations when evaluation fails.
 
         Parameters
@@ -257,14 +144,29 @@ class DeepSearchQAResult(BaseModel):
         list[Evaluation]
             Three evaluations (F1, Precision, Recall) all set to 0.0.
         """
-        from langfuse.experiment import Evaluation  # noqa: PLC0415
-
         comment = f"Evaluation error: {error_msg}"
         return [
             Evaluation(name="F1", value=0.0, comment=comment),
             Evaluation(name="Precision", value=0.0, comment=comment),
             Evaluation(name="Recall", value=0.0, comment=comment),
         ]
+
+
+class DeepSearchQAGraderResponse(BaseModel):
+    """Structured response from the DeepSearchQA grader.
+
+    This matches the official DeepSearchQA grader output format.
+
+    Attributes
+    ----------
+    answer_correctness : dict[str, Any]
+        Dictionary containing:
+        - Explanation: str - Explanation of the evaluation
+        - Correctness Details: dict[str, bool] - Per-item correctness
+        - Excessive Answers: list[str] - Extra items not in ground truth
+    """
+
+    answer_correctness: dict[str, Any] = Field(alias="Answer Correctness")
 
 
 # Official DeepSearchQA grader prompt from Appendix A of the paper
@@ -352,7 +254,136 @@ Rating:
 """
 
 
-class DeepSearchQAJudge(BaseJudge):
+def _calculate_metrics_from_grader(
+    grader_result: dict[str, Any],
+) -> DeepSearchQAResult:
+    """Calculate precision, recall, F1 from grader output.
+
+    This follows the exact methodology from the paper:
+    - Precision = |S∩G| / |S|
+    - Recall = |S∩G| / |G|
+    - F1 = 2*P*R / (P+R)
+
+    Parameters
+    ----------
+    grader_result : dict
+        Output from the LLM grader with Correctness Details and Excessive Answers.
+
+    Returns
+    -------
+    DeepSearchQAResult
+        Computed metrics and classifications.
+    """
+    correctness_details = grader_result.get("Correctness Details", {})
+    extraneous_items = grader_result.get("Excessive Answers", [])
+    explanation = grader_result.get("Explanation", "")
+
+    # Count matched ground truth items
+    num_ground_truth = len(correctness_details)
+    num_matched = sum(1 for v in correctness_details.values() if v)
+    num_extraneous = len(extraneous_items)
+
+    # Total predicted items = matched + extraneous
+    num_predicted = num_matched + num_extraneous
+
+    # Calculate metrics
+    precision = num_matched / num_predicted if num_predicted > 0 else 0.0
+    recall = num_matched / num_ground_truth if num_ground_truth > 0 else 1.0
+    f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+
+    # Determine outcome based on set relationships
+    if num_matched == num_ground_truth and num_extraneous == 0:
+        outcome = "fully_correct"
+    elif num_matched == num_ground_truth and num_extraneous > 0:
+        outcome = "correct_with_extraneous"
+    elif num_matched > 0:
+        outcome = "partially_correct"
+    else:
+        outcome = "fully_incorrect"
+
+    return DeepSearchQAResult(
+        precision=precision,
+        recall=recall,
+        f1_score=f1_score,
+        outcome=outcome,
+        correctness_details=correctness_details,
+        extraneous_items=extraneous_items,
+        explanation=explanation,
+    )
+
+
+async def evaluate_deepsearchqa_async(
+    *,
+    question: str,
+    answer: str,
+    ground_truth: str,
+    answer_type: str = "Single Answer",
+    model_config: LLMRequestConfig | None = None,
+) -> DeepSearchQAResult:
+    """Evaluate an answer using DeepSearchQA methodology.
+
+    This is the modern async evaluator that uses shared infrastructure.
+
+    Parameters
+    ----------
+    question : str
+        The original question.
+    answer : str
+        The agent's answer.
+    ground_truth : str
+        The expected ground truth answer.
+    answer_type : str
+        Type of answer: "Single Answer" or "Set Answer".
+    model_config : LLMRequestConfig | None, optional
+        Optional model configuration. If None, defaults are used.
+
+    Returns
+    -------
+    DeepSearchQAResult
+        The evaluation result with precision, recall, and F1 metrics.
+    """
+    config = model_config or LLMRequestConfig()
+    client_manager = AsyncClientManager.get_instance()
+
+    # Build the grader prompt
+    user_prompt = DEEPSEARCHQA_GRADER_PROMPT.format(
+        prompt=question,
+        response=answer,
+        answer=ground_truth,
+        prompt_type=answer_type,
+    )
+
+    try:
+        completion = await run_structured_parse_call(
+            openai_client=client_manager.openai_client,
+            default_model=client_manager.configs.default_evaluator_model,
+            model_config=config,
+            system_prompt="",  # DeepSearchQA uses all instructions in user prompt
+            user_prompt=user_prompt,
+            response_format=DeepSearchQAGraderResponse,
+        )
+
+        grader_response: DeepSearchQAGraderResponse | None = completion.choices[0].message.parsed
+
+        if grader_response is None:
+            raise ValueError("Grader returned null response")
+
+        return _calculate_metrics_from_grader(grader_response.answer_correctness)
+
+    except Exception as e:
+        logger.warning(f"Failed to evaluate with DeepSearchQA grader: {e}")
+        return DeepSearchQAResult(
+            precision=0.0,
+            recall=0.0,
+            f1_score=0.0,
+            outcome="fully_incorrect",
+            correctness_details={},
+            extraneous_items=[],
+            explanation=f"Grader error: {e}",
+        )
+
+
+class DeepSearchQAJudge:
     """Official DeepSearchQA evaluation using precision, recall, and F1.
 
     This judge implements the exact evaluation methodology from the DeepSearchQA
@@ -370,6 +401,12 @@ class DeepSearchQAJudge(BaseJudge):
     - Recall: R = |S∩G| / |G| (exhaustiveness against ground truth)
     - F1 Score: F1 = 2*P*R / (P+R) (primary ranking metric)
 
+    Notes
+    -----
+    This class provides backward compatibility with the original API.
+    Internally, it delegates to the modern async evaluator that uses
+    shared evaluation infrastructure.
+
     References
     ----------
     - Paper: DeepSearchQA: Bridging the Comprehensiveness Gap for Deep Research Agents
@@ -378,130 +415,30 @@ class DeepSearchQAJudge(BaseJudge):
     """
 
     dimension = "deepsearchqa"
-    system_prompt = ""  # Not used - we use the full grader prompt directly
 
-    def _call_grader(
+    def __init__(
         self,
-        prompt: str,
-        response: str,
-        answer: str,
-        prompt_type: str,
-    ) -> dict[str, Any]:
-        """Call the LLM grader using the official DeepSearchQA prompt.
+        config: "Configs | None" = None,
+        model: str | None = None,
+    ) -> None:
+        """Initialize the judge.
 
         Parameters
         ----------
-        prompt : str
-            The original question/prompt.
-        response : str
-            The AI response to evaluate.
-        answer : str
-            The ground truth answer.
-        prompt_type : str
-            "Single Answer" or "Set Answer".
-
-        Returns
-        -------
-        dict
-            Parsed grader response with Correctness Details and Excessive Answers.
+        config : Configs | None, optional
+            Configuration settings. If None, defaults from environment are used.
+        model : str | None, optional
+            Model to use for judging. If None, default evaluator model is used.
         """
-        grader_prompt = DEEPSEARCHQA_GRADER_PROMPT.format(
-            prompt=prompt,
-            response=response,
-            answer=answer,
-            prompt_type=prompt_type,
-        )
+        # Store config for backward compatibility
+        if config is None:
+            config = Configs()  # type: ignore[call-arg]
+        self._config = config
 
-        try:
-            llm_response = self._client.models.generate_content(
-                model=self._model,
-                contents=types.Content(
-                    role="user",
-                    parts=[types.Part(text=grader_prompt)],
-                ),
-                config=types.GenerateContentConfig(
-                    temperature=self._temperature,
-                ),
-            )
-            response_text = (llm_response.text or "").strip()
-
-            # Parse JSON from response
-            if "```json" in response_text:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                response_text = response_text[start:end].strip()
-            elif "```" in response_text:
-                start = response_text.find("```") + 3
-                end = response_text.find("```", start)
-                response_text = response_text[start:end].strip()
-
-            data = json.loads(response_text)
-            return data.get("Answer Correctness", {})
-
-        except Exception as e:
-            logger.warning(f"Failed to call grader: {e}")
-            return {
-                "Explanation": f"Grader error: {e}",
-                "Correctness Details": {},
-                "Excessive Answers": [],
-            }
-
-    def _calculate_metrics_from_grader(
-        self,
-        grader_result: dict[str, Any],
-    ) -> DeepSearchQAResult:
-        """Calculate precision, recall, F1 from grader output.
-
-        This follows the exact methodology from the paper:
-        - Precision = |S∩G| / |S|
-        - Recall = |S∩G| / |G|
-        - F1 = 2*P*R / (P+R)
-
-        Parameters
-        ----------
-        grader_result : dict
-            Output from the LLM grader with Correctness Details and Excessive Answers.
-
-        Returns
-        -------
-        DeepSearchQAResult
-            Computed metrics and classifications.
-        """
-        correctness_details = grader_result.get("Correctness Details", {})
-        extraneous_items = grader_result.get("Excessive Answers", [])
-        explanation = grader_result.get("Explanation", "")
-
-        # Count matched ground truth items
-        num_ground_truth = len(correctness_details)
-        num_matched = sum(1 for v in correctness_details.values() if v)
-        num_extraneous = len(extraneous_items)
-
-        # Total predicted items = matched + extraneous
-        num_predicted = num_matched + num_extraneous
-
-        # Calculate metrics
-        precision = num_matched / num_predicted if num_predicted > 0 else 0.0
-        recall = num_matched / num_ground_truth if num_ground_truth > 0 else 1.0
-        f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
-
-        # Determine outcome based on set relationships
-        if num_matched == num_ground_truth and num_extraneous == 0:
-            outcome = "fully_correct"
-        elif num_matched == num_ground_truth and num_extraneous > 0:
-            outcome = "correct_with_extraneous"
-        elif num_matched > 0:
-            outcome = "partially_correct"
-        else:
-            outcome = "fully_incorrect"
-
-        return DeepSearchQAResult(
-            precision=precision,
-            recall=recall,
-            f1_score=f1_score,
-            outcome=outcome,
-            correctness_details=correctness_details,
-            extraneous_items=extraneous_items,
-            explanation=explanation,
+        # Build model config
+        self._model_config = LLMRequestConfig(
+            model=model if model is not None else config.default_evaluator_model,
+            temperature=config.default_evaluator_temperature,
         )
 
     def evaluate(
@@ -512,6 +449,9 @@ class DeepSearchQAJudge(BaseJudge):
         answer_type: str = "Single Answer",
     ) -> JudgeResult:
         """Evaluate an answer using DeepSearchQA methodology.
+
+        This is a synchronous wrapper around the async evaluator for backward
+        compatibility.
 
         Parameters
         ----------
@@ -529,18 +469,24 @@ class DeepSearchQAJudge(BaseJudge):
         JudgeResult
             The evaluation result with precision, recall, and F1 in evidence.
         """
-        logger.info(f"Evaluating answer for: {question[:100]}...")
+        # Run async evaluator in event loop
+        try:
+            asyncio.get_running_loop()
+            # If we're already in an async context, we can't use run_until_complete
+            raise RuntimeError("Cannot call synchronous evaluate from async context. Use evaluate_async instead.")
+        except RuntimeError:
+            # No running loop, safe to create one
+            pass
 
-        # Call the grader
-        grader_result = self._call_grader(
-            prompt=question,
-            response=answer,
-            answer=ground_truth,
-            prompt_type=answer_type,
+        result = asyncio.run(
+            evaluate_deepsearchqa_async(
+                question=question,
+                answer=answer,
+                ground_truth=ground_truth,
+                answer_type=answer_type,
+                model_config=self._model_config,
+            )
         )
-
-        # Calculate metrics from grader output
-        result = self._calculate_metrics_from_grader(grader_result)
 
         # Convert F1 to 1-5 scale for consistency with other judges
         score = 1 + (result.f1_score * 4)  # Maps 0-1 to 1-5
@@ -567,51 +513,14 @@ class DeepSearchQAJudge(BaseJudge):
         answer_type: str = "Single Answer",
     ) -> JudgeResult:
         """Async version of evaluate."""
-        logger.info(f"Evaluating answer (async) for: {question[:100]}...")
-
-        # Build the grader prompt
-        grader_prompt = DEEPSEARCHQA_GRADER_PROMPT.format(
-            prompt=question,
-            response=answer,
-            answer=ground_truth,
-            prompt_type=answer_type,
+        result = await evaluate_deepsearchqa_async(
+            question=question,
+            answer=answer,
+            ground_truth=ground_truth,
+            answer_type=answer_type,
+            model_config=self._model_config,
         )
 
-        try:
-            llm_response = await self._client.aio.models.generate_content(
-                model=self._model,
-                contents=types.Content(
-                    role="user",
-                    parts=[types.Part(text=grader_prompt)],
-                ),
-                config=types.GenerateContentConfig(
-                    temperature=self._temperature,
-                ),
-            )
-            response_text = (llm_response.text or "").strip()
-
-            # Parse JSON
-            if "```json" in response_text:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                response_text = response_text[start:end].strip()
-            elif "```" in response_text:
-                start = response_text.find("```") + 3
-                end = response_text.find("```", start)
-                response_text = response_text[start:end].strip()
-
-            data = json.loads(response_text)
-            grader_result = data.get("Answer Correctness", {})
-
-        except Exception as e:
-            logger.warning(f"Failed to call grader async: {e}")
-            grader_result = {
-                "Explanation": f"Grader error: {e}",
-                "Correctness Details": {},
-                "Excessive Answers": [],
-            }
-
-        result = self._calculate_metrics_from_grader(grader_result)
         score = 1 + (result.f1_score * 4)
 
         return JudgeResult(
@@ -653,14 +562,26 @@ class DeepSearchQAJudge(BaseJudge):
         tuple[JudgeResult, DeepSearchQAResult]
             Both the standard judge result and detailed metrics.
         """
-        grader_result = self._call_grader(
-            prompt=question,
-            response=answer,
-            answer=ground_truth,
-            prompt_type=answer_type,
+        try:
+            asyncio.get_running_loop()
+            # If we're already in an async context, we can't use run_until_complete
+            raise RuntimeError(
+                "Cannot call synchronous evaluate_with_details from async context. Use evaluate_with_details_async instead."
+            )
+        except RuntimeError:
+            # No running loop, safe to create one
+            pass
+
+        result = asyncio.run(
+            evaluate_deepsearchqa_async(
+                question=question,
+                answer=answer,
+                ground_truth=ground_truth,
+                answer_type=answer_type,
+                model_config=self._model_config,
+            )
         )
 
-        result = self._calculate_metrics_from_grader(grader_result)
         score = 1 + (result.f1_score * 4)
 
         judge_result = JudgeResult(
@@ -702,49 +623,14 @@ class DeepSearchQAJudge(BaseJudge):
         tuple[JudgeResult, DeepSearchQAResult]
             Both the standard judge result and detailed metrics.
         """
-        # Build the grader prompt
-        grader_prompt = DEEPSEARCHQA_GRADER_PROMPT.format(
-            prompt=question,
-            response=answer,
-            answer=ground_truth,
-            prompt_type=answer_type,
+        result = await evaluate_deepsearchqa_async(
+            question=question,
+            answer=answer,
+            ground_truth=ground_truth,
+            answer_type=answer_type,
+            model_config=self._model_config,
         )
 
-        try:
-            llm_response = await self._client.aio.models.generate_content(
-                model=self._model,
-                contents=types.Content(
-                    role="user",
-                    parts=[types.Part(text=grader_prompt)],
-                ),
-                config=types.GenerateContentConfig(
-                    temperature=self._temperature,
-                ),
-            )
-            response_text = (llm_response.text or "").strip()
-
-            # Parse JSON
-            if "```json" in response_text:
-                start = response_text.find("```json") + 7
-                end = response_text.find("```", start)
-                response_text = response_text[start:end].strip()
-            elif "```" in response_text:
-                start = response_text.find("```") + 3
-                end = response_text.find("```", start)
-                response_text = response_text[start:end].strip()
-
-            data = json.loads(response_text)
-            grader_result = data.get("Answer Correctness", {})
-
-        except Exception as e:
-            logger.warning(f"Failed to call grader async: {e}")
-            grader_result = {
-                "Explanation": f"Grader error: {e}",
-                "Correctness Details": {},
-                "Excessive Answers": [],
-            }
-
-        result = self._calculate_metrics_from_grader(grader_result)
         score = 1 + (result.f1_score * 4)
 
         judge_result = JudgeResult(
@@ -760,3 +646,12 @@ class DeepSearchQAJudge(BaseJudge):
         )
 
         return judge_result, result
+
+    def close(self) -> None:
+        """Close the judge's client to clean up resources.
+
+        Note: With the new shared client manager, cleanup is handled
+        centrally. This method is kept for backward compatibility.
+        """
+        # No-op: AsyncClientManager handles cleanup
+        pass

@@ -36,7 +36,6 @@ from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .data import DeepSearchQADataset, DSQAExample
 from .evaluation import DeepSearchQAEvaluator, EvaluationResult
 from .judges import (
-    BaseJudge,
     DeepSearchQAJudge,
     DeepSearchQAResult,
     JudgeResult,
@@ -74,7 +73,6 @@ __all__ = [
     "StepExecution",
     "StepStatus",
     # Judges
-    "BaseJudge",
     "JudgeResult",
     "DeepSearchQAJudge",
     "DeepSearchQAResult",

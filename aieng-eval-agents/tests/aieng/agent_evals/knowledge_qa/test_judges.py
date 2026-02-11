@@ -1,14 +1,13 @@
 """Tests for the LLM-as-judge evaluators."""
 
-import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from aieng.agent_evals.knowledge_qa.judges import (
-    BaseJudge,
     DeepSearchQAJudge,
     DeepSearchQAResult,
     JudgeResult,
+    _calculate_metrics_from_grader,
 )
 
 
@@ -67,54 +66,11 @@ class TestDeepSearchQAResult:
         assert result.extraneous_items == []
 
 
-def _create_mock_config():
-    """Create a mock Configs for testing."""
-    mock_config = MagicMock()
-    mock_config.default_evaluator_model = "gemini-2.5-flash"
-    return mock_config
-
-
-class TestBaseJudge:
-    """Tests for the BaseJudge class."""
-
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_initialization_without_config(self, mock_client_class, mock_config_class):
-        """Test judge initialization without config."""
-        mock_config_class.return_value = _create_mock_config()
-        judge = BaseJudge()
-        assert judge._model == "gemini-2.5-flash"
-
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_initialization_with_model(self, mock_client_class, mock_config_class):
-        """Test judge initialization with explicit model."""
-        mock_config_class.return_value = _create_mock_config()
-        judge = BaseJudge(model="gemini-2.5-pro")
-        assert judge._model == "gemini-2.5-pro"
-
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_initialization_with_config(self, mock_client_class):
-        """Test judge initialization with config."""
-        mock_config = MagicMock()
-        mock_config.default_evaluator_model = "gemini-2.5-pro"
-
-        judge = BaseJudge(config=mock_config)
-        assert judge._model == "gemini-2.5-pro"
-
-
-class TestDeepSearchQAJudge:
-    """Tests for the DeepSearchQAJudge."""
+class TestCalculateMetrics:
+    """Tests for the _calculate_metrics_from_grader function."""
 
     def test_calculate_metrics_perfect_match(self):
         """Test metrics calculation with perfect match (fully_correct)."""
-        with (
-            patch("aieng.agent_evals.knowledge_qa.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_qa.judges.Configs") as mock_config,
-        ):
-            mock_config.return_value = _create_mock_config()
-            judge = DeepSearchQAJudge()
-
         # Simulate grader output for perfect match
         grader_result = {
             "Explanation": "All items found correctly",
@@ -122,7 +78,7 @@ class TestDeepSearchQAJudge:
             "Excessive Answers": [],
         }
 
-        result = judge._calculate_metrics_from_grader(grader_result)
+        result = _calculate_metrics_from_grader(grader_result)
 
         assert result.precision == 1.0
         assert result.recall == 1.0
@@ -131,13 +87,6 @@ class TestDeepSearchQAJudge:
 
     def test_calculate_metrics_with_extraneous(self):
         """Test metrics calculation with extraneous items (correct_with_extraneous)."""
-        with (
-            patch("aieng.agent_evals.knowledge_qa.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_qa.judges.Configs") as mock_config,
-        ):
-            mock_config.return_value = _create_mock_config()
-            judge = DeepSearchQAJudge()
-
         # Simulate grader output: all ground truth found + extra item
         grader_result = {
             "Explanation": "All items found but includes extra",
@@ -145,7 +94,7 @@ class TestDeepSearchQAJudge:
             "Excessive Answers": ["D"],
         }
 
-        result = judge._calculate_metrics_from_grader(grader_result)
+        result = _calculate_metrics_from_grader(grader_result)
 
         assert result.precision == 0.75  # 3/(3+1)
         assert result.recall == 1.0  # 3/3
@@ -154,13 +103,6 @@ class TestDeepSearchQAJudge:
 
     def test_calculate_metrics_with_missed(self):
         """Test metrics calculation with missed items (partially_correct)."""
-        with (
-            patch("aieng.agent_evals.knowledge_qa.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_qa.judges.Configs") as mock_config,
-        ):
-            mock_config.return_value = _create_mock_config()
-            judge = DeepSearchQAJudge()
-
         # Simulate grader output: only 2 of 3 ground truth found
         grader_result = {
             "Explanation": "Found A and B but missed C",
@@ -168,7 +110,7 @@ class TestDeepSearchQAJudge:
             "Excessive Answers": [],
         }
 
-        result = judge._calculate_metrics_from_grader(grader_result)
+        result = _calculate_metrics_from_grader(grader_result)
 
         assert result.precision == 1.0  # 2/2 (no extraneous)
         assert result.recall == pytest.approx(2 / 3)  # 2/3
@@ -177,13 +119,6 @@ class TestDeepSearchQAJudge:
 
     def test_calculate_metrics_fully_incorrect(self):
         """Test metrics calculation with no matches (fully_incorrect)."""
-        with (
-            patch("aieng.agent_evals.knowledge_qa.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_qa.judges.Configs") as mock_config,
-        ):
-            mock_config.return_value = _create_mock_config()
-            judge = DeepSearchQAJudge()
-
         # Simulate grader output: no correct items
         grader_result = {
             "Explanation": "No correct items found",
@@ -191,7 +126,7 @@ class TestDeepSearchQAJudge:
             "Excessive Answers": ["X", "Y"],
         }
 
-        result = judge._calculate_metrics_from_grader(grader_result)
+        result = _calculate_metrics_from_grader(grader_result)
 
         assert result.precision == 0.0
         assert result.recall == 0.0
@@ -200,13 +135,6 @@ class TestDeepSearchQAJudge:
 
     def test_calculate_metrics_empty_ground_truth(self):
         """Test metrics calculation with empty ground truth."""
-        with (
-            patch("aieng.agent_evals.knowledge_qa.judges.genai.Client"),
-            patch("aieng.agent_evals.knowledge_qa.judges.Configs") as mock_config,
-        ):
-            mock_config.return_value = _create_mock_config()
-            judge = DeepSearchQAJudge()
-
         # Edge case: no ground truth items
         grader_result = {
             "Explanation": "No ground truth to check",
@@ -214,81 +142,29 @@ class TestDeepSearchQAJudge:
             "Excessive Answers": [],
         }
 
-        result = judge._calculate_metrics_from_grader(grader_result)
+        result = _calculate_metrics_from_grader(grader_result)
 
         assert result.recall == 1.0  # Edge case handling
         assert result.outcome == "fully_correct"
 
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_call_grader(self, mock_client_class, mock_config_class):
-        """Test that _call_grader properly calls the LLM."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "Answer Correctness": {
-                    "Explanation": "Belgium and France found correctly",
-                    "Correctness Details": {"Belgium": True, "France": True},
-                    "Excessive Answers": ["Italy"],
-                }
-            }
+
+class TestDeepSearchQAJudge:
+    """Tests for the DeepSearchQAJudge."""
+
+    @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
+    def test_evaluate_full(self, mock_evaluate_async):
+        """Test full evaluation flow."""
+        # Mock the async evaluator to return a result
+        mock_result = DeepSearchQAResult(
+            precision=1.0,
+            recall=1.0,
+            f1_score=1.0,
+            outcome="fully_correct",
+            correctness_details={"USA": True, "UK": True},
+            extraneous_items=[],
+            explanation="Both USA and UK found correctly",
         )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
-
-        judge = DeepSearchQAJudge()
-        result = judge._call_grader(
-            prompt="What countries border Luxembourg?",
-            response="Belgium, France, and Italy",
-            answer="Belgium, France",
-            prompt_type="Set Answer",
-        )
-
-        assert result["Correctness Details"]["Belgium"] is True
-        assert result["Correctness Details"]["France"] is True
-        assert "Italy" in result["Excessive Answers"]
-        mock_client.models.generate_content.assert_called_once()
-
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_call_grader_handles_error(self, mock_client_class, mock_config_class):
-        """Test that _call_grader handles errors gracefully."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_client.models.generate_content.side_effect = Exception("API Error")
-        mock_client_class.return_value = mock_client
-
-        judge = DeepSearchQAJudge()
-        result = judge._call_grader(
-            prompt="Test",
-            response="Test",
-            answer="Test",
-            prompt_type="Single Answer",
-        )
-
-        assert "Grader error" in result["Explanation"]
-        assert result["Correctness Details"] == {}
-
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_evaluate_full(self, mock_client_class, mock_config_class):
-        """Test full evaluation flow with official grader prompt."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "Answer Correctness": {
-                    "Explanation": "Both USA and UK found correctly",
-                    "Correctness Details": {"USA": True, "UK": True},
-                    "Excessive Answers": [],
-                }
-            }
-        )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
+        mock_evaluate_async.return_value = mock_result
 
         judge = DeepSearchQAJudge()
         result = judge.evaluate(
@@ -304,28 +180,20 @@ class TestDeepSearchQAJudge:
         assert "Recall: 1.00" in result.evidence[1]
         assert "fully_correct" in result.evidence[3]
 
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_evaluate_partial_match(self, mock_client_class, mock_config_class):
+    @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
+    def test_evaluate_partial_match(self, mock_evaluate_async):
         """Test evaluation with partial match."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "Answer Correctness": {
-                    "Explanation": "Found Washington and Adams, missed Jefferson",
-                    "Correctness Details": {
-                        "George Washington": True,
-                        "John Adams": True,
-                        "Thomas Jefferson": False,
-                    },
-                    "Excessive Answers": [],
-                }
-            }
+        # Mock partial match result
+        mock_result = DeepSearchQAResult(
+            precision=1.0,
+            recall=2 / 3,
+            f1_score=0.8,
+            outcome="partially_correct",
+            correctness_details={"George Washington": True, "John Adams": True, "Thomas Jefferson": False},
+            extraneous_items=[],
+            explanation="Found Washington and Adams, missed Jefferson",
         )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
+        mock_evaluate_async.return_value = mock_result
 
         judge = DeepSearchQAJudge()
         result = judge.evaluate(
@@ -336,28 +204,22 @@ class TestDeepSearchQAJudge:
         )
 
         assert result.dimension == "deepsearchqa"
-        # F1 = 2 * 1.0 * (2/3) / (1.0 + 2/3) = 0.8
         assert "partially_correct" in result.evidence[3]
         assert result.score < 5.0  # Not perfect
 
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_evaluate_with_details(self, mock_client_class, mock_config_class):
+    @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
+    def test_evaluate_with_details(self, mock_evaluate_async):
         """Test evaluation with detailed results."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "Answer Correctness": {
-                    "Explanation": "Correct answer found",
-                    "Correctness Details": {"Paris": True},
-                    "Excessive Answers": [],
-                }
-            }
+        mock_result = DeepSearchQAResult(
+            precision=1.0,
+            recall=1.0,
+            f1_score=1.0,
+            outcome="fully_correct",
+            correctness_details={"Paris": True},
+            extraneous_items=[],
+            explanation="Correct answer found",
         )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
+        mock_evaluate_async.return_value = mock_result
 
         judge = DeepSearchQAJudge()
         judge_result, detailed_result = judge.evaluate_with_details(
@@ -372,24 +234,19 @@ class TestDeepSearchQAJudge:
         assert detailed_result.f1_score == 1.0
         assert detailed_result.outcome == "fully_correct"
 
-    @patch("aieng.agent_evals.knowledge_qa.judges.Configs")
-    @patch("aieng.agent_evals.knowledge_qa.judges.genai.Client")
-    def test_evaluate_single_answer_type(self, mock_client_class, mock_config_class):
+    @patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async")
+    def test_evaluate_single_answer_type(self, mock_evaluate_async):
         """Test evaluation with Single Answer type."""
-        mock_config_class.return_value = _create_mock_config()
-        mock_client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(
-            {
-                "Answer Correctness": {
-                    "Explanation": "Answer is semantically equivalent",
-                    "Correctness Details": {"42": True},
-                    "Excessive Answers": [],
-                }
-            }
+        mock_result = DeepSearchQAResult(
+            precision=1.0,
+            recall=1.0,
+            f1_score=1.0,
+            outcome="fully_correct",
+            correctness_details={"42": True},
+            extraneous_items=[],
+            explanation="Answer is semantically equivalent",
         )
-        mock_client.models.generate_content.return_value = mock_response
-        mock_client_class.return_value = mock_client
+        mock_evaluate_async.return_value = mock_result
 
         judge = DeepSearchQAJudge()
         result = judge.evaluate(
@@ -402,12 +259,38 @@ class TestDeepSearchQAJudge:
         assert result.dimension == "deepsearchqa"
         assert result.score == 5.0  # Perfect match
 
+    @pytest.mark.asyncio
+    async def test_evaluate_async(self):
+        """Test async evaluation."""
+        with patch("aieng.agent_evals.knowledge_qa.judges.evaluate_deepsearchqa_async") as mock_evaluate:
+            mock_result = DeepSearchQAResult(
+                precision=1.0,
+                recall=1.0,
+                f1_score=1.0,
+                outcome="fully_correct",
+                correctness_details={"test": True},
+                extraneous_items=[],
+                explanation="Test passed",
+            )
+            mock_evaluate.return_value = mock_result
+
+            judge = DeepSearchQAJudge()
+            result = await judge.evaluate_async(
+                question="Test question?",
+                answer="Test answer",
+                ground_truth="Test answer",
+                answer_type="Single Answer",
+            )
+
+            assert result.dimension == "deepsearchqa"
+            assert result.score == 5.0
+
 
 @pytest.mark.integration_test
 class TestJudgesIntegration:
     """Integration tests for judges.
 
-    These tests require a valid GOOGLE_API_KEY environment variable.
+    These tests require valid API keys (OPENAI_API_KEY or GOOGLE_API_KEY).
     """
 
     def test_deepsearchqa_judge_real(self):
@@ -417,7 +300,7 @@ class TestJudgesIntegration:
             question="Name the first three US presidents",
             answer="George Washington, John Adams, Thomas Jefferson",
             ground_truth="George Washington, John Adams, Thomas Jefferson",
-            answer_type="List",
+            answer_type="Set Answer",
         )
 
         assert result.dimension == "deepsearchqa"

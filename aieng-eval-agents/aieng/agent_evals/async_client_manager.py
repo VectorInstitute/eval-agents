@@ -4,7 +4,6 @@ Provides idempotent initialization and proper cleanup of async clients
 like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
-import asyncio
 import logging
 import sqlite3
 from pathlib import Path
@@ -12,7 +11,7 @@ from typing import Any
 
 from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse
-from openai import AsyncOpenAI
+from langfuse.openai import AsyncOpenAI
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -135,7 +134,12 @@ class AsyncClientManager:
         """
         if self._openai_client is None:
             api_key = self.configs.openai_api_key.get_secret_value()
-            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
+
+            self._openai_client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=self.configs.openai_base_url,
+                max_retries=0,  # Using custom retry logic (tenacity) elsewhere
+            )
             self._initialized = True
         return self._openai_client
 
@@ -214,9 +218,7 @@ class AsyncClientManager:
             self._sqlite_connection = None
 
         if self._langfuse_client is not None:
-            # Run flush in executor to avoid blocking the event loop
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._langfuse_client.flush)
+            self._langfuse_client.flush()
             self._langfuse_client = None
 
         self._initialized = False

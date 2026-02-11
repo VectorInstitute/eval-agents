@@ -1218,7 +1218,7 @@ async def cmd_eval(
             # Display full results after Live display ends
             tool_counts = _display_example_result(example, response, i, len(examples))
             console.print("\n[bold blue]⏳ Evaluating...[/bold blue]\n")
-            _, result = judge.evaluate_with_details(
+            _, result = await judge.evaluate_with_details_async(
                 question=example.problem,
                 answer=response.text,
                 ground_truth=example.answer,
