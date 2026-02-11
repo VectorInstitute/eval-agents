@@ -36,8 +36,8 @@ uv run --env-file .env python -m implementations.report_generation.data.import_o
 
 Replace `<path_to_the_csv_file>` with the path the dataset's .CSV file is saved in your machine.
 
-***NOTE:*** You can configure the location the database is saved by setting the path to
-an environment variable named `REPORT_GENERATION_DB_PATH`.
+***NOTE:*** The location the database is saved is determined by an environment variable
+named `REPORT_GENERATION_DB__DATABASE`.
 
 ## Running the Demo UI
 

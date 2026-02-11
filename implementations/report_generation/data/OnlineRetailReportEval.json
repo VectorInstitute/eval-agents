@@ -24,7 +24,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "write_xlsx",
@@ -61,7 +61,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "write_xlsx",
@@ -101,7 +101,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "write_xlsx",
@@ -149,7 +149,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "output_text",
@@ -239,7 +239,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "write_xlsx",
@@ -276,7 +276,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "execute",
@@ -307,7 +307,7 @@
             },
             "trajectory": {
                 "actions": [
-                    "execute",
+                    "get_schema_info",
                     "execute",
                     "execute",
                     "execute",

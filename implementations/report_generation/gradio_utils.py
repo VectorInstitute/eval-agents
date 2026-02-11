@@ -61,7 +61,7 @@ def agent_event_to_gradio_messages(event: Event) -> list[ChatMessage]:
                     role="assistant",
                     content=f"```\n{parsed_event.arguments}\n```",
                     metadata={
-                        "title": f"*Tool call output: `{parsed_event.text}`*",
+                        "title": f"📝 Tool call output: `{parsed_event.text}`",
                         "status": "done",  # This makes it collapsed by default
                     },
                 )

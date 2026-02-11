@@ -34,7 +34,13 @@ def set_up_langfuse_otlp_env_vars():
     """
     configs = Configs()
 
-    langfuse_key = f"{configs.langfuse_public_key}:{configs.langfuse_secret_key}".encode()
+    if configs.langfuse_secret_key:
+        langfuse_auth_key = configs.langfuse_secret_key.get_secret_value()
+    else:
+        logger.error("Langfuse secret key is not set. Monitoring may not be enabled.")
+        langfuse_auth_key = ""
+
+    langfuse_key = f"{configs.langfuse_public_key}:{langfuse_auth_key}".encode()
     langfuse_auth = base64.b64encode(langfuse_key).decode()
 
     os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = configs.langfuse_host + "/api/public/otel"
