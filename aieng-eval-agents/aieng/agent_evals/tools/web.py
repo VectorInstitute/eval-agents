@@ -4,7 +4,7 @@ Provides the web_fetch tool which fetches content from any URL (HTML pages or PD
 and uses an LLM to extract relevant information based on a query. This prevents
 context overflow by returning only extracted information instead of full page content.
 
-Architecture matches Claude Code's WebFetch tool:
+Architecture:
 1. Fetch URL and convert to markdown/text
 2. Use LLM to extract information based on query
 3. Return only extracted information (~200-1000 tokens instead of 10k-100k)
@@ -245,7 +245,7 @@ Please extract the requested information. Be concise but complete."""
 async def _extract_information_with_llm(content: str, query: str, url: str) -> dict[str, Any]:
     """Extract relevant information from content using an LLM.
 
-    This is the key function that implements Claude Code's WebFetch architecture.
+    This is the key function that implements the WebFetch architecture.
     Instead of returning full page content, it uses an LLM to extract only the
     information requested in the query.
 
@@ -345,14 +345,11 @@ def _handle_fetch_error(e: Exception, url: str) -> dict[str, Any]:
 async def web_fetch(url: str, query: str, max_pages: int = 10) -> dict[str, Any]:
     """Fetch and extract information from web pages and PDFs using LLM.
 
-    This tool implements Claude Code's WebFetch architecture:
+    This tool implements WebFetch:
     1. Fetches the URL (HTML or PDF)
     2. Converts to markdown/text
     3. Uses an LLM to extract only the information specified in query
     4. Returns extracted info (~200-1000 tokens) instead of full content
-
-    This prevents context overflow by avoiding accumulation of large web page
-    content in the agent's context window.
 
     For data files like CSV or XLSX that need line-by-line searching,
     use fetch_file instead.
