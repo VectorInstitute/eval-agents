@@ -107,7 +107,7 @@ async def agent_session_handler(
                 target=report_usage_scores,
                 kwargs={
                     "trace_id": langfuse_client.get_current_trace_id(),
-                    "token_threshold": 20000,
+                    "token_threshold": 15000,
                     "latency_threshold": 60,
                 },
                 daemon=True,
