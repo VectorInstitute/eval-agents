@@ -1,5 +1,6 @@
 """Functions and objects pertaining to Langfuse."""
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -10,16 +11,15 @@ from typing import Any, Literal
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.evaluation.trace import extract_trace_metrics, fetch_trace_with_wait
+from aieng.agent_evals.evaluation.types import TraceWaitConfig
 from aieng.agent_evals.progress import track_with_progress
 from langfuse import Langfuse
-from langfuse.api.resources.commons.types.observations_view import ObservationsView
-from langfuse.api.resources.observations.types.observations_views import ObservationsViews
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -162,16 +162,6 @@ def init_tracing(service_name: str = "aieng-eval-agents") -> bool:
     except Exception as e:
         logger.warning("Failed to initialize tracing: %s", e)
         return False
-
-
-def flush_traces() -> None:
-    """Flush any pending traces to Langfuse.
-
-    Call this before your application exits to ensure all traces are sent.
-    """
-    manager = AsyncClientManager.get_instance()
-    if manager._langfuse_client is not None:
-        manager._langfuse_client.flush()
 
 
 def is_tracing_enabled() -> bool:
@@ -392,7 +382,7 @@ def report_usage_scores(
     trace_id: str
         The ID of the trace to report the usage scores for.
     token_threshold: int
-        The token threshold to report the score for.
+        The total token (input + output) threshold to report the score for.
         if the token count is greater than the threshold, the score
         will be reported as 0.
         Optional, default to 0 (no reporting).
@@ -408,88 +398,59 @@ def report_usage_scores(
         Optional, default to 0 (no reporting).
     """
     langfuse_client = AsyncClientManager.get_instance().langfuse_client
-    observations = _get_observations_with_retry(trace_id, langfuse_client)
+
+    logger.info(f"Fetching trace {trace_id}...")
+    trace, ready = asyncio.run(
+        fetch_trace_with_wait(langfuse_client, trace_id, TraceWaitConfig()),
+    )
+
+    if trace is None:
+        logger.error(f"Trace {trace_id} not found. Will not report usage scores.")
+        return
+
+    if not ready:
+        logger.warning(f"Trace {trace_id} is not ready. Scores will be reported on partial traces.")
+
+    trace_metrics = extract_trace_metrics(trace)
 
     if token_threshold > 0:
-        total_tokens = sum(_obs_attr(observation, "totalTokens") for observation in observations.data)
-        if total_tokens <= token_threshold:
-            score = 1
-            comment = "Token count is less than or equal to the threshold."
-        else:
-            score = 0
-            comment = "Token count is greater than the threshold."
-
-        logger.info("Reporting score for token count")
-        langfuse_client.create_score(
-            name="Token Count",
-            value=score,
-            trace_id=trace_id,
-            comment=comment,
-            metadata={
-                "total_tokens": total_tokens,
-                "token_threshold": token_threshold,
-            },
-        )
+        total_tokens = trace_metrics.total_input_tokens + trace_metrics.total_output_tokens
+        _report_score(langfuse_client, "Token Count", total_tokens, token_threshold, trace_id)
 
     if latency_threshold > 0:
-        total_latency = sum(_obs_attr(observation, "latency") for observation in observations.data)
-        if total_latency <= latency_threshold:
-            score = 1
-            comment = "Latency is less than or equal to the threshold."
-        else:
-            score = 0
-            comment = "Latency is greater than the threshold."
-
-        logger.info("Reporting score for latency")
-        langfuse_client.create_score(
-            name="Latency",
-            value=score,
-            trace_id=trace_id,
-            comment=comment,
-            metadata={
-                "total_latency": total_latency,
-                "latency_threshold": latency_threshold,
-            },
-        )
+        _report_score(langfuse_client, "Latency", trace_metrics.latency_sec, latency_threshold, trace_id)
 
     if cost_threshold > 0:
-        total_cost = sum(_obs_attr(observation, "calculated_total_cost") for observation in observations.data)
-        if total_cost <= cost_threshold:
-            score = 1
-            comment = "Cost is less than or equal to the threshold."
-        else:
-            score = 0
-            comment = "Cost is greater than the threshold."
-
-        logger.info("Reporting score for cost")
-        langfuse_client.create_score(
-            name="Cost",
-            value=score,
-            trace_id=trace_id,
-            comment=comment,
-            metadata={
-                "total_cost": total_cost,
-                "cost_threshold": cost_threshold,
-            },
-        )
+        _report_score(langfuse_client, "Cost", trace_metrics.total_cost, cost_threshold, trace_id)
 
     langfuse_client.flush()
 
 
-def _obs_attr(observation: ObservationsView, attribute: str) -> Any:
-    """Get the value of an attribute from an observation."""
-    attribute_value = getattr(observation, attribute)
-    if attribute_value == 0:
-        logger.error(f"Observation attribute value for {attribute} is 0")
-        return 0
-    if attribute_value is None:
-        logger.error(f"Observation attribute value for {attribute} is None")
-        return 0
-    return attribute_value
+def _report_score(
+    langfuse_client: Langfuse,
+    name: str,
+    value: int | float | None,
+    threshold: int | float,
+    trace_id: str,
+) -> None:
+    if value is None:
+        logger.error(f"Trace {trace_id} has no value for {name}. Will not report score for {name}.")
 
+    else:
+        if value <= threshold:
+            score = 1
+            comment = f"{value} is less than or equal to the threshold."
+        else:
+            score = 0
+            comment = f"{value} is greater than the threshold."
 
-@retry(stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=5, max=15))
-def _get_observations_with_retry(trace_id: str, langfuse_client: Langfuse) -> ObservationsViews:
-    """Get the observations for a given trace ID with retry/backoff."""
-    logger.info(f"Getting observations for trace {trace_id}...")
-    return langfuse_client.api.observations.get_many(trace_id=trace_id, type="GENERATION")
+        langfuse_client.create_score(
+            name=name,
+            value=score,
+            trace_id=trace_id,
+            comment=comment,
+            metadata={
+                "value": value,
+                "threshold": threshold,
+            },
+        )
