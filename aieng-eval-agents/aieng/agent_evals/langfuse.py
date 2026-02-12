@@ -435,23 +435,27 @@ def _report_score(
 ) -> None:
     if value is None:
         logger.error(f"Trace {trace_id} has no value for {name}. Will not report score for {name}.")
+        return
 
+    if value == 0:
+        logger.error(f"Trace {trace_id} has a value of 0 for {name}. Will not report score for {name}.")
+        return
+
+    if value <= threshold:
+        score = 1
+        comment = f"{value} is less than or equal to the threshold."
     else:
-        if value <= threshold:
-            score = 1
-            comment = f"{value} is less than or equal to the threshold."
-        else:
-            score = 0
-            comment = f"{value} is greater than the threshold."
+        score = 0
+        comment = f"{value} is greater than the threshold."
 
-        logger.info(f"Reporting score for {name}")
-        langfuse_client.create_score(
-            name=name,
-            value=score,
-            trace_id=trace_id,
-            comment=comment,
-            metadata={
-                "value": value,
-                "threshold": threshold,
-            },
-        )
+    logger.info(f"Reporting score for {name}")
+    langfuse_client.create_score(
+        name=name,
+        value=score,
+        trace_id=trace_id,
+        comment=comment,
+        metadata={
+            "value": value,
+            "threshold": threshold,
+        },
+    )

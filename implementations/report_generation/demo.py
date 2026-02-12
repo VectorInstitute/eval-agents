@@ -20,6 +20,7 @@ from aieng.agent_evals.report_generation.agent import get_report_generation_agen
 from aieng.agent_evals.report_generation.evaluation.online import report_final_response_score
 from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 from dotenv import load_dotenv
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
@@ -66,10 +67,8 @@ async def agent_session_handler(
         instructions=MAIN_AGENT_INSTRUCTIONS,
         reports_output_path=get_reports_output_path(),
         langfuse_project_name=get_langfuse_project_name() if enable_trace else None,
+        after_agent_callback=calculate_and_send_scores,
     )
-
-    # Get the Langfuse client for online reporting
-    langfuse_client = AsyncClientManager.get_instance().langfuse_client
 
     # Construct an in-memory session for the agent to maintain
     # conversation history across multiple turns of a chat
@@ -98,11 +97,24 @@ async def agent_session_handler(
         if len(turn_messages) > 0:
             yield turn_messages
 
-        if event.is_final_response():
+
+def calculate_and_send_scores(callback_context: CallbackContext) -> None:
+    """Calculate token usage and latency scores and submit them to Langfuse.
+
+    This is a callback function to be called after the agent has run.
+
+    Parameters
+    ----------
+    callback_context : CallbackContext
+        The callback context at the end of the agent run.
+    """
+    for event in callback_context.session.events:
+        if event.is_final_response() and event.content and event.content.role == "model":
             # Report the final response evaluation to Langfuse
             report_final_response_score(event, string_match="](gradio_api/file=")
 
             # Run usage scoring in a thread so it doesn't block the UI
+            langfuse_client = AsyncClientManager.get_instance().langfuse_client
             thread = threading.Thread(
                 target=report_usage_scores,
                 kwargs={
@@ -114,7 +126,9 @@ async def agent_session_handler(
             )
             thread.start()
 
-    langfuse_client.flush()
+            return
+
+    logger.error("No final response found in the callback context. Will not report scores to Langfuse.")
 
 
 @click.command()
