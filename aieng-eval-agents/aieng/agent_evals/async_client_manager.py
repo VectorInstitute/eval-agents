@@ -11,6 +11,7 @@ from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse
 from langfuse.openai import AsyncOpenAI
 
+
 if TYPE_CHECKING:
     from aieng.agent_evals.tools import ReadOnlySqlDatabase
 
