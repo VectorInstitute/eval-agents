@@ -1,6 +1,6 @@
 """AML investigation agent.
 
-This module defines the primary factory used to build the AML investigation.
+This module defines the primary factory used to build the AML investigation agent.
 
 The returned agent is a Google ADK ``LlmAgent`` configured to:
 
