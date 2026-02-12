@@ -35,6 +35,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger(__name__)
 
 
+GRADIO_STATE = gr.State(value={"trace_id": None})
+
+
 async def agent_session_handler(
     query: str,
     history: list[ChatMessage],
@@ -60,6 +63,9 @@ async def agent_session_handler(
     AsyncGenerator[list[ChatMessage], Any]
         An async chat messages generator.
     """
+    # Reset the trace ID in the state
+    GRADIO_STATE.value["trace_id"] = None
+
     # Initialize list of chat messages for a single turn
     turn_messages: list[ChatMessage] = []
 
@@ -110,15 +116,21 @@ def calculate_and_send_scores(callback_context: CallbackContext) -> None:
     """
     for event in callback_context.session.events:
         if event.is_final_response() and event.content and event.content.role == "model":
+            langfuse_client = AsyncClientManager.get_instance().langfuse_client
+            trace_id = langfuse_client.get_current_trace_id()
+
+            # Storing the trace ID in the state so it can be used
+            # in the feedback buttons callback
+            GRADIO_STATE.value["trace_id"] = trace_id
+
             # Report the final response evaluation to Langfuse
             report_final_response_score(event, string_match="](gradio_api/file=")
 
             # Run usage scoring in a thread so it doesn't block the UI
-            langfuse_client = AsyncClientManager.get_instance().langfuse_client
             thread = threading.Thread(
                 target=report_usage_scores,
                 kwargs={
-                    "trace_id": langfuse_client.get_current_trace_id(),
+                    "trace_id": trace_id,
                     "token_threshold": 15000,
                     "latency_threshold": 60,
                 },
@@ -129,6 +141,35 @@ def calculate_and_send_scores(callback_context: CallbackContext) -> None:
             return
 
     logger.error("No final response found in the callback context. Will not report scores to Langfuse.")
+
+
+def on_feedback(liked: bool):
+    """Handle thumbs up (liked=True) or thumbs down (liked=False)."""
+    trace_id = GRADIO_STATE.value["trace_id"]
+    if trace_id is None:
+        logger.error("No trace ID found in the state. Will not report feedback to Langfuse.")
+        return None
+
+    score = 1 if liked else 0
+
+    logger.info(f"Reporting user feedback score for trace {trace_id} with value {score}")
+    langfuse_client = AsyncClientManager.get_instance().langfuse_client
+    langfuse_client.create_score(
+        value=score,
+        name="User Feedback",
+        comment=f"The user gave this response a thumbs {'up' if liked else 'down'}.",
+        trace_id=trace_id,
+    )
+    langfuse_client.flush()
+
+    GRADIO_STATE.value["trace_id"] = None
+    return gr.update(visible=False), gr.update(visible=True)
+
+
+def toggle_feedback_row():
+    """Toggle the feedback row if there is a trace ID in the state."""
+    trace_id = GRADIO_STATE.value["trace_id"]
+    return gr.update(visible=trace_id is not None and trace_id != ""), gr.update(visible=False)
 
 
 @click.command()
@@ -153,33 +194,52 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
     """
     partial_agent_session_handler = partial(agent_session_handler, enable_trace=enable_trace)
 
-    demo = gr.ChatInterface(
-        partial_agent_session_handler,
-        chatbot=gr.Chatbot(height=600),
-        textbox=gr.Textbox(lines=1, placeholder="Enter your prompt"),
-        # Additional input to maintain session state across multiple turns
-        # NOTE: Examples must be a list of lists when additional inputs are provided
-        additional_inputs=gr.State(value={}, render=False),
-        examples=[
-            ["Generate a monthly sales performance report."],
-            ["Generate a report of the top 5 selling products per year and the total sales value for each product."],
-            ["Generate a report of the average order value per invoice per month."],
-            [
-                "Generate a report with the month-over-month trends in sales. The report should include the monthly sales, the month-over-month change and the percentage change."
-            ],
-            ["Generate a report on sales revenue by country per year."],
-            ["Generate a report on the 5 highest-value customers per year vs. the average customer."],
-            [
-                "Generate a report on the average amount spent by one time buyers for each year vs. the average customer."
-            ],
-        ],
-        title="2.1: ReAct for Retrieval-Augmented Generation with OpenAI Agent SDK",
-    )
+    with gr.Blocks(title="Report Generator Agent") as demo:
+        with gr.Row():
+            gradio_chatbot = gr.Chatbot(height=600)
+            gr.ChatInterface(
+                partial_agent_session_handler,
+                chatbot=gradio_chatbot,
+                textbox=gr.Textbox(lines=1, placeholder="Enter your prompt"),
+                # Additional input to maintain session state across multiple turns
+                # NOTE: Examples must be a list of lists when additional inputs
+                # are provided
+                additional_inputs=gr.State(value={}, render=False),
+                examples=[
+                    ["Generate a monthly sales performance report."],
+                    [
+                        "Generate a report of the top 5 selling products per year and the total sales value for each product."
+                    ],
+                    ["Generate a report of the average order value per invoice per month."],
+                    [
+                        "Generate a report with the month-over-month trends in sales. The report should include the monthly sales, the month-over-month change and the percentage change."
+                    ],
+                    ["Generate a report on sales revenue by country per year."],
+                    ["Generate a report on the 5 highest-value customers per year vs. the average customer."],
+                    [
+                        "Generate a report on the average amount spent by one time buyers for each year vs. the average customer."
+                    ],
+                ],
+            )
+
+        with gr.Row(elem_id="thank_you_msg", visible=False) as thank_you_row:
+            gr.Markdown("Thank you for your feedback 🙂")
+
+        # Feedback buttons
+        with gr.Row(elem_id="feedback_buttons", visible=False) as feedback_row:
+            gr.Markdown("Provide feedback on the response:")
+            thumbs_up = gr.Button("👍")
+            thumbs_up.click(fn=lambda: on_feedback(True), outputs=[feedback_row, thank_you_row])
+            thumbs_down = gr.Button("👎")
+            thumbs_down.click(fn=lambda: on_feedback(False), outputs=[feedback_row, thank_you_row])
+
+        gradio_chatbot.change(fn=toggle_feedback_row, outputs=[feedback_row, thank_you_row])
 
     try:
         demo.launch(
             share=enable_public_link,
             allowed_paths=[str(get_reports_output_path().absolute())],
+            css="#feedback_buttons { width: 600px; }",
         )
     finally:
         asyncio.run(AsyncClientManager.get_instance().close())
