@@ -444,6 +444,7 @@ def _report_score(
             score = 0
             comment = f"{value} is greater than the threshold."
 
+        logger.info(f"Reporting score for {name}")
         langfuse_client.create_score(
             name=name,
             value=score,
