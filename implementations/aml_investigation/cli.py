@@ -15,11 +15,10 @@ Run with defaults:
     uv run --env-file .env implementations/aml_investigation/cli.py
 
 Run with custom settings:
-    uv run --env-file .env implementations/aml_investigation/cli.py \\
-      --input-path implementations/aml_investigation/data/aml_cases.jsonl \\
-      --output-path implementations/aml_investigation/data/\\
-      aml_cases_with_output.jsonl \\
-      --max-concurrent-cases 8 \\
+    uv run --env-file .env implementations/aml_investigation/cli.py \
+      --input-path implementations/aml_investigation/data/aml_cases.jsonl \
+      --output-path implementations/aml_investigation/data/aml_cases_with_output.jsonl \
+      --max-concurrent-cases 8 \
       --resume
 """
 
