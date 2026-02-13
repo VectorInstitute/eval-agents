@@ -14,7 +14,7 @@ Examples
 >>> task = AmlInvestigationTask()
 >>> results = run_experiment(
 ...     # <YOUR_DATASET_NAME>,
-...     name="aml_trace_level_demo",
+...     name="aml_run_level_demo",
 ...     task=task,
 ...     evaluators=[item_level_deterministic_grader],
 ...     run_evaluators=[run_level_grader],
