@@ -244,21 +244,31 @@ def _parse_timestamp(value: str | None) -> datetime | None:
 def _extract_sql_query_from_observation(observation: ObservationsView) -> str | None:
     """Extract a SQL query from observation input.
 
-    For AML agent traces, tool inputs are expected to be plain SQL strings.
+    For AML agent traces, tool inputs are expected to be plain SQL strings in a
+    dictionary like {"query": "<SQL_QUERY>"}.
     """
+    extracted_query: str | None = None
     raw_input = observation.input
-    if not isinstance(raw_input, str):
-        return None
+    if isinstance(raw_input, str):
+        stripped_input = raw_input.strip()
+        if stripped_input and _looks_like_sql(stripped_input):
+            extracted_query = stripped_input
 
-    stripped_input = raw_input.strip()
-    if not stripped_input:
-        return None
+    if isinstance(raw_input, Mapping):
+        query_candidate = raw_input.get("query")
+        if isinstance(query_candidate, str):
+            stripped_input = query_candidate.strip()
+            if stripped_input and _looks_like_sql(stripped_input):
+                extracted_query = stripped_input
 
-    normalized = re.sub(r"\s+", " ", stripped_input).strip().lower()
-    looks_like_sql = normalized.startswith(("select ", "with ", "explain ")) or (
+    return extracted_query
+
+
+def _looks_like_sql(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", text).strip().lower()
+    return normalized.startswith(("select ", "with ", "explain ")) or (
         "select" in normalized and " from " in normalized
     )
-    return stripped_input if looks_like_sql else None
 
 
 def _normalize_sql(sql: str) -> str:
