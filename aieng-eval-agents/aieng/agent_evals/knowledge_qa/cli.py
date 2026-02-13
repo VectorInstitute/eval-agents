@@ -21,7 +21,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
-from aieng.agent_evals.knowledge_qa.judges import EvaluationOutcome
+from aieng.agent_evals.knowledge_qa.deepsearchqa_grader import EvaluationOutcome
 from dotenv import load_dotenv
 from rich import box
 from rich.console import Console, Group
@@ -1147,7 +1147,7 @@ async def cmd_eval(
     """
     from .agent import KnowledgeGroundedAgent  # noqa: PLC0415
     from .data import DeepSearchQADataset  # noqa: PLC0415
-    from .judges import DeepSearchQAJudge  # noqa: PLC0415
+    from .deepsearchqa_grader import evaluate_deepsearchqa_async  # noqa: PLC0415
 
     display_banner()
     tracing_enabled = _setup_tracing(log_trace)
@@ -1191,9 +1191,8 @@ async def cmd_eval(
 
     console.print(f"[green]✓ Loaded {len(examples)} example(s)[/green]\n")
 
-    console.print("[bold blue]Initializing agent and judge...[/bold blue]")
+    console.print("[bold blue]Initializing agent...[/bold blue]")
     agent = KnowledgeGroundedAgent(enable_planning=True)
-    judge = DeepSearchQAJudge()
     console.print("[green]✓ Ready[/green]\n")
 
     tool_handler = setup_logging()
@@ -1219,7 +1218,7 @@ async def cmd_eval(
             # Display full results after Live display ends
             tool_counts = _display_example_result(example, response, i, len(examples))
             console.print("\n[bold blue]⏳ Evaluating...[/bold blue]\n")
-            _, result = await judge.evaluate_with_details_async(
+            result = await evaluate_deepsearchqa_async(
                 question=example.problem,
                 answer=response.text,
                 ground_truth=example.answer,

@@ -34,17 +34,8 @@ from aieng.agent_evals.tools import (
 
 from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .data import DeepSearchQADataset, DSQAExample
+from .deepsearchqa_grader import DeepSearchQAResult, evaluate_deepsearchqa_async
 from .evaluation import DeepSearchQAEvaluator, EvaluationResult
-from .judges import (
-    DeepSearchQAJudge,
-    DeepSearchQAResult,
-    JudgeResult,
-)
-from .metrics import (
-    EnhancedEvaluationResult,
-    EvaluationMetrics,
-    MetricsAggregator,
-)
 from .models import (
     AgentResponse,
     ResearchPlan,
@@ -72,15 +63,9 @@ __all__ = [
     "ResearchStep",
     "StepExecution",
     "StepStatus",
-    # Judges
-    "JudgeResult",
-    "DeepSearchQAJudge",
-    "DeepSearchQAResult",
-    # Metrics
-    "MetricsAggregator",
-    "EvaluationMetrics",
-    "EnhancedEvaluationResult",
     # Evaluation
+    "DeepSearchQAResult",
+    "evaluate_deepsearchqa_async",
     "DeepSearchQADataset",
     "DeepSearchQAEvaluator",
     "DSQAExample",

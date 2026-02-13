@@ -1,28 +1,25 @@
-"""LLM-as-judge evaluators for knowledge agent responses.
+"""DeepSearchQA grader for evaluating knowledge agent responses.
 
-This module provides comprehensive evaluation using LLM judges for the
-DeepSearchQA benchmark. The implementation follows the official DeepSearchQA
-evaluation methodology with precision, recall, and F1 metrics.
+This module provides the official DeepSearchQA evaluation methodology using
+an LLM grader (autorater) to assess answer correctness with precision, recall,
+and F1 metrics.
 
-The evaluator has been refactored to use shared evaluation infrastructure
-while maintaining backward compatibility with the original API.
+References
+----------
+- Paper: DeepSearchQA: Bridging the Comprehensiveness Gap for Deep Research Agents
+- Dataset: https://huggingface.co/datasets/google/deepsearchqa
+- Leaderboard: https://www.kaggle.com/benchmarks/google/dsqa
 """
 
-import asyncio
 import logging
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.evaluation.graders._utils import run_structured_parse_call
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from aieng.agent_evals.evaluation.types import Evaluation
 from pydantic import BaseModel, Field
-
-
-if TYPE_CHECKING:
-    pass
 
 
 logger = logging.getLogger(__name__)
@@ -39,15 +36,6 @@ class EvaluationOutcome(str, Enum):
     CORRECT_WITH_EXTRANEOUS = "correct_with_extraneous"
     PARTIALLY_CORRECT = "partially_correct"
     FULLY_INCORRECT = "fully_incorrect"
-
-
-class JudgeResult(BaseModel):
-    """Result from an LLM judge evaluation."""
-
-    dimension: str = Field(description='The evaluation dimension (e.g., "comprehensiveness", "causal_chain")')
-    score: float = Field(description="Score on a 1-5 scale")
-    explanation: str = Field(default="", description="Detailed explanation of the score")
-    evidence: list[str] = Field(default_factory=list, description="Specific examples supporting the score")
 
 
 class DeepSearchQAResult(BaseModel):
@@ -76,7 +64,7 @@ class DeepSearchQAResult(BaseModel):
     extraneous_items: list[str] = Field(
         default_factory=list, description="Items in the response that are not in the ground truth"
     )
-    explanation: str = Field(default="", description="Explanation from the judge about the evaluation")
+    explanation: str = Field(default="", description="Explanation from the grader about the evaluation")
 
     def to_evaluations(self) -> list[Evaluation]:
         """Convert this result to Langfuse Evaluation objects.
@@ -316,7 +304,7 @@ async def evaluate_deepsearchqa_async(
 ) -> DeepSearchQAResult:
     """Evaluate an answer using DeepSearchQA methodology.
 
-    This is the modern async evaluator that uses shared infrastructure.
+    This async evaluator uses shared infrastructure for LLM evaluation.
 
     Parameters
     ----------
@@ -375,296 +363,3 @@ async def evaluate_deepsearchqa_async(
             extraneous_items=[],
             explanation=f"Grader error: {e}",
         )
-
-
-class DeepSearchQAJudge:
-    """Official DeepSearchQA evaluation using precision, recall, and F1.
-
-    This judge implements the exact evaluation methodology from the DeepSearchQA
-    benchmark paper (Appendix A). The LLM autorater determines semantic equivalence
-    of answers, then precision/recall/F1 are calculated programmatically.
-
-    The benchmark distinguishes between four disjoint categories:
-    1. Fully Correct (S=G): All ground truth items present, no extraneous items
-    2. Fully Incorrect (S∩G=∅): Zero correct items found
-    3. Partially Correct: Some but not all ground truth items found
-    4. Correct with Extraneous (G⊂S): All ground truth found but has extra items
-
-    Metrics:
-    - Precision: P = |S∩G| / |S| (accuracy of submitted items)
-    - Recall: R = |S∩G| / |G| (exhaustiveness against ground truth)
-    - F1 Score: F1 = 2*P*R / (P+R) (primary ranking metric)
-
-    Notes
-    -----
-    This class provides backward compatibility with the original API.
-    Internally, it delegates to the modern async evaluator that uses
-    shared evaluation infrastructure.
-
-    References
-    ----------
-    - Paper: DeepSearchQA: Bridging the Comprehensiveness Gap for Deep Research Agents
-    - Dataset: https://huggingface.co/datasets/google/deepsearchqa
-    - Leaderboard: https://www.kaggle.com/benchmarks/google/dsqa
-    """
-
-    dimension = "deepsearchqa"
-
-    def __init__(
-        self,
-        config: "Configs | None" = None,
-        model: str | None = None,
-    ) -> None:
-        """Initialize the judge.
-
-        Parameters
-        ----------
-        config : Configs | None, optional
-            Configuration settings. If None, defaults from environment are used.
-        model : str | None, optional
-            Model to use for judging. If None, default evaluator model is used.
-        """
-        # Store config for backward compatibility
-        if config is None:
-            config = Configs()  # type: ignore[call-arg]
-        self._config = config
-
-        # Build model config
-        self._model_config = LLMRequestConfig(
-            model=model if model is not None else config.default_evaluator_model,
-            temperature=config.default_evaluator_temperature,
-        )
-
-    def evaluate(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str,
-        answer_type: str = "Single Answer",
-    ) -> JudgeResult:
-        """Evaluate an answer using DeepSearchQA methodology.
-
-        This is a synchronous wrapper around the async evaluator for backward
-        compatibility.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        answer : str
-            The agent's answer.
-        ground_truth : str
-            The expected ground truth answer.
-        answer_type : str
-            Type of answer: "Single Answer" or "Set Answer".
-
-        Returns
-        -------
-        JudgeResult
-            The evaluation result with precision, recall, and F1 in evidence.
-        """
-        # Run async evaluator in event loop
-        try:
-            asyncio.get_running_loop()
-            # If we're already in an async context, we can't use run_until_complete
-            raise RuntimeError("Cannot call synchronous evaluate from async context. Use evaluate_async instead.")
-        except RuntimeError:
-            # No running loop, safe to create one
-            pass
-
-        result = asyncio.run(
-            evaluate_deepsearchqa_async(
-                question=question,
-                answer=answer,
-                ground_truth=ground_truth,
-                answer_type=answer_type,
-                model_config=self._model_config,
-            )
-        )
-
-        # Convert F1 to 1-5 scale for consistency with other judges
-        score = 1 + (result.f1_score * 4)  # Maps 0-1 to 1-5
-
-        return JudgeResult(
-            dimension=self.dimension,
-            score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}. {result.explanation}",
-            evidence=[
-                f"Precision: {result.precision:.2f}",
-                f"Recall: {result.recall:.2f}",
-                f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome.value}",
-                f"Correctness: {result.correctness_details}",
-                f"Extraneous: {result.extraneous_items}",
-            ],
-        )
-
-    async def evaluate_async(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str,
-        answer_type: str = "Single Answer",
-    ) -> JudgeResult:
-        """Evaluate an answer using DeepSearchQA methodology (async).
-
-        This is the async version of evaluate() for use in async contexts.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        answer : str
-            The agent's answer.
-        ground_truth : str
-            The expected ground truth answer.
-        answer_type : str, optional
-            Type of answer: "Single Answer" or "Set Answer", by default "Single Answer".
-
-        Returns
-        -------
-        JudgeResult
-            The evaluation result with precision, recall, and F1 in evidence.
-        """
-        result = await evaluate_deepsearchqa_async(
-            question=question,
-            answer=answer,
-            ground_truth=ground_truth,
-            answer_type=answer_type,
-            model_config=self._model_config,
-        )
-
-        score = 1 + (result.f1_score * 4)
-
-        return JudgeResult(
-            dimension=self.dimension,
-            score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}. {result.explanation}",
-            evidence=[
-                f"Precision: {result.precision:.2f}",
-                f"Recall: {result.recall:.2f}",
-                f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome.value}",
-                f"Correctness: {result.correctness_details}",
-                f"Extraneous: {result.extraneous_items}",
-            ],
-        )
-
-    def evaluate_with_details(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str,
-        answer_type: str = "Single Answer",
-    ) -> tuple[JudgeResult, DeepSearchQAResult]:
-        """Evaluate and return both JudgeResult and detailed DeepSearchQAResult.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        answer : str
-            The agent's answer.
-        ground_truth : str
-            The expected ground truth answer.
-        answer_type : str
-            Type of answer.
-
-        Returns
-        -------
-        tuple[JudgeResult, DeepSearchQAResult]
-            Both the standard judge result and detailed metrics.
-        """
-        try:
-            asyncio.get_running_loop()
-            # If we're already in an async context, we can't use run_until_complete
-            raise RuntimeError(
-                "Cannot call synchronous evaluate_with_details from async context. Use evaluate_with_details_async instead."
-            )
-        except RuntimeError:
-            # No running loop, safe to create one
-            pass
-
-        result = asyncio.run(
-            evaluate_deepsearchqa_async(
-                question=question,
-                answer=answer,
-                ground_truth=ground_truth,
-                answer_type=answer_type,
-                model_config=self._model_config,
-            )
-        )
-
-        score = 1 + (result.f1_score * 4)
-
-        judge_result = JudgeResult(
-            dimension=self.dimension,
-            score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}",
-            evidence=[
-                f"Precision: {result.precision:.2f}",
-                f"Recall: {result.recall:.2f}",
-                f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome.value}",
-            ],
-        )
-
-        return judge_result, result
-
-    async def evaluate_with_details_async(
-        self,
-        question: str,
-        answer: str,
-        ground_truth: str,
-        answer_type: str = "Single Answer",
-    ) -> tuple[JudgeResult, DeepSearchQAResult]:
-        """Async version of evaluate_with_details.
-
-        Parameters
-        ----------
-        question : str
-            The original question.
-        answer : str
-            The agent's answer.
-        ground_truth : str
-            The expected ground truth answer.
-        answer_type : str
-            Type of answer.
-
-        Returns
-        -------
-        tuple[JudgeResult, DeepSearchQAResult]
-            Both the standard judge result and detailed metrics.
-        """
-        result = await evaluate_deepsearchqa_async(
-            question=question,
-            answer=answer,
-            ground_truth=ground_truth,
-            answer_type=answer_type,
-            model_config=self._model_config,
-        )
-
-        score = 1 + (result.f1_score * 4)
-
-        judge_result = JudgeResult(
-            dimension=self.dimension,
-            score=score,
-            explanation=f"F1: {result.f1_score:.2f}, Outcome: {result.outcome.value}",
-            evidence=[
-                f"Precision: {result.precision:.2f}",
-                f"Recall: {result.recall:.2f}",
-                f"F1 Score: {result.f1_score:.2f}",
-                f"Outcome: {result.outcome.value}",
-            ],
-        )
-
-        return judge_result, result
-
-    def close(self) -> None:
-        """Close the judge's client to clean up resources.
-
-        Note: With the new shared client manager, cleanup is handled
-        centrally. This method is kept for backward compatibility.
-        """
-        # No-op: AsyncClientManager handles cleanup
-        pass
