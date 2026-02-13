@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.db_manager import DbManager
 from aieng.agent_evals.langfuse import setup_langfuse_tracer
 from aieng.agent_evals.report_generation.file_writer import ReportFileWriter
 from google.adk.agents import Agent
@@ -60,6 +61,7 @@ def get_report_generation_agent(
 
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
+    db_manager = DbManager.get_instance()
     report_file_writer = ReportFileWriter(reports_output_path)
 
     # Define an agent using Google ADK
@@ -68,8 +70,8 @@ def get_report_generation_agent(
         model=client_manager.configs.default_worker_model,
         instruction=instructions,
         tools=[
-            client_manager.report_generation_db().execute,
-            client_manager.report_generation_db().get_schema_info,
+            db_manager.report_generation_db().execute,
+            db_manager.report_generation_db().get_schema_info,
             report_file_writer.write_xlsx,
         ],
     )
