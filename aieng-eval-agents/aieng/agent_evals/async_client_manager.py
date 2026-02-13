@@ -7,7 +7,6 @@ like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 import logging
 
 from aieng.agent_evals.configs import Configs
-from aieng.agent_evals.tools import ReadOnlySqlDatabase
 from langfuse import Langfuse
 from openai import AsyncOpenAI
 
@@ -63,8 +62,6 @@ class AsyncClientManager:
         """
         self._configs: Configs | None = configs
         self._openai_client: AsyncOpenAI | None = None
-        self._aml_db: ReadOnlySqlDatabase | None = None
-        self._report_generation_db: ReadOnlySqlDatabase | None = None
         self._langfuse_client: Langfuse | None = None
         self._otel_instrumented: bool = False
         self._initialized: bool = False
@@ -97,46 +94,6 @@ class AsyncClientManager:
             self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
             self._initialized = True
         return self._openai_client
-
-    def report_generation_db(self, agent_name: str = "ReportGenerationAgent") -> ReadOnlySqlDatabase:
-        """Get or create Report Generation database connection.
-
-        Returns
-        -------
-        ReadOnlySqlDatabase
-            The Report Generation database connection instance.
-        """
-        if self._report_generation_db is None:
-            if self.configs.report_generation_db is None:
-                raise ValueError("Report Generation database configuration is missing.")
-
-            self._report_generation_db = ReadOnlySqlDatabase(
-                connection_uri=self.configs.report_generation_db.build_uri(),
-                agent_name=agent_name,
-            )
-            self._initialized = True
-
-        return self._report_generation_db
-
-    def aml_db(self, agent_name: str = "FraudInvestigationAnalyst") -> ReadOnlySqlDatabase:
-        """Get or create AML database connection.
-
-        Returns
-        -------
-        ReadOnlySqlDatabase
-            The Report Generation database connection instance.
-        """
-        if self._aml_db is None:
-            if self.configs.aml_db is None:
-                raise ValueError("AML database configuration is missing.")
-
-            self._aml_db = ReadOnlySqlDatabase(
-                connection_uri=self.configs.aml_db.build_uri(),
-                agent_name=agent_name,
-            )
-            self._initialized = True
-
-        return self._aml_db
 
     @property
     def langfuse_client(self) -> Langfuse:
@@ -183,20 +140,12 @@ class AsyncClientManager:
     async def close(self) -> None:
         """Close all initialized async clients.
 
-        This method closes the OpenAI client, database connections, and Langfuse
-        client if they have been initialized.
+        This method closes the OpenAI client and Langfuse client
+        if they have been initialized.
         """
         if self._openai_client is not None:
             await self._openai_client.close()
             self._openai_client = None
-
-        if self._aml_db is not None:
-            self._aml_db.close()
-            self._aml_db = None
-
-        if self._report_generation_db is not None:
-            self._report_generation_db.close()
-            self._report_generation_db = None
 
         if self._langfuse_client is not None:
             self._langfuse_client.flush()
