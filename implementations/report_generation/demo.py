@@ -145,7 +145,7 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
             allowed_paths=[str(get_reports_output_path().absolute())],
         )
     finally:
-        DbManager().close()
+        DbManager.get_instance().close()
         asyncio.run(AsyncClientManager.get_instance().close())
 
 

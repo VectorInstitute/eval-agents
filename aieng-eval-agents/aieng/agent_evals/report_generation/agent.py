@@ -61,7 +61,7 @@ def get_report_generation_agent(
 
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
-    db_manager = DbManager()
+    db_manager = DbManager.get_instance()
     report_file_writer = ReportFileWriter(reports_output_path)
 
     # Define an agent using Google ADK

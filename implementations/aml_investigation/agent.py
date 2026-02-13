@@ -94,13 +94,13 @@ Use `pattern_type = "NONE"` when no laundering pattern is supported by evidence 
 @lru_cache(maxsize=1)
 def _get_db() -> ReadOnlySqlDatabase:
     """Lazily construct the read-only database tool from environment configuration."""
-    return DbManager().aml_db()
+    return DbManager.get_instance().aml_db()
 
 
 def _try_close_db() -> None:
     """Close the lazily initialized database tool if it was created."""
     if _get_db.cache_info().currsize:
-        DbManager().close()
+        DbManager.get_instance().close()
         _get_db.cache_clear()
 
 

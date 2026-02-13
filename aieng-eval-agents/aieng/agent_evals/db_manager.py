@@ -1,11 +1,10 @@
-"""Database connection manager with thread-safe singleton pattern.
+"""Database connection manager for Gradio applications.
 
 Provides centralized DB lifecycle management independent of async client handling,
 avoiding circular imports with the tools package.
 """
 
 import logging
-import threading
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools.sql_database import ReadOnlySqlDatabase
@@ -14,35 +13,7 @@ from aieng.agent_evals.tools.sql_database import ReadOnlySqlDatabase
 logger = logging.getLogger(__name__)
 
 
-class SingletonMeta(type):
-    """Thread-safe metaclass-based singleton.
-
-    Uses double-checked locking to ensure only one instance is created,
-    even under concurrent access.
-    """
-
-    _instances: dict[type, object] = {}
-    _lock: threading.Lock = threading.Lock()
-
-    def __call__(cls, *args, **kwargs):
-        """Return the singleton instance, creating it on first call."""
-        if cls not in cls._instances:
-            with cls._lock:
-                if cls not in cls._instances:
-                    instance = super().__call__(*args, **kwargs)
-                    cls._instances[cls] = instance
-        return cls._instances[cls]
-
-    def reset_instance(cls) -> None:
-        """Remove the singleton instance, allowing a fresh one to be created.
-
-        Intended for test teardown only.
-        """
-        with cls._lock:
-            cls._instances.pop(cls, None)
-
-
-class DbManager(metaclass=SingletonMeta):
+class DbManager:
     """Manages database connections with lazy initialization.
 
     Parameters
@@ -50,6 +21,21 @@ class DbManager(metaclass=SingletonMeta):
     configs : Configs | None, optional
         Configuration object. If ``None``, created lazily on first access.
     """
+
+    _singleton_instance: "DbManager | None" = None
+
+    @classmethod
+    def get_instance(cls) -> "DbManager":
+        """Get the singleton instance of the DB manager.
+
+        Returns
+        -------
+        DbManager
+            The singleton instance of the DB manager.
+        """
+        if cls._singleton_instance is None:
+            cls._singleton_instance = DbManager()
+        return cls._singleton_instance
 
     def __init__(self, configs: Configs | None = None) -> None:
         self._configs: Configs | None = configs

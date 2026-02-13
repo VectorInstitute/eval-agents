@@ -9,32 +9,23 @@ from aieng.agent_evals.db_manager import DbManager
 @pytest.fixture(autouse=True)
 def _reset_singleton():
     """Reset DbManager singleton before and after each test."""
-    DbManager.reset_instance()
+    DbManager._singleton_instance = None
     yield
-    DbManager.reset_instance()
+    DbManager._singleton_instance = None
 
 
-class TestSingletonBehavior:
-    """Tests for the SingletonMeta-based singleton pattern."""
+class TestGetInstance:
+    """Tests for the get_instance() class method."""
 
-    def test_same_instance(self):
-        """DbManager() always returns the same object."""
-        assert DbManager() is DbManager()
+    def test_returns_same_instance(self):
+        """get_instance() always returns the same object."""
+        assert DbManager.get_instance() is DbManager.get_instance()
 
-    def test_reset_allows_new_instance(self):
-        """After reset_instance(), a new object is created."""
-        first = DbManager()
-        DbManager.reset_instance()
-        second = DbManager()
-        assert first is not second
-
-    def test_second_init_args_ignored(self):
-        """Once the singleton exists, constructor args are silently ignored."""
-        configs = MagicMock()
-        first = DbManager(configs=configs)
-        second = DbManager(configs=MagicMock())
-        assert first is second
-        assert first._configs is configs
+    def test_constructor_creates_separate_instance(self):
+        """Direct constructor creates a different object than get_instance()."""
+        singleton = DbManager.get_instance()
+        separate = DbManager()
+        assert singleton is not separate
 
 
 class TestConfigHandling:
