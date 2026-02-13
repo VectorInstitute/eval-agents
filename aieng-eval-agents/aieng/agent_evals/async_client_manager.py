@@ -5,14 +5,11 @@ like OpenAI to prevent event loop conflicts during Gradio's hot-reload process.
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.tools import ReadOnlySqlDatabase
 from langfuse import Langfuse
 from langfuse.openai import AsyncOpenAI
-
-if TYPE_CHECKING:
-    from aieng.agent_evals.tools import ReadOnlySqlDatabase
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -105,7 +102,7 @@ class AsyncClientManager:
             self._initialized = True
         return self._openai_client
 
-    def report_generation_db(self, agent_name: str = "ReportGenerationAgent") -> "ReadOnlySqlDatabase":
+    def report_generation_db(self, agent_name: str = "ReportGenerationAgent") -> ReadOnlySqlDatabase:
         """Get or create Report Generation database connection.
 
         Returns
@@ -114,8 +111,6 @@ class AsyncClientManager:
             The Report Generation database connection instance.
         """
         if self._report_generation_db is None:
-            from aieng.agent_evals.tools import ReadOnlySqlDatabase
-
             if self.configs.report_generation_db is None:
                 raise ValueError("Report Generation database configuration is missing.")
 
@@ -127,7 +122,7 @@ class AsyncClientManager:
 
         return self._report_generation_db
 
-    def aml_db(self, agent_name: str = "FraudInvestigationAnalyst") -> "ReadOnlySqlDatabase":
+    def aml_db(self, agent_name: str = "FraudInvestigationAnalyst") -> ReadOnlySqlDatabase:
         """Get or create AML database connection.
 
         Returns
@@ -136,8 +131,6 @@ class AsyncClientManager:
             The Report Generation database connection instance.
         """
         if self._aml_db is None:
-            from aieng.agent_evals.tools import ReadOnlySqlDatabase
-
             if self.configs.aml_db is None:
                 raise ValueError("AML database configuration is missing.")
 
