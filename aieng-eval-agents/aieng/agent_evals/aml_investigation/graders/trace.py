@@ -61,7 +61,7 @@ class _PreparedPolicy:
 
 
 def trace_deterministic_grader(
-    *, trace: TraceWithFullDetails, item_result: ExperimentItemResult, **kwargs: dict[str, Any]
+    *, trace: TraceWithFullDetails, item_result: ExperimentItemResult, **kwargs: Any
 ) -> list[Evaluation]:
     """Evaluate one AML trace for deterministic safety and discipline checks.
 
@@ -72,7 +72,7 @@ def trace_deterministic_grader(
     item_result : ExperimentItemResult
         Experiment item result associated with ``trace``. Used to read
         case time window fields from the original input.
-    **kwargs : dict[str, Any]
+    **kwargs : Any
         Optional evaluator kwargs. When ``db_policy`` is provided as a
         ``ReadOnlySqlPolicy``, SQL validation is performed with SQLGlot policy
         checks; otherwise a mutating-SQL regex fallback is used.

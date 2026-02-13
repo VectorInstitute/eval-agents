@@ -32,7 +32,7 @@ def item_level_deterministic_grader(
     output: Any,
     expected_output: Any,
     metadata: dict[str, Any] | None = None,
-    **kwargs: dict[str, Any],
+    **kwargs: Any,
 ) -> list[Evaluation]:
     """Evaluate one AML prediction using deterministic rules.
 
@@ -49,7 +49,7 @@ def item_level_deterministic_grader(
         ``is_laundering``, ``pattern_type``, and ``attempt_transaction_ids``.
     metadata : dict[str, Any] | None, optional
         Optional item metadata from the dataset. Not used by this grader.
-    **kwargs : dict[str, Any]
+    **kwargs : Any
         Additional evaluator kwargs. Ignored by this grader.
 
     Returns

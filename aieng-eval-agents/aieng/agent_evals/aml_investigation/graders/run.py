@@ -29,14 +29,14 @@ from sklearn.metrics import confusion_matrix, f1_score, precision_recall_fscore_
 from ._common import PATTERN_LABELS, extract_expected_output, get_field, normalize_pattern
 
 
-def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: dict[str, Any]) -> list[Evaluation]:
+def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: Any) -> list[Evaluation]:
     """Compute AML run-level metrics over experiment item results.
 
     Parameters
     ----------
     item_results : list[ExperimentItemResult]
         Item results emitted by a Langfuse experiment run.
-    **kwargs : dict[str, Any]
+    **kwargs : Any
         Additional run-evaluator kwargs. Ignored by this grader.
 
     Returns
