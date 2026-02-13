@@ -92,7 +92,6 @@ def item_level_deterministic_grader(
     is_tp = bool(expected_is_laundering is True and predicted_is_laundering is True)
     is_fp = bool(expected_is_laundering is False and predicted_is_laundering is True)
     is_fn = bool(expected_is_laundering is True and predicted_is_laundering is False)
-    is_tn = bool(expected_is_laundering is False and predicted_is_laundering is False)
 
     # Evaluate pattern type correctness (exact match)
     expected_pattern = normalize_pattern(get_field(expected_output, "pattern_type"))
@@ -130,12 +129,12 @@ def item_level_deterministic_grader(
         Evaluation(
             name="is_laundering_correct",
             value=1.0 if is_laundering_correct else 0.0,
-            metadata={"expected": expected_is_laundering, "actual": predicted_is_laundering},
+            metadata={
+                "expected": expected_is_laundering,
+                "actual": predicted_is_laundering,
+                "type": "TP" if is_tp else "FP" if is_fp else "FN" if is_fn else "TN",
+            },
         ),
-        Evaluation(name="is_laundering_tp", value=1.0 if is_tp else 0.0),
-        Evaluation(name="is_laundering_fp", value=1.0 if is_fp else 0.0),
-        Evaluation(name="is_laundering_fn", value=1.0 if is_fn else 0.0),
-        Evaluation(name="is_laundering_tn", value=1.0 if is_tn else 0.0),
         Evaluation(
             name="pattern_type_correct",
             value=1.0 if pattern_type_correct else 0.0,
