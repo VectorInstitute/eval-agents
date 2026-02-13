@@ -35,7 +35,7 @@ def main(dataset_path: str):
     dataset_path : str
         The path to the CSV file containing the dataset.
     """
-    client_manager = AsyncClientManager().get_instance()
+    client_manager = AsyncClientManager.get_instance()
 
     assert client_manager.configs.report_generation_db, "Report generation database configuration is missing"
     assert client_manager.configs.report_generation_db.database, "Report generation database path is missing"
