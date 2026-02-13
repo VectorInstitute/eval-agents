@@ -26,11 +26,11 @@ from typing import Any
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.evaluation import run_experiment, run_experiment_with_trace_evals
-from aieng.agent_evals.evaluation.graders import create_trace_groundedness_evaluator
+from aieng.agent_evals.evaluation.graders import create_trace_groundedness_evaluator  # type: ignore[attr-defined]
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from aieng.agent_evals.evaluation.types import EvaluationResult
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_qa.judges import DeepSearchQAResult, evaluate_deepsearchqa_async
+from aieng.agent_evals.knowledge_qa.deepsearchqa_grader import DeepSearchQAResult, evaluate_deepsearchqa_async
 from aieng.agent_evals.logging_config import setup_logging
 from dotenv import load_dotenv
 from langfuse.experiment import Evaluation, ExperimentResult
@@ -169,7 +169,6 @@ async def run_evaluation(
             groundedness_evaluator = create_trace_groundedness_evaluator(
                 name="trace_groundedness",
                 model_config=LLMRequestConfig(temperature=0.0),
-                max_tool_observations=10,  # Limit context size
             )
 
             # Run with trace evaluations
