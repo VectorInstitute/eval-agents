@@ -3,6 +3,22 @@
 This module provides a configurable trace evaluator that checks whether the
 candidate output is supported by trace tool evidence. Ungrounded output is
 treated as hallucination.
+
+Notes
+-----
+The evaluator automatically filters out tool observations that don't contain
+useful evidence:
+
+1. **Framework artifacts**: Observations like "(merged tools)" created by
+   OpenInference Google ADK instrumentation when batching tool calls.
+
+2. **Non-serializable outputs**: Observations with outputs like "<not serializable>"
+   or "N/A" that indicate serialization failures.
+
+3. **Output normalization helpers**: Tools like "set_model_response" that would
+   leak the final answer into the evidence context.
+
+This filtering ensures the groundedness judge only sees legitimate tool evidence.
 """
 
 from pathlib import Path
@@ -66,7 +82,12 @@ DEFAULT_GROUNDEDNESS_USER_PROMPT = """\
 3. Calculate the score as: (Number of Supported Claims) / (Total Claims).
 """
 
-DEFAULT_GROUNDEDNESS_EXCLUDED_TOOL_NAMES: frozenset[str] = frozenset({"set_model_response"})
+DEFAULT_GROUNDEDNESS_EXCLUDED_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "set_model_response",
+        "(merged tools)",  # OpenInference ADK instrumentation artifact with no useful data
+    }
+)
 
 
 class TraceGroundednessClaim(BaseModel):
@@ -313,6 +334,14 @@ def _observation_is_excluded_for_groundedness(observation: ObservationsView) -> 
     observation_name = (observation.name or "").strip().lower()
     if observation_name in DEFAULT_GROUNDEDNESS_EXCLUDED_TOOL_NAMES:
         return True
+
+    # Exclude observations with non-serializable or empty outputs
+    # These are typically instrumentation artifacts with no useful data
+    output = observation.output
+    if isinstance(output, str):
+        output_stripped = output.strip().strip('"')
+        if output_stripped in ("<not serializable>", "N/A", ""):
+            return True
 
     metadata = observation.metadata
     if not isinstance(metadata, dict):
