@@ -22,9 +22,10 @@ from typing import Any
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.db_manager import DbManager
-from aieng.agent_evals.langfuse import setup_langfuse_tracer
+from aieng.agent_evals.langfuse import init_tracing
 from aieng.agent_evals.report_generation.file_writer import ReportFileWriter
 from google.adk.agents import Agent
+from google.adk.agents.base_agent import AfterAgentCallback
 from google.adk.events.event import Event
 from pydantic import BaseModel
 
@@ -37,6 +38,7 @@ def get_report_generation_agent(
     instructions: str,
     reports_output_path: Path,
     langfuse_project_name: str | None,
+    after_agent_callback: AfterAgentCallback | None = None,
 ) -> Agent:
     """
     Define the report generation agent.
@@ -49,6 +51,9 @@ def get_report_generation_agent(
         The path to the reports output directory.
     langfuse_project_name : str | None
         The name of the Langfuse project to use for tracing.
+    after_agent_callback : AfterAgentCallback | None
+        The callback function to be called after the agent has
+        finished executing.
 
     Returns
     -------
@@ -57,7 +62,7 @@ def get_report_generation_agent(
     """
     # Setup langfuse tracing if project name is provided
     if langfuse_project_name:
-        setup_langfuse_tracer(langfuse_project_name)
+        init_tracing(langfuse_project_name)
 
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
@@ -74,6 +79,7 @@ def get_report_generation_agent(
             db_manager.report_generation_db().get_schema_info,
             report_file_writer.write_xlsx,
         ],
+        after_agent_callback=after_agent_callback,
     )
 
 
