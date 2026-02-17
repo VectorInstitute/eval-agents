@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.db_manager import DbManager
 from aieng.agent_evals.report_generation.agent import EventParser, EventType, get_report_generation_agent
 from aieng.agent_evals.report_generation.prompts import (
     MAIN_AGENT_INSTRUCTIONS,
@@ -106,6 +107,7 @@ async def evaluate(
 
     try:
         # Gracefully close the services
+        DbManager.get_instance().close()
         await client_manager.close()
     except Exception as e:
         logger.warning(f"Client manager services not closed successfully: {e}")
