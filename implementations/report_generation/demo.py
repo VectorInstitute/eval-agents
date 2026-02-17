@@ -144,8 +144,23 @@ def calculate_and_send_scores(callback_context: CallbackContext) -> None:
     logger.error("No final response found in the callback context. Will not report scores to Langfuse.")
 
 
-def on_feedback(liked: bool):
-    """Handle thumbs up (liked=True) or thumbs down (liked=False)."""
+def on_feedback(liked: bool) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Handle thumbs up (liked=True) or thumbs down (liked=False).
+
+    Send the result of the feedback to Langfuse and returns the updated
+    states for the feedback row and the thank you message row.
+
+    Parameters
+    ----------
+    liked : bool
+        Whether the user liked the agent's response.
+
+    Returns
+    -------
+    tuple[dict[str, Any], dict[str, Any]] | None
+        The updated states for the feedback row and the thank you message row.
+        If no trace ID is found in the state, returns None.
+    """
     trace_id = GRADIO_STATE.value["trace_id"]
     if trace_id is None:
         logger.error("No trace ID found in the state. Will not report feedback to Langfuse.")
@@ -167,8 +182,14 @@ def on_feedback(liked: bool):
     return gr.update(visible=False), gr.update(visible=True)
 
 
-def toggle_feedback_row():
-    """Toggle the feedback row if there is a trace ID in the state."""
+def toggle_feedback_row() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Toggle the feedback row if there is a trace ID in the state.
+
+    Returns
+    -------
+    tuple[dict[str, Any], dict[str, Any]]
+        The updated states for the feedback row and the thank you message row.
+    """
     trace_id = GRADIO_STATE.value["trace_id"]
     return gr.update(visible=trace_id is not None and trace_id != ""), gr.update(visible=False)
 
