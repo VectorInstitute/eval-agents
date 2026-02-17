@@ -193,9 +193,9 @@ def create_llm_as_judge_evaluator(
 
     # Load and render rubric text into the system prompt
     rubric_source = rubric_markdown if rubric_markdown is not None else DEFAULT_LLM_JUDGE_RUBRIC
-    rubric_text = load_markdown(rubric_source)
+    rubric = load_markdown(rubric_source)
     rendered_system_prompt = render_system_prompt_with_optional_rubric(
-        system_prompt_template=system_prompt_template, rubric_text=rubric_text
+        system_prompt_template=system_prompt_template, rubric=rubric
     )
 
     # Metric name to use when the judge call fails

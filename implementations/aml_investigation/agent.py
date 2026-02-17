@@ -19,8 +19,8 @@ from pathlib import Path
 
 import google.genai.types
 from aieng.agent_evals.aml_investigation.data import AnalystOutput, CaseRecord
-from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.async_utils import rate_limited
+from aieng.agent_evals.db_manager import DbManager
 from aieng.agent_evals.tools import ReadOnlySqlDatabase
 from dotenv import load_dotenv
 from google.adk.agents import Agent
@@ -94,15 +94,13 @@ Use `pattern_type = "NONE"` when no laundering pattern is supported by evidence 
 @lru_cache(maxsize=1)
 def _get_db() -> ReadOnlySqlDatabase:
     """Lazily construct the read-only database tool from environment configuration."""
-    client_manager = AsyncClientManager().get_instance()
-    return client_manager.aml_db()
+    return DbManager.get_instance().aml_db()
 
 
-async def _try_close_db() -> None:
+def _try_close_db() -> None:
     """Close the lazily initialized database tool if it was created."""
     if _get_db.cache_info().currsize:
-        client_manager = AsyncClientManager().get_instance()
-        await client_manager.close()
+        DbManager.get_instance().close()
         _get_db.cache_clear()
 
 
@@ -289,7 +287,7 @@ async def _main() -> None:
             logger.info("  TP=%d  FP=%d", tp, fp)
             logger.info("  FN=%d  TN=%d", fn, tn)
     finally:
-        await _try_close_db()
+        _try_close_db()
 
 
 if __name__ == "__main__":
