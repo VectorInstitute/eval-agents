@@ -120,3 +120,6 @@ The agent is also set to collect online evaluation metrics in both the Gradio De
 and the Google ADK UI. The online evaluations will check if the token usage and execution
 time are higher than a certain threshold defined in the code, and it will also
 check if the final result is present and contains a link to the report.
+
+Those evaluation results will be sent to Langfuse as scores, where they can be analyzed
+both in an aggregate fashion as well as individually.
