@@ -71,27 +71,25 @@ Each case contains:
 
 ## Run the Agent (Batch)
 
-This reads `aml_cases.jsonl`, runs the agent over any cases missing `analysis`, and writes:
+This reads `aml_cases.jsonl`, runs the agent over any cases missing `output`, and writes:
 
-- `implementations/aml_investigation/data/aml_cases_with_analysis.jsonl`
+- `implementations/aml_investigation/data/aml_cases_with_output.jsonl`
 
 ```bash
-uv run --env-file .env implementations/aml_investigation/agent.py
+uv run --env-file .env implementations/aml_investigation/cli.py
 ```
 
-The script prints a simple confusion matrix for `is_laundering` based on the cases that have `analysis`.
+The script prints a simple confusion matrix for `is_laundering` based on the cases that have `output`.
 
 ## Run with ADK Web UI
 
 If you want to inspect the agent interactively, the module exposes a top-level `root_agent` for ADK discovery.
 
-From `implementations/aml_investigation/`:
+Run:
 
 ```bash
 uv run adk web --port 8000 --reload --reload_agents implementations/
 ```
-
-The DB tool is initialized lazily when a tool call happens (so importing the module doesn’t keep a DB connection open).
 
 ## Safety Notes (Why Read‑Only SQL?)
 
