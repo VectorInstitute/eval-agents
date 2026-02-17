@@ -8,7 +8,6 @@ Example
 >>> from aieng.agent_evals.knowledge_qa import (
 ...     KnowledgeGroundedAgent,
 ...     DeepSearchQADataset,
-...     DeepSearchQAEvaluator,
 ... )
 >>> agent = KnowledgeGroundedAgent()
 >>> response = agent.answer("What is the current population of Tokyo?")
@@ -35,7 +34,6 @@ from aieng.agent_evals.tools import (
 from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .data import DeepSearchQADataset, DSQAExample
 from .deepsearchqa_grader import DeepSearchQAResult, evaluate_deepsearchqa_async
-from .evaluation import DeepSearchQAEvaluator, EvaluationResult
 from .models import (
     AgentResponse,
     ResearchPlan,
@@ -67,9 +65,7 @@ __all__ = [
     "DeepSearchQAResult",
     "evaluate_deepsearchqa_async",
     "DeepSearchQADataset",
-    "DeepSearchQAEvaluator",
     "DSQAExample",
-    "EvaluationResult",
     # Tracing
     "init_tracing",
     "is_tracing_enabled",

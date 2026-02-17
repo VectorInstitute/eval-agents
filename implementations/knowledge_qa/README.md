@@ -55,21 +55,25 @@ print(f"Tool calls: {response.tool_calls}")
 
 ### Evaluation on DeepSearchQA
 
-```python
-from aieng.agent_evals.knowledge_qa import (
-    KnowledgeGroundedAgent,
-    DeepSearchQAEvaluator,
-)
+Use the main evaluation script to run comprehensive evaluations:
 
-agent = KnowledgeGroundedAgent()
-evaluator = DeepSearchQAEvaluator(agent)
+```bash
+# Run evaluation on 3 samples
+python implementations/knowledge_qa/evaluate.py --samples 3
 
-# Evaluate a sample (use await in Jupyter)
-results = await evaluator.evaluate_sample_async(n=10, random_state=42)
+# Run with specific example IDs
+python implementations/knowledge_qa/evaluate.py --ids 123 456 789
 
-# Convert to DataFrame for analysis
-df = evaluator.results_to_dataframe(results)
-print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
+# Enable trace groundedness evaluation
+ENABLE_TRACE_GROUNDEDNESS=true python implementations/knowledge_qa/evaluate.py
+```
+
+Or use the CLI:
+
+```bash
+# Run evaluation via CLI
+uv run --env-file .env knowledge-qa eval --samples 3
+uv run --env-file .env knowledge-qa eval --ids 123 456 --show-plan
 ```
 
 ## Notebooks
@@ -81,20 +85,22 @@ print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
 
 ```
 aieng.agent_evals.knowledge_qa/
-├── agent.py           # KnowledgeGroundedAgent (ADK Agent + Runner)
-├── evaluation.py      # DeepSearchQA dataset and evaluator
-├── judges.py          # LLM-as-judge evaluation
-├── metrics.py         # Evaluation metrics
-├── planner.py         # Research planning
-├── token_tracker.py   # Token usage tracking
-└── tracing.py         # Langfuse tracing integration
+├── agent.py                # KnowledgeGroundedAgent (ADK Agent + Runner)
+├── data/                   # DeepSearchQA dataset loader
+├── deepsearchqa_grader.py  # LLM-as-judge evaluation
+├── planner.py              # Research planning
+├── token_tracker.py        # Token usage tracking
+└── cli.py                  # Rich CLI interface
 
 aieng.agent_evals/
-├── configs.py         # Configuration (Pydantic settings)
-└── tools/             # Shared tools
-    ├── search.py      # GoogleSearchTool wrapper
-    ├── web.py         # web_fetch for HTML/PDF
-    └── file.py        # fetch_file, grep_file, read_file
+├── configs.py              # Configuration (Pydantic settings)
+├── evaluation/             # Evaluation harness
+│   ├── experiment.py       # Langfuse experiment runner
+│   └── graders/            # Evaluators (trace groundedness, etc.)
+└── tools/                  # Shared tools
+    ├── search.py           # GoogleSearchTool wrapper
+    ├── web.py              # web_fetch for HTML/PDF
+    └── file.py             # fetch_file, grep_file, read_file
 ```
 
 ## DeepSearchQA Dataset
