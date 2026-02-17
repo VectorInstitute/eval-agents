@@ -8,7 +8,7 @@ import logging
 
 from aieng.agent_evals.configs import Configs
 from langfuse import Langfuse
-from openai import AsyncOpenAI
+from langfuse.openai import AsyncOpenAI
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -91,7 +91,11 @@ class AsyncClientManager:
         if self._openai_client is None:
             api_key = self.configs.openai_api_key.get_secret_value()
 
-            self._openai_client = AsyncOpenAI(api_key=api_key, base_url=self.configs.openai_base_url)
+            self._openai_client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=self.configs.openai_base_url,
+                max_retries=0,  # Using custom retry logic (tenacity) elsewhere
+            )
             self._initialized = True
         return self._openai_client
 
