@@ -3,7 +3,7 @@ Evaluate the report generation agent against a Langfuse dataset.
 
 Example
 -------
->>> from aieng.agent_evals.report_generation.evaluation import evaluate
+>>> from aieng.agent_evals.report_generation.evaluation.offline import evaluate
 >>> evaluate(
 >>>     dataset_name="OnlineRetailReportEval",
 >>>     reports_output_path=Path("reports/"),
@@ -62,6 +62,7 @@ async def evaluate(
     dataset_name: str,
     reports_output_path: Path,
     langfuse_project_name: str,
+    max_concurrency: int = 5,
 ) -> None:
     """Evaluate the report generation agent against a Langfuse dataset.
 
@@ -76,6 +77,8 @@ async def evaluate(
         The path to the reports output directory.
     langfuse_project_name : str
         The name of the Langfuse project to use for tracing.
+    max_concurrency : int, optional
+        The maximum concurrency to use for the evaluation, by default 5.
     """
     # Get the client manager singleton instance and langfuse client
     client_manager = AsyncClientManager.get_instance()
@@ -99,7 +102,7 @@ async def evaluate(
         description="Evaluate the Report Generation Agent with data from Langfuse",
         task=report_generation_task.run,
         evaluators=[final_result_evaluator, trajectory_evaluator],
-        max_concurrency=1,
+        max_concurrency=max_concurrency,
     )
 
     # Log the evaluation result

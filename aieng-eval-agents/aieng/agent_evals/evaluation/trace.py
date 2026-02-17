@@ -20,7 +20,6 @@ from aieng.agent_evals.evaluation.types import (
     TraceObservationPredicate,
     TraceWaitConfig,
 )
-from aieng.agent_evals.langfuse import flush_traces
 from langfuse import Langfuse
 from langfuse.api import ObservationsView
 from langfuse.api.core import ApiError
@@ -143,6 +142,16 @@ async def _run_trace_evaluations_async(
     return result
 
 
+def flush_traces() -> None:
+    """Flush any pending traces to Langfuse.
+
+    Call this before your application exits to ensure all traces are sent.
+    """
+    manager = AsyncClientManager.get_instance()
+    if manager._langfuse_client is not None:
+        manager._langfuse_client.flush()
+
+
 def extract_trace_metrics(
     trace: TraceWithFullDetails,
     *,
@@ -226,7 +235,7 @@ async def _evaluate_trace(
         return [], TraceEvalStatus.SKIPPED, "Missing `trace_id` on experiment item result."
 
     try:
-        trace, ready = await _fetch_trace_with_wait(langfuse_client, trace_id, wait)
+        trace, ready = await fetch_trace_with_wait(langfuse_client, trace_id, wait)
     except Exception as exc:
         return [], TraceEvalStatus.FAILED, f"Trace fetch failed: {exc}"
 
@@ -248,7 +257,7 @@ async def _evaluate_trace(
     return evaluations, TraceEvalStatus.OK, None
 
 
-async def _fetch_trace_with_wait(
+async def fetch_trace_with_wait(
     langfuse_client: Langfuse, trace_id: str, wait: TraceWaitConfig
 ) -> tuple[TraceWithFullDetails | None, bool]:
     """Fetch a trace with retry/backoff until it is ready or timeout expires."""

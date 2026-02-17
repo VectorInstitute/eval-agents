@@ -56,6 +56,21 @@ features a text input so you can make your own report requests to it.
 The agent will automatically upload a trace to Langfuse that can be used to evaluate
 the run or debug any issues.
 
+### Running the agent using Google ADK
+
+If you wish to run the agent using the Google Agent Development Kit UI,
+please run the command below from the project's root folder:
+
+```bash
+adk web implementations/
+```
+
+Once the service is up, it will be available at `http://127.0.0.1:8000`. On the
+"Select an Agent" dropdown, please select "report_generation". You can type a request to
+the agent on the text box on the right hand side panel.
+
+
+
 ## Running the Evaluations
 
 ### Uploading the Ground Truth Dataset to Langfuse
@@ -76,16 +91,16 @@ To upload custom data or use a different dataset name, please run:
 uv run --env-file .env python -m implementations.report_generation.data.langfuse_upload --dataset-path <path/to/dataset.json> --dataset-name <dataset name>
 ```
 
-### Running the Evaluation Script
+### Running the Offline Evaluation Script
 
-Once the dataset has been uploaded to Langfuse, the evaluations can be run with
-the command below:
+Once the dataset has been uploaded to Langfuse, the offline evaluations
+against a pre-determined dataset can be run with the command below:
 
 ```bash
 uv run --env-file .env python -m implementations.report_generation.evaluate
 ```
 
-To run the evaluations against a custom dataset, please execute:
+To run the offline evaluations against a custom dataset, please execute:
 
 ```bash
 uv run --env-file .env python -m implementations.report_generation.evaluate --dataset-name <dataset name>
@@ -98,3 +113,20 @@ agent used against the ground truth and produce True/False scores along with a r
 
 At the end of the run, an evaluation report will be displayed along with a link
 to check details about the evaluation in Langfuse.
+
+### Online Evaluations
+
+The agent is also set to collect online evaluation metrics in both the Gradio Demo UI
+and the Google ADK UI. The online evaluations will check if the token usage and execution
+time are higher than a certain threshold defined in the code, and it will also
+check if the final result is present and contains a link to the report.
+
+Those evaluation results will be sent to Langfuse as scores, where they can be analyzed
+both in an aggregate fashion as well as individually.
+
+### User Feedback
+
+On the Gradio Demo UI, there are two buttons to record user feedback: a thumbs
+up button to record positive user feedback and a thumbs down button to record
+negative user feedback. The buttons will appear at the end of the agent's execution
+and it will record the user feedback as Langfuse scores.
