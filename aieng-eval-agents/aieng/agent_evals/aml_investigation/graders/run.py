@@ -92,13 +92,14 @@ def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: Any)
         expected_pattern = normalize_pattern(get_field(expected_output, "pattern_type"))
         predicted_pattern = normalize_pattern(get_field(predicted_output, "pattern_type"))
 
+        # Include invalid patterns in confusion matrix under "INVALID" label.
         if expected_pattern not in PATTERN_LABELS:
             invalid_expected_pattern_count += 1
-            continue
+            expected_pattern = "INVALID"
 
         if predicted_pattern not in PATTERN_LABELS:
             invalid_predicted_pattern_count += 1
-            continue
+            predicted_pattern = "INVALID"
 
         pattern_expected.append(expected_pattern)
         pattern_predicted.append(predicted_pattern)
@@ -123,7 +124,9 @@ def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: Any)
         is_laundering_fn = int(confusion[1, 0])
         is_laundering_tp = int(confusion[1, 1])
 
-    labels = list(PATTERN_LABELS)
+    labels = list(PATTERN_LABELS) + (
+        ["INVALID"] if invalid_expected_pattern_count > 0 or invalid_predicted_pattern_count > 0 else []
+    )
     pattern_type_macro_f1 = 0.0
     pattern_confusion_matrix = [[0 for _ in labels] for _ in labels]
     if pattern_expected:
