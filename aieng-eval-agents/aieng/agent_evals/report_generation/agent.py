@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
-from aieng.agent_evals.langfuse import setup_langfuse_tracer
+from aieng.agent_evals.langfuse import init_tracing
 from aieng.agent_evals.report_generation.file_writer import ReportFileWriter
 from google.adk.agents import Agent
 from google.adk.agents.base_agent import AfterAgentCallback
@@ -58,7 +58,7 @@ def get_report_generation_agent(
     """
     # Setup langfuse tracing if project name is provided
     if langfuse_project_name:
-        setup_langfuse_tracer(langfuse_project_name)
+        init_tracing(langfuse_project_name)
 
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
