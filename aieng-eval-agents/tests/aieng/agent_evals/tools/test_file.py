@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
 import pytest
+from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
 from aieng.agent_evals.tools.file import (
     _is_excel_file,
     _read_csv_as_text,
@@ -473,120 +474,203 @@ class TestCreateReadFileTool:
 
 @pytest.mark.integration_test
 class TestFileToolsIntegration:
-    """Integration tests for file tools in the agent workflow.
+    """Integration tests for file tools using the actual agent.
 
-    The agent's typical workflow for data files is:
-    1. google_search -> find data file URLs
-    2. fetch_file -> download file, get file_path
-    3. grep_file -> find relevant sections by keyword
-    4. read_file -> read context around matches
+    Tests the agent's ability to:
+    1. Download a real file from the web using fetch_file
+    2. Search within the file using grep_file
+    3. Read specific sections using read_file
 
-    These tests verify this workflow works end-to-end.
+    Uses stable public datasets (CSV and Excel) as test files.
     """
 
-    def test_fetch_file_and_search_workflow(self):
-        """Test the fetch_file -> grep_file -> read_file workflow.
+    # Test file configurations
+    CSV_TEST_URL = "https://raw.githubusercontent.com/plotly/datasets/master/iris.csv"
+    CSV_EXPECTED_COLUMNS = ["sepallength", "sepalwidth", "petallength", "petalwidth", "name"]
+    CSV_SEARCH_TERM = "virginica"
 
-        This tests the workflow for CSV/text data files where the agent
-        needs to search for specific information.
+    EXCEL_TEST_URL = "https://raw.githubusercontent.com/frictionlessdata/datasets/main/files/excel/sample-1-sheet.xlsx"
+    EXCEL_EXPECTED_COLUMNS = ["number", "string", "boolean"]
+    EXCEL_SEARCH_TERM = "four"
+
+    def _create_test_agent(self):
+        """Create a test agent with consistent settings."""
+        return KnowledgeGroundedAgent(
+            enable_planning=False,
+            enable_caching=False,
+            enable_compaction=False,
+        )
+
+    def _verify_fetch_call(self, tool_calls: list[dict], expected_url: str) -> str:
+        """Verify fetch_file was called correctly and return the file path.
+
+        Parameters
+        ----------
+        tool_calls : list[dict]
+            All tool calls from the agent response.
+        expected_url : str
+            The expected URL that should have been fetched.
+
+        Returns
+        -------
+        str
+            The file path from the fetch call (for further verification).
         """
-        # Create a mock CSV-like file to test
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("date,category,value,notes\n")
-            for i in range(100):
-                if i == 42:
-                    f.write(f"2024-01-{i:02d},revenue,1000000,quarterly report\n")
-                elif i == 75:
-                    f.write(f"2024-01-{i:02d},expenses,500000,operating costs\n")
-                else:
-                    f.write(f"2024-01-{i:02d},other,{i * 100},regular entry\n")
-            temp_path = f.name
+        fetch_calls = [tc for tc in tool_calls if tc.get("name") == "fetch_file"]
+        assert len(fetch_calls) >= 1, "Agent should have called fetch_file"
+
+        fetch_args = fetch_calls[0].get("args", {})
+        assert fetch_args.get("url") == expected_url, (
+            f"Agent should fetch exact URL. Expected: {expected_url}, Got: {fetch_args.get('url')}"
+        )
+        return fetch_args.get("url", "")
+
+    def _verify_tool_used_cached_file(self, tool_calls: list[dict], tool_name: str) -> str:
+        """Verify a tool was called on a cached file that exists.
+
+        Parameters
+        ----------
+        tool_calls : list[dict]
+            All tool calls from the agent response.
+        tool_name : str
+            Name of the tool to verify (e.g., 'grep_file', 'read_file').
+
+        Returns
+        -------
+        str
+            The file path that was used.
+        """
+        tool_uses = [tc for tc in tool_calls if tc.get("name") == tool_name]
+        assert len(tool_uses) >= 1, f"Agent should have used {tool_name}"
+
+        tool_args = tool_uses[0].get("args", {})
+        file_path = tool_args.get("file_path", "")
+        assert "agent_file_cache" in file_path, f"{tool_name} should use a cached file. Got: {file_path}"
+        assert os.path.exists(file_path), f"File should exist at: {file_path}"
+
+        return file_path
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "file_url,file_type,search_term,expected_columns",
+        [
+            (CSV_TEST_URL, "CSV", CSV_SEARCH_TERM, CSV_EXPECTED_COLUMNS),
+            (EXCEL_TEST_URL, "Excel", EXCEL_SEARCH_TERM, EXCEL_EXPECTED_COLUMNS),
+        ],
+        ids=["CSV", "Excel"],
+    )
+    async def test_agent_downloads_and_searches_file(
+        self, file_url: str, file_type: str, search_term: str, expected_columns: list[str]
+    ):
+        """Test that agent can download and search a data file (CSV or Excel).
+
+        Verifies the agent can:
+        - Successfully download a data file
+        - Use grep_file to find specific patterns
+        - Report findings from the file
+        """
+        agent = self._create_test_agent()
 
         try:
-            # Step 1: Search for relevant content
-            grep_result = grep_file(temp_path, "revenue, expenses", context_lines=3)
-            assert grep_result["status"] == "success"
-            assert grep_result["total_matches"] == 2
+            question = f"Please fetch the {file_type} file at {file_url} and search for the word '{search_term}'. Tell me if you find it."
 
-            # Get line number from first match
-            first_match = grep_result["matches"][0]
-            line_number = first_match["line_number"]
+            response = await agent.answer_async(question)
 
-            # Step 2: Read context around the match
-            read_result = read_file(temp_path, start_line=max(1, line_number - 2), num_lines=10)
-            assert read_result["status"] == "success"
+            # Verify we got a response
+            assert response.text, "Agent should return a non-empty response"
 
-            # Verify the read content contains the financial data
-            content = read_result["content"]
-            assert "revenue" in content.lower() or "expenses" in content.lower()
+            # Verify fetch_file was called correctly
+            self._verify_fetch_call(response.tool_calls, file_url)
+
+            # Verify grep was used to search the downloaded file
+            self._verify_tool_used_cached_file(response.tool_calls, "grep_file")
+
+            # Verify the response mentions the search term
+            assert search_term.lower() in response.text.lower(), f"Response should mention {search_term}"
 
         finally:
-            os.remove(temp_path)
+            agent.reset()
 
-    def test_grep_file_or_matching(self):
-        """Test that grep_file supports OR matching with comma-separated patterns.
+    @pytest.mark.asyncio
+    async def test_agent_file_workflow_full_integration_csv(self):
+        """Test the full CSV workflow: fetch -> grep -> read with complex question.
 
-        The agent uses this to search for multiple related terms at once,
-        e.g., "revenue, income, profit" to find financial metrics.
+        This test verifies the agent can handle a complex question requiring:
+        1. Download a CSV file from a URL
+        2. Search for specific content
+        3. Read and analyze data to answer a numerical question
         """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("Section 1: Introduction\n")
-            for i in range(20):
-                f.write(f"Content line {i}\n")
-            f.write("Section 2: Revenue Analysis\n")
-            for i in range(20):
-                f.write(f"More content {i}\n")
-            f.write("Section 3: Profit Margins\n")
-            temp_path = f.name
+        agent = self._create_test_agent()
 
         try:
-            # Search for multiple financial terms
-            result = grep_file(temp_path, "revenue, profit, income", context_lines=2)
+            question = (
+                f"Download the Iris dataset from {self.CSV_TEST_URL}. "
+                f"Search for rows containing 'setosa' species. "
+                f"Then tell me approximately how many setosa samples are in the file."
+            )
 
-            assert result["status"] == "success"
-            # Should find at least 2 matches (Revenue and Profit sections)
-            assert result["total_matches"] >= 2
+            response = await agent.answer_async(question)
 
-            # Verify patterns are tracked
-            assert "revenue" in result["patterns"]
-            assert "profit" in result["patterns"]
-            assert "income" in result["patterns"]
+            # Verify we got a response
+            assert response.text, "Agent should return a non-empty response"
+
+            # Verify the agent used the file tools
+            tool_names = [tc.get("name", "") for tc in response.tool_calls]
+            assert "fetch_file" in tool_names, "Agent should have used fetch_file tool"
+            assert "grep_file" in tool_names or "read_file" in tool_names, (
+                "Agent should have used grep_file or read_file tool"
+            )
+
+            # Verify the response mentions expected content
+            response_lower = response.text.lower()
+            assert "setosa" in response_lower, "Response should mention setosa"
 
         finally:
-            os.remove(temp_path)
+            agent.reset()
 
-    def test_read_file_for_specific_section(self):
-        """Test that read_file can extract specific sections by line number.
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "file_url,file_type,expected_columns",
+        [
+            (CSV_TEST_URL, "CSV", CSV_EXPECTED_COLUMNS),
+            (EXCEL_TEST_URL, "Excel", EXCEL_EXPECTED_COLUMNS),
+        ],
+        ids=["CSV", "Excel"],
+    )
+    async def test_agent_reads_file_sections_and_extracts_columns(
+        self, file_url: str, file_type: str, expected_columns: list[str]
+    ):
+        """Test that agent can read file sections and extract column information.
 
-        After grep_file finds relevant lines, the agent uses read_file
-        to get enough context to understand the data.
+        Verifies the agent can:
+        - Download a data file (CSV or Excel)
+        - Use read_file to extract specific sections
+        - Correctly identify and report column names
         """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            # Create a document with structured sections
-            for i in range(1, 101):
-                if i == 50:
-                    f.write("IMPORTANT: Key Financial Data\n")
-                elif 51 <= i <= 55:
-                    f.write(f"  Q{i - 50} Revenue: ${(i - 50) * 1000000}\n")
-                else:
-                    f.write(f"Line {i}: Regular content\n")
-            temp_path = f.name
+        agent = self._create_test_agent()
 
         try:
-            # Simulate agent finding the important section
-            grep_result = grep_file(temp_path, "key financial data")
-            assert grep_result["status"] == "success"
+            question = (
+                f"Download the {file_type} file from {file_url} "
+                f"and read the first 10 lines. List all the column names you find in the header."
+            )
 
-            line_num = grep_result["matches"][0]["line_number"]
+            response = await agent.answer_async(question)
 
-            # Read the section with financial data
-            read_result = read_file(temp_path, start_line=line_num, num_lines=10)
-            assert read_result["status"] == "success"
+            # Verify we got a response
+            assert response.text, "Agent should return a non-empty response"
 
-            # Verify we got the financial data
-            content = read_result["content"]
-            assert "Key Financial Data" in content
-            assert "Revenue" in content
+            # Verify fetch_file and read_file were called correctly
+            self._verify_fetch_call(response.tool_calls, file_url)
+            self._verify_tool_used_cached_file(response.tool_calls, "read_file")
+
+            # Response should mention ALL expected columns (strict check)
+            response_lower = response.text.lower()
+            missing_columns = [col for col in expected_columns if col not in response_lower]
+            assert len(missing_columns) == 0, (
+                f"Response should mention ALL expected columns. Missing: {missing_columns}. "
+                f"Expected: {expected_columns}. Response: {response.text}"
+            )
 
         finally:
-            os.remove(temp_path)
+            agent.reset()
