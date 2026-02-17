@@ -171,9 +171,9 @@ def create_trace_groundedness_evaluator(
     resolved_model_config = model_config or LLMRequestConfig()
 
     # Load and render rubric text into the system prompt
-    rubric_text = load_markdown(rubric_markdown)
+    rubric = load_markdown(rubric_markdown)
     rendered_system_prompt = render_system_prompt_with_optional_rubric(
-        system_prompt_template=system_prompt_template, rubric_text=rubric_text
+        system_prompt_template=system_prompt_template, rubric=rubric
     )
 
     # Error metric name is deterministic to keep failed evaluations analyzable
