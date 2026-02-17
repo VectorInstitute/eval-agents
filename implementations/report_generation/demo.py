@@ -15,6 +15,7 @@ from typing import Any, AsyncGenerator
 import click
 import gradio as gr
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.db_manager import DbManager
 from aieng.agent_evals.langfuse import report_usage_scores
 from aieng.agent_evals.report_generation.agent import get_report_generation_agent
 from aieng.agent_evals.report_generation.evaluation.online import report_final_response_score
@@ -182,6 +183,7 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
             allowed_paths=[str(get_reports_output_path().absolute())],
         )
     finally:
+        DbManager.get_instance().close()
         asyncio.run(AsyncClientManager.get_instance().close())
 
 
