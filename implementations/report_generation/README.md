@@ -9,7 +9,7 @@ supported natively by Python and saves the data in disk.
 SQL connection can be easily swapped for other databases.
 
 The Report Generation Agent will provide an UI to read user queries in natural language
-and procceed to make SQL queries to the database in order to produce the data for
+and proceed to make SQL queries to the database in order to produce the data for
 the report. At the end, the Agent will provide a downloadable link to the report as
 an `.xlsx` file.
 
