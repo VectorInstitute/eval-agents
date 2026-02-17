@@ -27,4 +27,9 @@ wheels/
 .gradio
 .adk
 *.db
+*.db-journal
 implementations/report_generation/reports/*
+implementations/report_generation/data/*.zip
+implementations/report_generation/data/*.csv
+implementations/report_generation/data/*.xls
+implementations/report_generation/data/*.xlsx
