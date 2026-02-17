@@ -2,13 +2,14 @@
 
 import pytest
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
-from aieng.agent_evals.knowledge_qa.models import ResearchStep, StepStatus
 from aieng.agent_evals.knowledge_qa.plan_parsing import (
     ACTION_TAG,
     FINAL_ANSWER_TAG,
     PLANNING_TAG,
     REASONING_TAG,
     REPLANNING_TAG,
+    ResearchStep,
+    StepStatus,
     extract_final_answer_text,
     extract_plan_text,
     extract_reasoning_text,

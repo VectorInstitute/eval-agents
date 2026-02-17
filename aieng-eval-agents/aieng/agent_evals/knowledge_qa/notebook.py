@@ -17,10 +17,12 @@ from typing import TYPE_CHECKING
 
 from IPython.display import HTML, clear_output, display
 
+from .plan_parsing import StepStatus
+
 
 if TYPE_CHECKING:
-    from .agent import KnowledgeGroundedAgent
-    from .models import AgentResponse, ResearchPlan
+    from .agent import AgentResponse, KnowledgeGroundedAgent
+    from .plan_parsing import ResearchPlan
 
 
 logger = logging.getLogger(__name__)
@@ -66,8 +68,6 @@ class ToolCallCapture(logging.Handler):
 
 def _format_plan_html(plan: "ResearchPlan") -> str:
     """Format the research plan as HTML."""
-    from .models import StepStatus  # noqa: PLC0415
-
     lines = ['<div style="font-family: monospace; padding: 10px; background: #f8f9fa; border-radius: 8px;">']
     lines.append('<div style="font-weight: bold; margin-bottom: 8px;">📋 Research Plan</div>')
 

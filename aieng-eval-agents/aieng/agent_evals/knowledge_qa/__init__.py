@@ -31,17 +31,11 @@ from aieng.agent_evals.tools import (
     web_fetch,
 )
 
-from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
+from .agent import AgentResponse, KnowledgeAgentManager, KnowledgeGroundedAgent, StepExecution
 from .data import DeepSearchQADataset, DSQAExample
 from .deepsearchqa_grader import DeepSearchQAResult, evaluate_deepsearchqa_async
-from .models import (
-    AgentResponse,
-    ResearchPlan,
-    ResearchStep,
-    StepExecution,
-    StepStatus,
-)
 from .notebook import run_with_display
+from .plan_parsing import ResearchPlan, ResearchStep, StepStatus
 
 
 __all__ = [

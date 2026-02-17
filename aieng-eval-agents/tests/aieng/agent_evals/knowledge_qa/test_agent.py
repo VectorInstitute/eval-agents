@@ -4,14 +4,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_qa.agent import (
+    AgentResponse,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
+    StepExecution,
 )
-from aieng.agent_evals.knowledge_qa.models import (
-    AgentResponse,
+from aieng.agent_evals.knowledge_qa.plan_parsing import (
     ResearchPlan,
     ResearchStep,
-    StepExecution,
     StepStatus,
 )
 from aieng.agent_evals.tools import GroundingChunk

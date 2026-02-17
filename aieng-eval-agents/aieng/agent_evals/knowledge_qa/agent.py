@@ -14,6 +14,7 @@ from typing import Any
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
+    GroundingChunk,
     create_fetch_file_tool,
     create_google_search_tool,
     create_grep_file_tool,
@@ -30,6 +31,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from google.genai.errors import ClientError
+from pydantic import BaseModel, Field
 from tenacity import (
     RetryError,
     before_sleep_log,
@@ -50,15 +52,11 @@ from .event_extraction import (
     extract_tool_calls,
     resolve_source_urls,
 )
-from .models import (
-    AgentResponse,
-    ResearchPlan,
-    StepExecution,
-    StepStatus,
-)
 from .plan_parsing import (
     PLANNING_TAG,
     REPLANNING_TAG,
+    ResearchPlan,
+    StepStatus,
     extract_final_answer_text,
     extract_plan_text,
     extract_reasoning_text,
@@ -82,6 +80,74 @@ warnings.filterwarnings("ignore", message=r".*EXPERIMENTAL.*ContextCacheConfig.*
 warnings.filterwarnings("ignore", message=r".*EXPERIMENTAL.*EventsCompactionConfig.*")
 
 logger = logging.getLogger(__name__)
+
+
+class StepExecution(BaseModel):
+    """Record of executing a single research step.
+
+    This model captures the execution trace for evaluation purposes.
+
+    Attributes
+    ----------
+    step_id : int
+        The step ID that was executed.
+    tool_used : str
+        The actual tool that was used.
+    input_query : str
+        The query or input provided to the tool.
+    output_summary : str
+        Summary of what the step produced.
+    sources_found : int
+        Number of sources discovered in this step.
+    duration_ms : int
+        Execution time in milliseconds.
+    raw_output : str
+        Raw output from the tool for debugging.
+    """
+
+    step_id: int
+    tool_used: str
+    input_query: str
+    output_summary: str = ""
+    sources_found: int = 0
+    duration_ms: int = 0
+    raw_output: str = ""
+
+
+class AgentResponse(BaseModel):
+    """Response from the knowledge agent with execution trace.
+
+    Contains the answer text along with metadata about how the agent
+    arrived at the answer: the research plan, tool calls, sources, and reasoning.
+
+    Attributes
+    ----------
+    text : str
+        The generated response text.
+    plan : ResearchPlan
+        The research plan created for the question.
+    execution_trace : list[StepExecution]
+        Record of each step's execution.
+    sources : list[GroundingChunk]
+        Web sources used in the response.
+    search_queries : list[str]
+        Search queries executed.
+    reasoning_chain : list[str]
+        Step-by-step reasoning trace.
+    tool_calls : list[dict]
+        Raw tool calls made during execution.
+    total_duration_ms : int
+        Total execution time in milliseconds.
+    """
+
+    text: str
+    plan: ResearchPlan
+    execution_trace: list[StepExecution] = Field(default_factory=list)
+    sources: list[GroundingChunk] = Field(default_factory=list)
+    search_queries: list[str] = Field(default_factory=list)
+    reasoning_chain: list[str] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    total_duration_ms: int = 0
 
 
 class KnowledgeGroundedAgent:

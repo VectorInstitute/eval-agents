@@ -21,7 +21,12 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
-from aieng.agent_evals.knowledge_qa.deepsearchqa_grader import EvaluationOutcome
+from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.knowledge_qa.deepsearchqa_grader import (
+    EvaluationOutcome,
+    evaluate_deepsearchqa_async,
+)
+from aieng.agent_evals.langfuse import flush_traces, init_tracing
 from dotenv import load_dotenv
 from rich import box
 from rich.console import Console, Group
@@ -30,6 +35,10 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.table import Table
 from rich.text import Text
+
+from .agent import KnowledgeGroundedAgent
+from .data import DeepSearchQADataset
+from .plan_parsing import StepStatus
 
 
 # Load .env file from current directory or parent directories
@@ -69,8 +78,6 @@ def _get_model_config() -> tuple[str, str]:
     tuple[str, str]
         The worker model and evaluator model names from config.
     """
-    from aieng.agent_evals.configs import Configs  # noqa: PLC0415
-
     try:
         config = Configs()  # type: ignore[call-arg]
         return config.default_worker_model, config.default_evaluator_model
@@ -310,8 +317,6 @@ def _create_plan_display(plan) -> Panel:
     Panel
         A rich panel with the plan checklist.
     """
-    from .models import StepStatus  # noqa: PLC0415
-
     lines = []
 
     for step in plan.steps:
@@ -731,8 +736,6 @@ def _setup_tracing(log_trace: bool) -> bool:
     if not log_trace:
         return False
 
-    from ..langfuse import init_tracing  # noqa: PLC0415
-
     enabled = init_tracing()
     if enabled:
         console.print("[green]✓ Langfuse tracing enabled[/green]\n")
@@ -752,8 +755,6 @@ def _flush_tracing(tracing_enabled: bool) -> None:
     if not tracing_enabled:
         return
 
-    from ..langfuse import flush_traces  # noqa: PLC0415
-
     flush_traces()
     console.print("\n[dim]Traces flushed to Langfuse[/dim]")
 
@@ -770,8 +771,6 @@ async def cmd_ask(question: str, show_plan: bool = False, log_trace: bool = Fals
     log_trace : bool
         Enable Langfuse tracing for this run.
     """
-    from .agent import KnowledgeGroundedAgent  # noqa: PLC0415
-
     display_banner()
     tracing_enabled = _setup_tracing(log_trace)
 
@@ -1145,10 +1144,6 @@ async def cmd_eval(
     log_trace : bool
         Enable Langfuse tracing for this run.
     """
-    from .agent import KnowledgeGroundedAgent  # noqa: PLC0415
-    from .data import DeepSearchQADataset  # noqa: PLC0415
-    from .deepsearchqa_grader import evaluate_deepsearchqa_async  # noqa: PLC0415
-
     display_banner()
     tracing_enabled = _setup_tracing(log_trace)
 
@@ -1316,8 +1311,6 @@ def cmd_sample(
     int
         Exit code (0 for success).
     """
-    from .data import DeepSearchQADataset  # noqa: PLC0415
-
     display_banner()
 
     console.print("[bold blue]Loading dataset...[/bold blue]")
