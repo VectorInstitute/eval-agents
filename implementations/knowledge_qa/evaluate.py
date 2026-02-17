@@ -26,7 +26,7 @@ from typing import Any
 import click
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.evaluation import run_experiment, run_experiment_with_trace_evals
-from aieng.agent_evals.evaluation.graders import create_trace_groundedness_evaluator  # type: ignore[attr-defined]
+from aieng.agent_evals.evaluation.graders import create_trace_groundedness_evaluator
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from aieng.agent_evals.evaluation.types import EvaluationResult
 from aieng.agent_evals.knowledge_qa.agent import KnowledgeGroundedAgent
