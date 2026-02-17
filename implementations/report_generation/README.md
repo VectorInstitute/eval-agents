@@ -121,6 +121,9 @@ and the Google ADK UI. The online evaluations will check if the token usage and 
 time are higher than a certain threshold defined in the code, and it will also
 check if the final result is present and contains a link to the report.
 
+Those evaluation results will be sent to Langfuse as scores, where they can be analyzed
+both in an aggregate fashion as well as individually.
+
 ### User Feedback
 
 On the Gradio Demo UI, there are two buttons to record user feedback: a thumbs
