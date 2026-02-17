@@ -1,7 +1,13 @@
 """Web fetch tool for retrieving content from URLs.
 
 Provides the web_fetch tool which fetches content from any URL (HTML pages or PDFs)
-and returns the content for the agent to analyze. Similar to Anthropic's web_fetch tool.
+and uses an LLM to extract relevant information based on a query. This prevents
+context overflow by returning only extracted information instead of full page content.
+
+Architecture:
+1. Fetch URL and convert to markdown/text
+2. Use LLM to extract information based on query
+3. Return only extracted information (~200-1000 tokens instead of 10k-100k)
 """
 
 import logging
@@ -12,15 +18,23 @@ from typing import Any
 from urllib.parse import urljoin
 
 import httpx
+from aieng.agent_evals.async_client_manager import AsyncClientManager
 from google.adk.tools.function_tool import FunctionTool
 from html_to_markdown import convert as html_to_markdown
 from pypdf import PdfReader
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import RetryError, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 
 logger = logging.getLogger(__name__)
 
-MAX_CONTENT_CHARS = 100_000
+# Maximum chars to fetch before LLM processing (prevents fetching enormous files)
+MAX_FETCH_CHARS = 200_000
+
+# Maximum chars to send to extraction LLM (most models handle ~100k chars well)
+MAX_EXTRACTION_INPUT_CHARS = 100_000
+
+# Maximum tokens for LLM extraction output
+MAX_EXTRACTION_OUTPUT_TOKENS = 2000
 
 
 def _make_absolute_url(base_url: str) -> Callable[[re.Match[str]], str]:
@@ -130,69 +144,258 @@ def _extract_pdf_text(content: bytes, max_pages: int = 10) -> tuple[str, int]:
     return "\n\n".join(text_parts), num_pages
 
 
-def _truncate_content(text: str) -> tuple[str, bool]:
-    """Truncate content if it exceeds the maximum length."""
-    truncated = len(text) > MAX_CONTENT_CHARS
+def _truncate_content(text: str, max_chars: int) -> tuple[str, bool]:
+    """Truncate content if it exceeds the maximum length.
+
+    Parameters
+    ----------
+    text : str
+        The text to truncate.
+    max_chars : int
+        Maximum number of characters allowed.
+
+    Returns
+    -------
+    tuple[str, bool]
+        The (potentially truncated) text and whether it was truncated.
+    """
+    truncated = len(text) > max_chars
     if truncated:
-        text = text[:MAX_CONTENT_CHARS] + "\n\n[Content truncated due to length]"
+        text = text[:max_chars] + "\n\n[Content truncated due to length]"
     return text, truncated
 
 
-def _make_error_response(error: str, url: str) -> dict[str, Any]:
-    """Create an error response dict."""
-    return {"status": "error", "error": error, "url": url}
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((Exception,)),  # Retry on any exception from LLM API
+)
+async def _extract_information_with_llm_with_retry(
+    openai_client: Any, model: str, content: str, query: str, url: str, was_truncated: bool
+) -> dict[str, Any]:
+    """Execute LLM extraction with retry logic.
 
+    Parameters
+    ----------
+    openai_client : Any
+        The OpenAI client instance.
+    model : str
+        Model name to use.
+    content : str
+        The content to extract from.
+    query : str
+        What information to extract.
+    url : str
+        Source URL.
+    was_truncated : bool
+        Whether the source content was truncated.
 
-def _make_success_response(url: str, content: str, content_type: str, truncated: bool, **extra: Any) -> dict[str, Any]:
-    """Create a success response dict."""
-    result = {
+    Returns
+    -------
+    dict[str, Any]
+        Success response with extracted information and metadata.
+    """
+    # Build extraction prompt
+    system_prompt = """You are a precise information extraction assistant. Your task is to extract specific information from web pages based on user queries.
+
+Instructions:
+- Extract ONLY the information requested in the query
+- Be accurate and concise
+- If the information is not found, say so clearly
+- Include relevant quotes or data points when available
+- Do not add information not present in the source
+- Format your response clearly with markdown if appropriate"""
+
+    user_prompt = f"""Extract the following information from this webpage:
+
+QUERY: {query}
+
+SOURCE URL: {url}
+
+WEBPAGE CONTENT:
+{content}
+
+Please extract the requested information. Be concise but complete."""
+
+    # Call LLM to extract information
+    response = await openai_client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=MAX_EXTRACTION_OUTPUT_TOKENS,
+        temperature=0.0,  # Deterministic for extraction
+    )
+
+    extracted_info = response.choices[0].message.content or ""
+
+    return {
         "status": "success",
+        "extracted_info": extracted_info,
         "url": url,
-        "content": content,
-        "content_type": content_type,
-        "content_length": len(content),
-        "truncated": truncated,
+        "query": query,
+        "source_was_truncated": was_truncated,
+        "extraction_model": model,
+        "input_tokens": response.usage.prompt_tokens if response.usage else 0,
+        "output_tokens": response.usage.completion_tokens if response.usage else 0,
     }
-    result.update(extra)
-    return result
 
 
-async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
-    """Fetch content from a URL (HTML page or PDF document).
+async def _extract_information_with_llm(content: str, query: str, url: str) -> dict[str, Any]:
+    """Extract relevant information from content using an LLM.
 
-    This tool retrieves the full content from a URL for analysis. It handles
-    both HTML pages (converted to readable text) and PDF documents (text extracted).
+    This is the key function that implements the WebFetch architecture.
+    Instead of returning full page content, it uses an LLM to extract only the
+    information requested in the query.
 
-    For large data files (CSV, XLSX) that need searching, use fetch_file instead.
+    Parameters
+    ----------
+    content : str
+        The full page content (markdown or text).
+    query : str
+        What information to extract from the content.
+    url : str
+        Source URL (for context and citation).
+
+    Returns
+    -------
+    dict[str, Any]
+        Response with 'status', 'extracted_info', 'url', and metadata.
+    """
+    try:
+        # Truncate content for LLM processing if needed
+        content, was_truncated = _truncate_content(content, MAX_EXTRACTION_INPUT_CHARS)
+
+        # Get OpenAI client (configured for Gemini endpoint)
+        client_manager = AsyncClientManager.get_instance()
+        openai_client = client_manager.openai_client
+        model = client_manager.configs.default_worker_model  # gemini-2.5-flash
+
+        # Call with retry logic
+        return await _extract_information_with_llm_with_retry(
+            openai_client=openai_client,
+            model=model,
+            content=content,
+            query=query,
+            url=url,
+            was_truncated=was_truncated,
+        )
+
+    except RetryError as e:
+        # Extract the underlying error from retry failure
+        original_error = e.last_attempt.exception()
+        logger.error(f"LLM extraction failed for {url} after 3 retries: {original_error}")
+        return {
+            "status": "error",
+            "error": f"Information extraction failed after 3 retries: {original_error!s}",
+            "url": url,
+            "query": query,
+        }
+    except Exception as e:
+        logger.error(f"LLM extraction failed for {url}: {e}")
+        return {
+            "status": "error",
+            "error": f"Information extraction failed: {e!s}",
+            "url": url,
+            "query": query,
+        }
+
+
+def _handle_fetch_error(e: Exception, url: str) -> dict[str, Any]:
+    """Handle exceptions from web_fetch and return appropriate error response.
+
+    Parameters
+    ----------
+    e : Exception
+        The exception that occurred during fetching.
+    url : str
+        The URL that was being fetched.
+
+    Returns
+    -------
+    dict
+        Error response with 'status', 'error', and 'url' fields.
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        logger.warning(f"HTTP error fetching {url}: {e}")
+        error_msg = f"HTTP {e.response.status_code}: {e.response.reason_phrase}"
+        return {"status": "error", "error": error_msg, "url": url}
+
+    if isinstance(e, httpx.RequestError):
+        logger.warning(f"Request error fetching {url}: {e}")
+        return {"status": "error", "error": f"Request failed: {e!s}", "url": url}
+
+    if isinstance(e, RetryError):
+        # Extract the underlying error from retry failure
+        # without showing full stack trace
+        original_error = e.last_attempt.exception()
+        if isinstance(original_error, httpx.HTTPStatusError):
+            logger.error(f"HTTP error fetching {url} (after 3 retries): {original_error}")
+            error_msg = f"HTTP {original_error.response.status_code}: {original_error.response.reason_phrase} (failed after 3 retries)"
+        else:
+            logger.error(f"Failed to fetch {url} after 3 retries: {original_error}")
+            error_msg = f"Failed after 3 retries: {original_error!s}"
+        return {"status": "error", "error": error_msg, "url": url}
+
+    logger.error(f"Unexpected error in web_fetch for {url}: {e}")
+    return {"status": "error", "error": f"Unexpected error: {e!s}", "url": url}
+
+
+async def web_fetch(url: str, query: str, max_pages: int = 10) -> dict[str, Any]:
+    """Fetch and extract information from web pages and PDFs using LLM.
+
+    This tool implements WebFetch:
+    1. Fetches the URL (HTML or PDF)
+    2. Converts to markdown/text
+    3. Uses an LLM to extract only the information specified in query
+    4. Returns extracted info (~200-1000 tokens) instead of full content
+
+    For data files like CSV or XLSX that need line-by-line searching,
+    use fetch_file instead.
 
     Parameters
     ----------
     url : str
         The URL to fetch. Must be a valid HTTP or HTTPS URL.
+    query : str
+        What information to extract from the page. Be specific about what
+        you need (e.g., "publication date and main findings", "contact email
+        and phone number", "list of product features").
     max_pages : int, optional
         For PDFs, maximum number of pages to extract (default 10).
 
     Returns
     -------
     dict
-        On success: 'status', 'url', 'content', 'content_type',
-        'content_length', 'truncated'. For PDFs also includes:
-        'num_pages', 'pages_extracted'. On error: 'status', 'error', 'url'.
+        On success: 'status', 'extracted_info', 'url', 'query',
+        'source_was_truncated', 'extraction_model', 'input_tokens',
+        'output_tokens'. On error: 'status', 'error', 'url', 'query'.
 
     Examples
     --------
-    >>> # Fetch an HTML page
-    >>> result = await web_fetch("https://example.com/about")
-    >>> print(result["content"])
+    >>> # Extract specific info from a webpage
+    >>> result = await web_fetch(
+    ...     "https://example.com/about",
+    ...     query="company founding date and CEO name",
+    ... )
+    >>> print(result["extracted_info"])
 
-    >>> # Fetch a PDF
-    >>> result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf")
-    >>> print(f"Pages: {result['num_pages']}")
-    >>> print(result["content"])
+    >>> # Extract from a PDF
+    >>> result = await web_fetch(
+    ...     "https://arxiv.org/pdf/2301.00234.pdf",
+    ...     query="main research findings and datasets used",
+    ... )
+    >>> print(result["extracted_info"])
     """
     # Validate URL
     if not url.startswith(("http://", "https://")):
-        return _make_error_response("Invalid URL. Must start with http:// or https://", url)
+        return {
+            "status": "error",
+            "error": "Invalid URL. Must start with http:// or https://",
+            "url": url,
+            "query": query,
+        }
 
     try:
         async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
@@ -202,44 +405,36 @@ async def web_fetch(url: str, max_pages: int = 10) -> dict[str, Any]:
 
             # Handle PDF documents
             if "application/pdf" in content_type or url.lower().endswith(".pdf"):
-                return _handle_pdf_response(response.content, max_pages, final_url, url)
+                pdf_text, num_pages = _extract_pdf_text(response.content, max_pages)
+                # Truncate if needed before LLM extraction
+                pdf_text, _ = _truncate_content(pdf_text, MAX_FETCH_CHARS)
+
+                logger.info(f"Extracted {len(pdf_text)} chars from PDF ({num_pages} pages), extracting info...")
+                result = await _extract_information_with_llm(pdf_text, query, final_url)
+                # Add PDF metadata
+                if result["status"] == "success":
+                    result["content_type"] = "application/pdf"
+                    result["num_pages"] = num_pages
+                    result["pages_extracted"] = min(num_pages, max_pages)
+                return result
 
             # Handle HTML and text content
             if "text/html" in content_type or content_type == "":
                 text = _html_to_markdown(response.text, base_url=final_url)
             else:
                 text = response.text
-            text, truncated = _truncate_content(text)
 
-            return _make_success_response(final_url, text, content_type or "text/html", truncated)
+            # Truncate if needed before LLM extraction
+            text, _ = _truncate_content(text, MAX_FETCH_CHARS)
 
-    except httpx.HTTPStatusError as e:
-        logger.warning(f"HTTP error fetching {url}: {e}")
-        return _make_error_response(f"HTTP {e.response.status_code}: {e.response.reason_phrase}", url)
-    except httpx.RequestError as e:
-        logger.warning(f"Request error fetching {url}: {e}")
-        return _make_error_response(f"Request failed: {e!s}", url)
+            logger.info(f"Fetched {len(text)} chars from {final_url}, extracting info...")
+            result = await _extract_information_with_llm(text, query, final_url)
+            if result["status"] == "success":
+                result["content_type"] = content_type or "text/html"
+            return result
+
     except Exception as e:
-        logger.exception(f"Unexpected error in web_fetch for {url}")
-        return _make_error_response(f"Unexpected error: {e!s}", url)
-
-
-def _handle_pdf_response(content: bytes, max_pages: int, final_url: str, url: str) -> dict[str, Any]:
-    """Handle PDF content extraction and response creation."""
-    try:
-        text, num_pages = _extract_pdf_text(content, max_pages)
-        text, truncated = _truncate_content(text)
-
-        return _make_success_response(
-            final_url,
-            text,
-            "application/pdf",
-            truncated,
-            num_pages=num_pages,
-            pages_extracted=min(num_pages, max_pages),
-        )
-    except Exception as e:
-        return _make_error_response(f"Failed to extract PDF text: {e!s}", url)
+        return _handle_fetch_error(e, url)
 
 
 def create_web_fetch_tool() -> FunctionTool:
