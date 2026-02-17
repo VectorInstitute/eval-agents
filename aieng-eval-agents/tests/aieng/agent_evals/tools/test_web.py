@@ -76,9 +76,11 @@ class TestWebFetch:
     """Tests for the web_fetch function."""
 
     @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.AsyncClientManager")
     @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
-    async def test_fetch_html_success(self, mock_client_class):
-        """Test successful HTML fetch returns content."""
+    async def test_fetch_html_success(self, mock_http_client_class, mock_client_manager_class):
+        """Test successful HTML fetch with LLM extraction."""
+        # Mock HTTP response
         mock_response = MagicMock()
         mock_response.text = "<html><body><p>Hello World</p></body></html>"
         mock_response.headers = {"content-type": "text/html"}
@@ -87,23 +89,46 @@ class TestWebFetch:
         async def mock_get(*_args, **_kwargs):
             return mock_response
 
-        mock_client = MagicMock()
-        mock_client.get = mock_get
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_class.return_value = mock_client
+        mock_http_client = MagicMock()
+        mock_http_client.get = mock_get
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+        mock_http_client_class.return_value = mock_http_client
 
-        result = await web_fetch("https://example.com")
+        # Mock LLM extraction
+        mock_llm_response = MagicMock()
+        mock_llm_response.choices = [MagicMock()]
+        mock_llm_response.choices[0].message.content = "Extracted: Hello World"
+        mock_llm_response.usage = MagicMock()
+        mock_llm_response.usage.prompt_tokens = 100
+        mock_llm_response.usage.completion_tokens = 20
+
+        mock_openai_client = MagicMock()
+        mock_openai_client.chat.completions.create = AsyncMock(return_value=mock_llm_response)
+
+        mock_configs = MagicMock()
+        mock_configs.default_worker_model = "gemini-2.5-flash"
+
+        mock_client_manager = MagicMock()
+        mock_client_manager.openai_client = mock_openai_client
+        mock_client_manager.configs = mock_configs
+        mock_client_manager_class.get_instance.return_value = mock_client_manager
+
+        result = await web_fetch("https://example.com", query="get the main message")
 
         assert result["status"] == "success"
-        assert "content" in result
-        assert "Hello World" in result["content"]
+        assert "extracted_info" in result
+        assert "Hello World" in result["extracted_info"]
         assert result["content_type"] == "text/html"
+        assert result["query"] == "get the main message"
+        assert result["input_tokens"] == 100
+        assert result["output_tokens"] == 20
 
     @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.AsyncClientManager")
     @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
-    async def test_fetch_pdf_success(self, mock_client_class):
-        """Test that PDF content is extracted successfully."""
+    async def test_fetch_pdf_success(self, mock_http_client_class, mock_client_manager_class):
+        """Test that PDF content is extracted and processed with LLM."""
         # Create a PDF with text
         writer = PdfWriter()
         writer.add_blank_page(width=200, height=200)
@@ -119,23 +144,45 @@ class TestWebFetch:
         async def mock_get(*_args, **_kwargs):
             return mock_response
 
-        mock_client = MagicMock()
-        mock_client.get = mock_get
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_class.return_value = mock_client
+        mock_http_client = MagicMock()
+        mock_http_client.get = mock_get
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+        mock_http_client_class.return_value = mock_http_client
 
-        result = await web_fetch("https://example.com/doc.pdf")
+        # Mock LLM extraction
+        mock_llm_response = MagicMock()
+        mock_llm_response.choices = [MagicMock()]
+        mock_llm_response.choices[0].message.content = "PDF summary information"
+        mock_llm_response.usage = MagicMock()
+        mock_llm_response.usage.prompt_tokens = 150
+        mock_llm_response.usage.completion_tokens = 30
+
+        mock_openai_client = MagicMock()
+        mock_openai_client.chat.completions.create = AsyncMock(return_value=mock_llm_response)
+
+        mock_configs = MagicMock()
+        mock_configs.default_worker_model = "gemini-2.5-flash"
+
+        mock_client_manager = MagicMock()
+        mock_client_manager.openai_client = mock_openai_client
+        mock_client_manager.configs = mock_configs
+        mock_client_manager_class.get_instance.return_value = mock_client_manager
+
+        result = await web_fetch("https://example.com/doc.pdf", query="summarize the document")
 
         assert result["status"] == "success"
         assert result["content_type"] == "application/pdf"
         assert "num_pages" in result
         assert result["num_pages"] >= 1
+        assert "extracted_info" in result
+        assert "PDF summary" in result["extracted_info"]
 
     @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.AsyncClientManager")
     @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
-    async def test_fetch_returns_content_length(self, mock_client_class):
-        """Test that fetch returns content length."""
+    async def test_fetch_returns_token_counts(self, mock_http_client_class, mock_client_manager_class):
+        """Test that fetch returns token usage from LLM extraction."""
         long_text = "A" * 10000
         mock_response = MagicMock()
         mock_response.text = f"<html><body><p>{long_text}</p></body></html>"
@@ -145,25 +192,45 @@ class TestWebFetch:
         async def mock_get(*_args, **_kwargs):
             return mock_response
 
-        mock_client = MagicMock()
-        mock_client.get = mock_get
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_class.return_value = mock_client
+        mock_http_client = MagicMock()
+        mock_http_client.get = mock_get
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+        mock_http_client_class.return_value = mock_http_client
 
-        result = await web_fetch("https://example.com")
+        # Mock LLM extraction with realistic token counts for large input
+        mock_llm_response = MagicMock()
+        mock_llm_response.choices = [MagicMock()]
+        mock_llm_response.choices[0].message.content = "This page contains repeated A characters"
+        mock_llm_response.usage = MagicMock()
+        mock_llm_response.usage.prompt_tokens = 2500  # Large input
+        mock_llm_response.usage.completion_tokens = 25
+
+        mock_openai_client = MagicMock()
+        mock_openai_client.chat.completions.create = AsyncMock(return_value=mock_llm_response)
+
+        mock_configs = MagicMock()
+        mock_configs.default_worker_model = "gemini-2.5-flash"
+
+        mock_client_manager = MagicMock()
+        mock_client_manager.openai_client = mock_openai_client
+        mock_client_manager.configs = mock_configs
+        mock_client_manager_class.get_instance.return_value = mock_client_manager
+
+        result = await web_fetch("https://example.com", query="what is on this page")
 
         assert result["status"] == "success"
-        # Content length should include the 10000 As (may have some markdown formatting)
-        assert result["content_length"] >= 10000
-        assert not result["truncated"]
+        assert result["input_tokens"] == 2500
+        assert result["output_tokens"] == 25
+        assert result["source_was_truncated"] is False
 
     @pytest.mark.asyncio
+    @patch("aieng.agent_evals.tools.web.AsyncClientManager")
     @patch("aieng.agent_evals.tools.web.httpx.AsyncClient")
-    async def test_fetch_truncates_large_content(self, mock_client_class):
-        """Test that very large content is truncated."""
-        # Create content larger than MAX_CONTENT_CHARS (100KB)
-        large_text = "A" * 150_000
+    async def test_fetch_truncates_large_content(self, mock_http_client_class, mock_client_manager_class):
+        """Test that very large content is truncated before LLM extraction."""
+        # Create content larger than MAX_FETCH_CHARS (200KB)
+        large_text = "A" * 250_000
         mock_response = MagicMock()
         mock_response.text = f"<html><body>{large_text}</body></html>"
         mock_response.headers = {"content-type": "text/html"}
@@ -172,24 +239,43 @@ class TestWebFetch:
         async def mock_get(*_args, **_kwargs):
             return mock_response
 
-        mock_client = MagicMock()
-        mock_client.get = mock_get
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-        mock_client_class.return_value = mock_client
+        mock_http_client = MagicMock()
+        mock_http_client.get = mock_get
+        mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+        mock_http_client.__aexit__ = AsyncMock(return_value=None)
+        mock_http_client_class.return_value = mock_http_client
 
-        result = await web_fetch("https://example.com")
+        # Mock LLM extraction
+        mock_llm_response = MagicMock()
+        mock_llm_response.choices = [MagicMock()]
+        mock_llm_response.choices[0].message.content = "Content was truncated but extracted"
+        mock_llm_response.usage = MagicMock()
+        mock_llm_response.usage.prompt_tokens = 25000
+        mock_llm_response.usage.completion_tokens = 50
+
+        mock_openai_client = MagicMock()
+        mock_openai_client.chat.completions.create = AsyncMock(return_value=mock_llm_response)
+
+        mock_configs = MagicMock()
+        mock_configs.default_worker_model = "gemini-2.5-flash"
+
+        mock_client_manager = MagicMock()
+        mock_client_manager.openai_client = mock_openai_client
+        mock_client_manager.configs = mock_configs
+        mock_client_manager_class.get_instance.return_value = mock_client_manager
+
+        result = await web_fetch("https://example.com", query="extract info")
 
         assert result["status"] == "success"
-        assert result["truncated"] is True
-        assert "[Content truncated" in result["content"]
+        assert result["source_was_truncated"] is True
 
     @pytest.mark.asyncio
     async def test_fetch_invalid_url(self):
         """Test that invalid URLs return error."""
-        result = await web_fetch("not-a-url")
+        result = await web_fetch("not-a-url", query="get info")
         assert result["status"] == "error"
         assert "Invalid URL" in result["error"]
+        assert result["query"] == "get info"
 
 
 class TestCreateWebFetchTool:
@@ -349,53 +435,75 @@ class TestResolveRedirectUrlAsync:
 
 @pytest.mark.integration_test
 class TestWebFetchIntegration:
-    """Integration tests for web_fetch (requires network).
+    """Integration tests for web_fetch (requires network and API keys).
 
     These tests verify that web_fetch works correctly for both HTML pages
-    and PDF documents, returning content suitable for the agent to analyze.
+    and PDF documents, using LLM extraction to return only relevant information
+    instead of full page content.
     """
 
     @pytest.mark.asyncio
-    async def test_fetch_html_page_returns_readable_content(self):
-        """Test that HTML pages are converted to readable markdown."""
-        result = await web_fetch("https://www.iana.org/help/example-domains")
+    async def test_fetch_html_page_with_extraction(self):
+        """Test that HTML pages are fetched and information is extracted via LLM."""
+        result = await web_fetch(
+            "https://www.iana.org/help/example-domains", query="What is the purpose of example.com domain?"
+        )
         assert result["status"] == "success"
         assert result["content_type"] == "text/html" or "html" in result["content_type"].lower()
 
-        # Verify content is markdown (no raw HTML tags)
-        content = result["content"]
-        assert "<html>" not in content.lower()
-        assert "<body>" not in content.lower()
+        # Verify extracted info is returned (not raw content)
+        assert "extracted_info" in result
+        extracted = result["extracted_info"]
 
-        # Verify content has meaningful text
-        assert len(content) > 100
-        assert "example" in content.lower()
+        # Extracted info should be concise (not full page)
+        assert len(extracted) < 5000  # Should be much smaller than full page
+        assert len(extracted) > 50  # But should have meaningful content
 
-        # Verify links are preserved in markdown format (if any exist)
-        # The page should have links that are converted to [text](url) format
-        if "http" in content:
-            # Links should be in markdown format, not raw <a> tags
-            assert "<a " not in content.lower()
+        # Should contain relevant information about example domains
+        assert "example" in extracted.lower()
+
+        # Verify token counts are present
+        assert "input_tokens" in result
+        assert "output_tokens" in result
+        assert result["input_tokens"] > 0
+        assert result["output_tokens"] > 0
+
+        # Verify query is echoed back
+        assert result["query"] == "What is the purpose of example.com domain?"
 
     @pytest.mark.asyncio
-    async def test_fetch_pdf_extracts_text(self):
-        """Test that PDF content is extracted as searchable text."""
-        result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf", max_pages=2)
+    async def test_fetch_pdf_with_extraction(self):
+        """Test that PDF content is extracted and processed via LLM."""
+        result = await web_fetch(
+            "https://arxiv.org/pdf/2301.00234.pdf", query="What is the main research contribution?", max_pages=2
+        )
         assert result["status"] == "success"
         assert result["content_type"] == "application/pdf"
         assert result["num_pages"] > 0
 
-        # Verify extracted text is substantial
-        content = result["content"]
-        assert len(content) > 500
+        # Verify extracted info instead of raw text
+        assert "extracted_info" in result
+        extracted = result["extracted_info"]
 
-        # Verify page markers are present
-        assert "--- Page" in content
+        # Extracted info should be concise
+        assert len(extracted) < 5000
+        assert len(extracted) > 50
+
+        # Verify PDF metadata
+        assert result["pages_extracted"] <= 2
+
+        # Verify token usage
+        assert result["input_tokens"] > 0
+        assert result["output_tokens"] > 0
 
     @pytest.mark.asyncio
     async def test_fetch_pdf_pagination(self):
-        """Test that PDF max_pages parameter limits extraction."""
-        result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf", max_pages=1)
+        """Test that PDF max_pages parameter limits extraction before LLM processing."""
+        result = await web_fetch("https://arxiv.org/pdf/2301.00234.pdf", query="summarize the abstract", max_pages=1)
         assert result["status"] == "success"
         assert result["pages_extracted"] == 1
         assert result["num_pages"] >= 1
+
+        # Even with 1 page, should get meaningful extraction
+        assert "extracted_info" in result
+        assert len(result["extracted_info"]) > 20
