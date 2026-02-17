@@ -45,7 +45,7 @@ from typing import Any
 
 from aieng.agent_evals.aml_investigation.agent import create_aml_investigation_agent
 from aieng.agent_evals.aml_investigation.data import AnalystOutput
-from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.db_manager import DbManager
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -157,4 +157,4 @@ class AmlInvestigationTask:
         especially in long-running processes or repeated evaluation runs.
         """
         await self._runner.close()
-        AsyncClientManager.get_instance().aml_db().close()
+        DbManager().aml_db().close()

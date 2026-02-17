@@ -18,6 +18,7 @@ Examples
 
 from aieng.agent_evals.aml_investigation.data import AnalystOutput
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+from aieng.agent_evals.db_manager import DbManager
 from aieng.agent_evals.langfuse import init_tracing
 from google.adk.agents import LlmAgent
 from google.adk.agents.base_agent import AfterAgentCallback, BeforeAgentCallback
@@ -185,7 +186,7 @@ def create_aml_investigation_agent(
     """
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
-    db = client_manager.aml_db(agent_name=name)
+    db = DbManager().aml_db(agent_name=name)
 
     # Initialize tracing if enabled and a name is provided
     if enable_tracing:
