@@ -51,6 +51,9 @@ def get_report_generation_agent(
         The path to the reports output directory.
     langfuse_project_name : str | None
         The name of the Langfuse project to use for tracing.
+    after_agent_callback : AfterAgentCallback | None
+        The callback function to be called after the agent has
+        finished executing.
 
     Returns
     -------
