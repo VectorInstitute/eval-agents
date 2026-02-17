@@ -8,14 +8,12 @@ Example
 >>> from aieng.agent_evals.knowledge_qa import (
 ...     KnowledgeGroundedAgent,
 ...     DeepSearchQADataset,
-...     DeepSearchQAEvaluator,
 ... )
 >>> agent = KnowledgeGroundedAgent()
 >>> response = agent.answer("What is the current population of Tokyo?")
 >>> print(response.text)
 """
 
-from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
     GroundedResponse,
     GroundingChunk,
@@ -25,15 +23,12 @@ from aieng.agent_evals.tools import (
 
 from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
 from .data import DeepSearchQADataset, DSQAExample
-from .evaluation import DeepSearchQAEvaluator, EvaluationResult
 
 
 __all__ = [
     # Agent
     "KnowledgeGroundedAgent",
     "KnowledgeAgentManager",
-    # Config
-    "Configs",
     # Grounding tool
     "create_google_search_tool",
     "format_response_with_citations",
@@ -41,7 +36,5 @@ __all__ = [
     "GroundingChunk",
     # Evaluation
     "DeepSearchQADataset",
-    "DeepSearchQAEvaluator",
     "DSQAExample",
-    "EvaluationResult",
 ]
