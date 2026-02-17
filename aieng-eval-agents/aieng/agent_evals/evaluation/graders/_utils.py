@@ -124,14 +124,14 @@ def build_error_evaluation(*, name: str, error: Exception, prefix: str) -> Evalu
     )
 
 
-def render_system_prompt_with_optional_rubric(*, system_prompt_template: str, rubric_text: str | None) -> str:
+def render_system_prompt_with_optional_rubric(*, system_prompt_template: str, rubric: str | None) -> str:
     """Render system prompt and inject rubric text when available.
 
     Parameters
     ----------
     system_prompt_template : str
         Base system prompt template.
-    rubric_text : str | None
+    rubric : str | None
         Rubric content in markdown format.
 
     Returns
@@ -140,8 +140,8 @@ def render_system_prompt_with_optional_rubric(*, system_prompt_template: str, ru
         Rendered system prompt with rubric inserted or appended.
     """
     rubric_section = ""
-    if rubric_text:
-        rubric_section = f"# Rubric\n{rubric_text.strip()}"
+    if rubric:
+        rubric_section = f"# Rubric\n{rubric.strip()}"
 
     if "{rubric_section}" in system_prompt_template:
         return system_prompt_template.format(rubric_section=rubric_section)
