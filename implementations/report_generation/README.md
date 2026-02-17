@@ -15,6 +15,11 @@ an `.xlsx` file.
 
 This example also provides agent monitoring and evaluations using Langfuse.
 
+### Running the Demo
+
+To run the demo, you can choose to follow the steps below or follow the instructions in the notebooks in this folder.
+
+
 ## Dataset
 
 The dataset used in this example is the

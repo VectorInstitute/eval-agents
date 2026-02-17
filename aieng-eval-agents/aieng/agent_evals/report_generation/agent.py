@@ -75,8 +75,8 @@ def get_report_generation_agent(
         model=client_manager.configs.default_worker_model,
         instruction=instructions,
         tools=[
-            db_manager.report_generation_db().execute,
             db_manager.report_generation_db().get_schema_info,
+            db_manager.report_generation_db().execute,
             report_file_writer.write_xlsx,
         ],
         after_agent_callback=after_agent_callback,

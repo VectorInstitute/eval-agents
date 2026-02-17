@@ -38,7 +38,7 @@ class ReportFileWriter:
 
     def write_xlsx(
         self,
-        report_data: list[Any],
+        report_data: list[list[Any]],
         report_columns: list[str],
         filename: str = "report.xlsx",
         gradio_link: bool = True,
@@ -47,7 +47,7 @@ class ReportFileWriter:
 
         Parameters
         ----------
-        report_data : list[Any]
+        report_data : list[list[Any]]
             The data of the report.
         report_columns : list[str]
             The columns of the report.
