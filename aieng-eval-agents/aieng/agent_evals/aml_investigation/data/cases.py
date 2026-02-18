@@ -99,7 +99,7 @@ class AnalystOutput(BaseModel):
     pattern_type: LaunderingPattern = Field(..., description="The type of laundering pattern in the case.")
     pattern_description: str = Field(..., description="A short description of the laundering pattern.")
     flagged_transaction_ids: str = Field(
-        ..., description="A comma-separated list of transaction IDs flagged by the analyst as suspicious."
+        ..., description="A string of comma-separated transaction IDs that make up the laundering pattern."
     )
 
 
