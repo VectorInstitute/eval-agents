@@ -1,5 +1,6 @@
 """Utility functions for the report generation agent."""
 
+import json
 import logging
 
 from aieng.agent_evals.report_generation.agent import EventParser, EventType
@@ -40,11 +41,15 @@ def agent_event_to_gradio_messages(event: Event) -> list[ChatMessage]:
                 )
             )
         elif parsed_event.type == EventType.TOOL_CALL:
+            formatted_arguments = json.dumps(parsed_event.arguments, indent=2).replace("\\n", "\n")
             output.append(
                 ChatMessage(
                     role="assistant",
-                    content=f"```\n{parsed_event.arguments}\n```",
-                    metadata={"title": f"🛠️ Used tool `{parsed_event.text}`"},
+                    content=f"```\n{formatted_arguments}\n```",
+                    metadata={
+                        "title": f"🛠️ Used tool `{parsed_event.text}`",
+                        "status": "done",  # This makes it collapsed by default
+                    },
                 )
             )
         elif parsed_event.type == EventType.THOUGHT:
@@ -56,10 +61,11 @@ def agent_event_to_gradio_messages(event: Event) -> list[ChatMessage]:
                 )
             )
         elif parsed_event.type == EventType.TOOL_RESPONSE:
+            formatted_arguments = json.dumps(parsed_event.arguments, indent=2).replace("\\n", "\n")
             output.append(
                 ChatMessage(
                     role="assistant",
-                    content=f"```\n{parsed_event.arguments}\n```",
+                    content=f"```\n{formatted_arguments}\n```",
                     metadata={
                         "title": f"📝 Tool call output: `{parsed_event.text}`",
                         "status": "done",  # This makes it collapsed by default

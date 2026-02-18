@@ -6,15 +6,8 @@ This package provides modular tools for:
 - File downloading and searching - CSV, XLSX, text (file.py)
 - SQL Database access (sql_database.py)
 
-Tool Selection Guide:
-- web_fetch(url): HTML pages and PDFs - returns content for agent to analyze
-- fetch_file(url) + grep_file + read_file: Data files (CSV, XLSX) - download and search
 """
 
-from ._redirect import (
-    resolve_redirect_url_async,
-    resolve_redirect_urls_async,
-)
 from .file import (
     create_fetch_file_tool,
     create_grep_file_tool,
@@ -48,8 +41,6 @@ __all__ = [
     # Web tools (HTML pages and PDFs)
     "web_fetch",
     "create_web_fetch_tool",
-    "resolve_redirect_url_async",
-    "resolve_redirect_urls_async",
     # File tools (data files - CSV, XLSX, text)
     "fetch_file",
     "grep_file",
