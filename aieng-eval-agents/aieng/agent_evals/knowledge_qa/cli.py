@@ -22,11 +22,12 @@ from importlib.metadata import version
 from pathlib import Path
 
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.evaluation.trace import flush_traces
 from aieng.agent_evals.knowledge_qa.deepsearchqa_grader import (
     EvaluationOutcome,
     evaluate_deepsearchqa_async,
 )
-from aieng.agent_evals.langfuse import flush_traces, init_tracing
+from aieng.agent_evals.langfuse import init_tracing
 from dotenv import load_dotenv
 from rich import box
 from rich.console import Console, Group
