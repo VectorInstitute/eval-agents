@@ -7,7 +7,8 @@ and other metadata from Google ADK runner events.
 import logging
 from typing import Any
 
-from aieng.agent_evals.tools import GroundingChunk, resolve_redirect_urls_async
+from aieng.agent_evals.tools import GroundingChunk
+from aieng.agent_evals.tools._redirect import resolve_redirect_urls_async
 
 
 # Use the agent module's logger so CLI tool call handler captures these messages
