@@ -73,6 +73,7 @@ class DeepSearchQAResult(BaseModel):
         -------
         list[Evaluation]
             Four evaluations: Outcome (categorical), F1, Precision, Recall (numeric).
+            Always returns all four to match the shape of error_evaluations().
         """
         comment_parts = [
             f"Outcome: {self.outcome}",
@@ -124,10 +125,11 @@ class DeepSearchQAResult(BaseModel):
         Returns
         -------
         list[Evaluation]
-            Three evaluations (F1, Precision, Recall) all set to 0.0.
+            Four evaluations (Outcome, F1, Precision, Recall) matching the success path.
         """
         comment = f"Evaluation error: {error_msg}"
         return [
+            Evaluation(name="Outcome", value="Fully Incorrect", comment=comment),
             Evaluation(name="F1", value=0.0, comment=comment),
             Evaluation(name="Precision", value=0.0, comment=comment),
             Evaluation(name="Recall", value=0.0, comment=comment),
