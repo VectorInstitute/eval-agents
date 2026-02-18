@@ -48,7 +48,7 @@ DEFAULT_EXPERIMENT_NAME = "Knowledge Agent Evaluation"
 ENABLE_TRACE_GROUNDEDNESS = os.getenv("ENABLE_TRACE_GROUNDEDNESS", "false").lower() in ("true", "1", "yes")
 
 
-async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: ARG001
+async def agent_task(*, item: Any, **kwargs: Any) -> str:  # noqa: ARG001
     """Run the Knowledge Agent on a dataset item.
 
     Parameters
@@ -60,9 +60,9 @@ async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: AR
 
     Returns
     -------
-    dict[str, Any]
-        Dictionary containing 'text' (response) and 'agent_response'
-        (full response object).
+    str
+        The agent's answer text. Rich execution data (plan, tool calls,
+        sources, reasoning chain) is attached to the Langfuse span metadata.
     """
     question = item.input
     logger.info(f"Running agent on: {question[:80]}...")
@@ -72,19 +72,23 @@ async def agent_task(*, item: Any, **kwargs: Any) -> dict[str, Any]:  # noqa: AR
         response = await agent.answer_async(question)
         logger.info(f"Agent completed: {len(response.text)} chars, {len(response.tool_calls)} tool calls")
 
-        return {
-            "text": response.text,
-            "agent_response": response,
-        }
+        # Attach rich execution data to the span metadata so it's inspectable
+        # in Langfuse without cluttering the output field.
+        client_manager = AsyncClientManager.get_instance()
+        client_manager.langfuse_client.update_current_span(
+            metadata=response.model_dump(exclude={"text"}),
+        )
+
+        return response.text
     except Exception as e:
         logger.error(f"Agent failed: {e}")
-        return {"text": f"Error: {e}", "agent_response": None}
+        return f"Error: {e}"
 
 
 async def deepsearchqa_evaluator(
     *,
     input: str,  # noqa: A002
-    output: dict[str, Any],
+    output: str,
     expected_output: str,
     metadata: dict[str, Any] | None = None,
     **kwargs: Any,  # noqa: ARG001
@@ -98,8 +102,8 @@ async def deepsearchqa_evaluator(
     ----------
     input : str
         The original question.
-    output : dict[str, Any]
-        Dictionary containing 'text' and 'agent_response'.
+    output : str
+        The agent's answer text.
     expected_output : str
         The ground truth answer.
     metadata : dict[str, Any] | None, optional
@@ -112,7 +116,7 @@ async def deepsearchqa_evaluator(
     list[Evaluation]
         List of Langfuse Evaluations with F1, precision, recall, and outcome scores.
     """
-    output_text = output.get("text", "") if isinstance(output, dict) else str(output)
+    output_text = str(output)
     answer_type = metadata.get("answer_type", "Set Answer") if metadata else "Set Answer"
 
     logger.info(f"Evaluating response (answer_type: {answer_type})...")
