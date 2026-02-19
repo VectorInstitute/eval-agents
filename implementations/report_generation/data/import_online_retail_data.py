@@ -26,7 +26,7 @@ DDL_FILE_PATH = Path("implementations/report_generation/data/OnlineRetail.ddl")
 
 
 @click.command()
-@click.option("--dataset-path", required=True, help="OnlieRetail dataset CSV path.")
+@click.option("--dataset-path", required=True, help="OnlineRetail dataset CSV path.")
 def cli(dataset_path: str) -> None:
     """CLI entry point to import the Online Retail dataset to the database.
 
