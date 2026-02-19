@@ -137,15 +137,12 @@ class TraceEvalResult:
         Trace IDs that failed due to errors during evaluation.
     errors_by_trace_id : dict[str, str]
         Error messages associated with skipped or failed traces.
-    run_evaluations : list[Evaluation]
-        Aggregated trace evaluation metrics written at dataset-run level.
     """
 
     evaluations_by_trace_id: dict[str, list[Evaluation]] = field(default_factory=dict)
     skipped_trace_ids: list[str] = field(default_factory=list)
     failed_trace_ids: list[str] = field(default_factory=list)
     errors_by_trace_id: dict[str, str] = field(default_factory=dict)
-    run_evaluations: list[Evaluation] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -71,27 +71,75 @@ Each case contains:
 
 ## Run the Agent (Batch)
 
-This reads `aml_cases.jsonl`, runs the agent over any cases missing `analysis`, and writes:
+This reads `aml_cases.jsonl`, runs the agent over any cases missing `output`, and writes:
 
-- `implementations/aml_investigation/data/aml_cases_with_analysis.jsonl`
+- `implementations/aml_investigation/data/aml_cases_with_output.jsonl`
 
 ```bash
-uv run --env-file .env implementations/aml_investigation/agent.py
+uv run --env-file .env implementations/aml_investigation/cli.py
 ```
 
-The script prints a simple confusion matrix for `is_laundering` based on the cases that have `analysis`.
+The script prints a simple confusion matrix for `is_laundering` based on the cases that have `output`.
+
+## Evaluate the Agent
+
+The evaluation script uploads the AML investigation dataset to Langfuse, runs a comprehensive evaluation experiment with multiple types of evaluators, and displays results in the console.
+
+```bash
+uv run --env-file .env implementations/aml_investigation/evaluate.py \
+  --dataset-path implementations/aml_investigation/data/aml_cases.jsonl \
+  --dataset-name AML-investigation
+```
+
+### Evaluation Levels
+
+The evaluation framework assesses agent performance at three levels:
+
+**Item-Level Evaluators** — Score each individual case prediction:
+
+- **Deterministic grader**: Checks correctness of `is_laundering`, `pattern_type`, and flagged transaction IDs against ground truth
+- **Narrative quality evaluator**: LLM-as-judge that scores the investigation reasoning and pattern description quality using the rubric in `rubrics/narrative_pattern_quality.md`
+
+**Trace-Level Evaluators** — Analyze tool-use trajectories for each agent run:
+
+- **Trace deterministic grader**: Validates SQL safety (read-only compliance), time window adherence, and query redundancy metrics
+- **Trace groundedness evaluator**: LLM-based assessment of whether the agent's narrative is grounded in the actual tool outputs
+
+**Run-Level Grader** — Aggregates results across all cases:
+
+- Computes precision, recall, and F1-score for `is_laundering` detection
+- Generates macro F1-score and confusion matrix for `pattern_type` classification
+
+### CLI Options
+
+Key options you may want to adjust:
+
+- `--agent-timeout`: Timeout in seconds for each agent run (default: 300)
+- `--llm-judge-timeout`: Timeout for LLM judge evaluations (default: 120)
+- `--llm-judge-retries`: Retry attempts for LLM judge failures (default: 3)
+- `--max-concurrent-cases`: Maximum concurrent cases to process (default: 5)
+- `--max-concurrent-traces`: Maximum concurrent trace evaluations (default: 10)
+- `--max-trace-wait-time`: Maximum seconds to wait for trace data (default: 300)
+
+### Output
+
+The evaluation displays:
+
+1. **Per-item metrics tables**: Shows deterministic and narrative quality scores for each case
+2. **Run-level aggregate metrics**: Overall precision, recall, F1-score, and confusion matrix
+3. **Trace evaluation summary**: Count of successful, skipped, and failed trace evaluations
+
+All results are uploaded to Langfuse for further analysis and visualization.
 
 ## Run with ADK Web UI
 
 If you want to inspect the agent interactively, the module exposes a top-level `root_agent` for ADK discovery.
 
-From `implementations/aml_investigation/`:
+Run:
 
 ```bash
 uv run adk web --port 8000 --reload --reload_agents implementations/
 ```
-
-The DB tool is initialized lazily when a tool call happens (so importing the module doesn’t keep a DB connection open).
 
 ## Safety Notes (Why Read‑Only SQL?)
 
