@@ -8,6 +8,40 @@ from aieng.agent_evals.knowledge_qa.deepsearchqa_grader import (
 )
 
 
+class TestErrorEvaluations:
+    """Tests for DeepSearchQAResult.error_evaluations."""
+
+    def test_error_evaluations_returns_four_scores(self):
+        """Error path must return the same four named scores as the success path.
+
+        If Outcome is missing on errors, Langfuse aggregates it over a smaller
+        subset than F1/Precision/Recall, making Outcome statistics misleadingly
+        optimistic for runs that have evaluation failures.
+        """
+        evals = DeepSearchQAResult.error_evaluations("timeout")
+        names = [e.name for e in evals]
+        assert names == ["Outcome", "F1", "Precision", "Recall"]
+
+    def test_error_evaluations_outcome_is_fully_incorrect(self):
+        """Outcome on error must be 'Fully Incorrect', not absent."""
+        evals = DeepSearchQAResult.error_evaluations("some error")
+        outcome_eval = next(e for e in evals if e.name == "Outcome")
+        assert outcome_eval.value == "Fully Incorrect"
+
+    def test_error_evaluations_numeric_scores_are_zero(self):
+        """F1, Precision, Recall must all be 0.0 on error."""
+        evals = DeepSearchQAResult.error_evaluations("some error")
+        for e in evals:
+            if e.name in ("F1", "Precision", "Recall"):
+                assert e.value == 0.0
+
+    def test_error_evaluations_comment_contains_error(self):
+        """Error message must be surfaced in the evaluation comment."""
+        evals = DeepSearchQAResult.error_evaluations("connection refused")
+        for e in evals:
+            assert e.comment is not None and "connection refused" in e.comment
+
+
 class TestDeepSearchQAResult:
     """Tests for the DeepSearchQAResult model."""
 

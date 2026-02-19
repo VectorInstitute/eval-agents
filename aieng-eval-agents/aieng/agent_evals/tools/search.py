@@ -4,6 +4,7 @@ This module provides a search tool that returns actual URLs the agent can fetch,
 enabling a proper research workflow: search → fetch → verify → answer.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -16,6 +17,84 @@ from ._redirect import resolve_redirect_urls_async
 
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_summary_from_response(response: Any) -> str:
+    """Extract text summary from Gemini response.
+
+    Parameters
+    ----------
+    response : Any
+        The Gemini API response object.
+
+    Returns
+    -------
+    str
+        The extracted summary text.
+    """
+    summary = ""
+    if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, "text") and part.text:
+                summary += part.text
+    return summary
+
+
+async def _extract_grounding_sources(response: Any) -> list[dict[str, str]]:
+    """Extract and resolve grounding sources from Gemini response.
+
+    Parameters
+    ----------
+    response : Any
+        The Gemini API response object.
+
+    Returns
+    -------
+    list[dict[str, str]]
+        List of source dictionaries with 'title' and 'url' keys.
+    """
+    sources: list[dict[str, str]] = []
+    if not response.candidates:
+        return sources
+
+    gm = getattr(response.candidates[0], "grounding_metadata", None)
+    if not gm or not hasattr(gm, "grounding_chunks") or not gm.grounding_chunks:
+        return sources
+
+    redirect_urls = []
+    titles = []
+    for chunk in gm.grounding_chunks:
+        if hasattr(chunk, "web") and chunk.web:
+            redirect_urls.append(getattr(chunk.web, "uri", "") or "")
+            titles.append(getattr(chunk.web, "title", "") or "")
+
+    if redirect_urls:
+        resolved_urls = await resolve_redirect_urls_async(redirect_urls)
+        for title, url in zip(titles, resolved_urls):
+            if url and not url.startswith("https://vertexaisearch"):
+                sources.append({"title": title, "url": url})
+
+    return sources
+
+
+def _should_retry_for_empty_grounding(response: Any) -> bool:
+    """Check if response has empty grounding metadata that warrants a retry.
+
+    Parameters
+    ----------
+    response : Any
+        The Gemini API response object.
+
+    Returns
+    -------
+    bool
+        True if grounding_chunks is explicitly None, False otherwise.
+    """
+    if not response.candidates:
+        return False
+
+    gm = getattr(response.candidates[0], "grounding_metadata", None)
+    return gm is not None and hasattr(gm, "grounding_chunks") and gm.grounding_chunks is None
 
 
 class GroundingChunk(BaseModel):
@@ -76,12 +155,18 @@ def format_response_with_citations(response: GroundedResponse) -> str:
     return response.format_with_citations()
 
 
-async def _google_search_async(query: str, model: str) -> dict[str, Any]:
+async def _google_search_async(
+    query: str, model: str, temperature: float = 1.0, max_retries: int = 3
+) -> dict[str, Any]:
     """Execute a Google search and return results with actual URLs.
 
     This function calls Gemini with Google Search grounding enabled,
     extracts the grounding URLs, resolves any redirects, and returns
     a structured response the agent can use for further fetching.
+
+    The Google API sometimes returns grounding_metadata with all None fields,
+    likely due to rate limiting. This function retries up to max_retries times
+    with exponential backoff when this happens.
 
     Parameters
     ----------
@@ -89,6 +174,11 @@ async def _google_search_async(query: str, model: str) -> dict[str, Any]:
         The search query.
     model : str
         The Gemini model to use for search.
+    temperature : float, default=1.0
+        Temperature for generation. Google recommends 1.0 for optimal grounding
+        reliability.
+    max_retries : int, default=3
+        Maximum number of retry attempts when grounding chunks are not returned.
 
     Returns
     -------
@@ -106,53 +196,60 @@ async def _google_search_async(query: str, model: str) -> dict[str, Any]:
     client = Client()
 
     try:
-        response = client.models.generate_content(
-            model=model,
-            contents=query,
-            config=types.GenerateContentConfig(
-                tools=[types.Tool(google_search=types.GoogleSearch())],
-                temperature=0.0,
-            ),
-        )
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=query,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(google_search=types.GoogleSearch())],
+                        temperature=temperature,
+                    ),
+                )
 
-        # Extract text summary
-        summary = ""
-        if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, "text") and part.text:
-                    summary += part.text
+                # Check if we should retry due to empty grounding metadata
+                if _should_retry_for_empty_grounding(response):
+                    if attempt < max_retries - 1:
+                        wait_time = 2**attempt
+                        logger.warning(
+                            f"Grounding chunks is None (attempt {attempt + 1}/{max_retries}). "
+                            f"Retrying in {wait_time}s..."
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue
+                    logger.error(f"Grounding chunks is None after {max_retries} attempts. No grounding data available.")
 
-        # Extract grounding URLs
-        sources = []
-        gm = getattr(response.candidates[0], "grounding_metadata", None) if response.candidates else None
+                # Extract summary and sources
+                summary = _extract_summary_from_response(response)
+                sources = await _extract_grounding_sources(response)
 
-        if gm and hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
-            redirect_urls = []
-            titles = []
-            for chunk in gm.grounding_chunks:
-                if hasattr(chunk, "web") and chunk.web:
-                    redirect_urls.append(getattr(chunk.web, "uri", "") or "")
-                    titles.append(getattr(chunk.web, "title", "") or "")
+                return {
+                    "status": "success",
+                    "summary": summary,
+                    "sources": sources,
+                    "source_count": len(sources),
+                }
 
-            # Resolve redirect URLs to actual URLs
-            if redirect_urls:
-                resolved_urls = await resolve_redirect_urls_async(redirect_urls)
-                for title, url in zip(titles, resolved_urls):
-                    if url and not url.startswith("https://vertexaisearch"):
-                        sources.append({"title": title, "url": url})
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt
+                    logger.warning(
+                        f"Search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                logger.error(f"Search failed after {max_retries} attempts: {e}")
+                return {
+                    "status": "error",
+                    "error": str(e),
+                    "summary": "",
+                    "sources": [],
+                }
 
-        return {
-            "status": "success",
-            "summary": summary,
-            "sources": sources,
-            "source_count": len(sources),
-        }
-
-    except Exception as e:
-        logger.error(f"Search failed: {e}")
+        # This should never be reached, but satisfies type checker
         return {
             "status": "error",
-            "error": str(e),
+            "error": "All retries exhausted without result",
             "summary": "",
             "sources": [],
         }
@@ -201,11 +298,11 @@ async def google_search(query: str, model: str | None = None) -> dict[str, Any]:
     >>> # Then fetch to verify
     >>> page = await web_fetch(result["sources"][0]["url"])
     """
+    config = Configs()  # type: ignore[call-arg]
     if model is None:
-        config = Configs()  # type: ignore[call-arg]
         model = config.default_worker_model
 
-    return await _google_search_async(query, model=model)
+    return await _google_search_async(query, model=model, temperature=config.default_temperature)
 
 
 def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
@@ -238,6 +335,7 @@ def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
         config = Configs()  # type: ignore[call-arg]
 
     model = config.default_worker_model
+    temperature = config.default_temperature
 
     async def google_search(query: str) -> dict[str, Any]:
         """Search Google and return results with actual URLs for fetching.
@@ -268,6 +366,6 @@ def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
             - **source_count** (int): Number of sources found (success case only)
             - **error** (str): Error message (error case only)
         """
-        return await _google_search_async(query, model=model)
+        return await _google_search_async(query, model=model, temperature=temperature)
 
     return FunctionTool(func=google_search)

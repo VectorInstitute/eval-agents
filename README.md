@@ -2,21 +2,25 @@
 
 ----------------------------------------------------------------------------------------
 
+[![code checks](https://github.com/VectorInstitute/eval-agents/actions/workflows/code_checks.yml/badge.svg)](https://github.com/VectorInstitute/eval-agents/actions/workflows/code_checks.yml)
+[![unit tests](https://github.com/VectorInstitute/eval-agents/actions/workflows/unit_tests.yml/badge.svg)](https://github.com/VectorInstitute/eval-agents/actions/workflows/unit_tests.yml)
+[![codecov](https://codecov.io/github/VectorInstitute/eval-agents/graph/badge.svg?token=83MYFZ3UPA)](https://codecov.io/github/VectorInstitute/eval-agents)
+[![GitHub License](https://img.shields.io/github/license/VectorInstitute/eval-agents)](https://img.shields.io/github/license/VectorInstitute/eval-agents)
+
 This is a collection of reference implementations for Vector Institute's **Agentic AI Evaluation Bootcamp**.
 
 ## Reference Implementations
 
-This repository includes several modules, each showcasing a different aspect of agent-based RAG systems:
+This repository includes three modules, each demonstrating a different aspect of building and evaluating agent-based systems:
 
-**3. Evals: Automated Evaluation Pipelines**
-  Contains scripts and utilities for evaluating agent performance using LLM-as-a-judge and synthetic data generation. Includes tools for uploading datasets, running evaluations, and integrating with [Langfuse](https://langfuse.com/) for traceability.
+- **[Knowledge-Grounded QA Agent](implementations/knowledge_qa/README.md)**
+  A ReAct agent using Google ADK and Google Search to answer questions grounded in live web content. Evaluated on the DeepSearchQA benchmark using LLM-as-a-judge metrics.
 
-- **[3.1 LLM-as-a-Judge](src/3_evals/1_llm_judge/README.md)**
-  Automated evaluation pipelines using LLM-as-a-judge with Langfuse integration.
+- **[AML Investigation Agent](implementations/aml_investigation/README.md)**
+  An agent that investigates Anti-Money Laundering cases by querying a SQLite database of financial transactions via a read-only SQL tool. Produces structured analysis and supports batch evaluation.
 
-- **[3.2 Evaluation on Synthetic Dataset](src/3_evals/2_synthetic_data/README.md)**
-  Showcases the generation of synthetic evaluation data for testing agents.
-
+- **[Report Generation Agent](implementations/report_generation/README.md)**
+  An agent that accepts natural language queries and generates downloadable Excel reports from a relational database. Includes a Gradio demo UI and Langfuse-integrated evaluations.
 
 ## Getting Started
 
@@ -32,7 +36,7 @@ Run integration tests to validate that your API keys are set up correctly.
 uv run --env-file .env pytest -sv tests/tool_tests/test_integration.py
 ```
 
-## Reference Implementations
+## Running the Implementations
 
 For "Gradio App" reference implementations, running the script would print out a "public URL" ending in `gradio.live` (might take a few seconds to appear.) To access the gradio app with the full streaming capabilities, copy and paste this `gradio.live` URL into a new browser tab.
 
@@ -52,55 +56,6 @@ ERROR:openai.agents:[non-fatal] Tracing client error 401: {
 ```
 
 These warnings can be safely ignored, as they are the result of a bug in the upstream libraries. Your agent traces will be uploaded to LangFuse as configured.
-
-### 3. Evals
-
-Synthetic data.
-
-```bash
-uv run --env-file .env \
--m src.3_evals.2_synthetic_data.synthesize_data \
---source_dataset hf://vector-institute/hotpotqa@d997ecf:train \
---langfuse_dataset_name search-dataset-synthetic-20250609 \
---limit 18
-```
-
-Quantify embedding diversity of synthetic data
-
-```bash
-# Baseline: "Real" dataset
-uv run \
---env-file .env \
--m src.3_evals.2_synthetic_data.annotate_diversity \
---langfuse_dataset_name search-dataset \
---run_name cosine_similarity_bge_m3
-
-# Synthetic dataset
-uv run \
---env-file .env \
--m src.3_evals.2_synthetic_data.annotate_diversity \
---langfuse_dataset_name search-dataset-synthetic-20250609 \
---run_name cosine_similarity_bge_m3
-```
-
-Visualize embedding diversity of synthetic data
-
-```bash
-uv run \
---env-file .env \
-gradio src/3_evals/2_synthetic_data/gradio_visualize_diversity.py
-```
-
-Run LLM-as-a-judge Evaluation on synthetic data
-
-```bash
-uv run \
---env-file .env \
--m src.3_evals.1_llm_judge.run_eval \
---langfuse_dataset_name search-dataset-synthetic-20250609 \
---run_name enwiki_weaviate \
---limit 18
-```
 
 ## Requirements
 
