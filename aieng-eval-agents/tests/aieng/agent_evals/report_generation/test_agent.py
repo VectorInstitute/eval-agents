@@ -1,14 +1,39 @@
 """Tests for the report generation agent."""
 
+import logging
+import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.report_generation.agent import EventParser, EventType, get_report_generation_agent
 
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+
+@pytest.fixture
+def setup_dotenv():
+    """Copy .env.example to .env for the test run, then remove it in teardown."""
+    env_existed = Path(".env").exists()
+    if env_existed:
+        # Moving existing .env to .env.bkp
+        shutil.move(".env", ".env.bkp")
+
+    shutil.copy(".env.example", ".env")
+
+    yield
+
+    Path(".env").unlink()
+    if env_existed:
+        # Moving the existing .env back
+        shutil.move(".env.bkp", ".env")
+
+
 @patch("aieng.agent_evals.report_generation.agent.init_tracing")
-def test_get_report_generation_agent_with_langfuse(mock_init_tracing):
+def test_get_report_generation_agent_with_langfuse(mock_init_tracing, setup_dotenv):
     """Test the get_report_generation_agent function."""
     test_instructions = "You are a report generation agent."
     test_langfuse_project_name = "test_langfuse_project_name"
@@ -33,7 +58,7 @@ def test_get_report_generation_agent_with_langfuse(mock_init_tracing):
 
 
 @patch("aieng.agent_evals.report_generation.agent.init_tracing")
-def test_get_report_generation_agent_without_langfuse(mock_init_tracing):
+def test_get_report_generation_agent_without_langfuse(mock_init_tracing, setup_dotenv):
     """Test the get_report_generation_agent function."""
     test_instructions = "You are a report generation agent."
     test_reports_output_path = Path("reports/")

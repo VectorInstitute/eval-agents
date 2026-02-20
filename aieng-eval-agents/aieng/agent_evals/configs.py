@@ -161,6 +161,17 @@ class Configs(BaseSettings):
     web_search_base_url: str | None = Field(default=None, description="Base URL for web search service.")
     web_search_api_key: SecretStr | None = Field(default=None, description="API key for web search service.")
 
+    # === Report Generation ===
+    # Defaults are set in the implementations/report_generation/env_vars.py file
+    report_generation_output_path: str | None = Field(
+        default=None,
+        description="Path to the directory where the report generation agent will save the reports.",
+    )
+    report_generation_langfuse_project_name: str | None = Field(
+        default=None,
+        description="Name of the Langfuse project to use for report generation.",
+    )
+
     # Validators for the SecretStr fields
     @field_validator("langfuse_secret_key")
     @classmethod

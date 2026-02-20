@@ -1,7 +1,8 @@
 """Environment variables and their defaults for the report generation agent."""
 
-import os
 from pathlib import Path
+
+from aieng.agent_evals.async_client_manager import AsyncClientManager
 
 
 DEFAULT_REPORTS_OUTPUT_PATH = "implementations/report_generation/reports/"
@@ -19,7 +20,11 @@ def get_reports_output_path() -> Path:
     Path
         The reports output path.
     """
-    return Path(os.getenv("REPORT_GENERATION_OUTPUT_PATH", DEFAULT_REPORTS_OUTPUT_PATH))
+    output_path = AsyncClientManager.get_instance().configs.report_generation_output_path
+    if output_path:
+        return Path(output_path)
+
+    return Path(DEFAULT_REPORTS_OUTPUT_PATH)
 
 
 def get_langfuse_project_name() -> str:
@@ -33,4 +38,8 @@ def get_langfuse_project_name() -> str:
     str
         The default Langfuse project name for report generation.
     """
-    return os.getenv("REPORT_GENERATION_LANGFUSE_PROJECT_NAME", DEFAULT_LANGFUSE_PROJECT_NAME)
+    langfuse_project_name = AsyncClientManager.get_instance().configs.report_generation_langfuse_project_name
+    if langfuse_project_name:
+        return langfuse_project_name
+
+    return DEFAULT_LANGFUSE_PROJECT_NAME
