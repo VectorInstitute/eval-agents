@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 def get_report_generation_agent(
     instructions: str,
     reports_output_path: Path,
-    langfuse_project_name: str | None,
+    langfuse_project_name: str | None = None,
     after_agent_callback: AfterAgentCallback | None = None,
 ) -> Agent:
     """
@@ -49,11 +49,12 @@ def get_report_generation_agent(
         The instructions for the agent.
     reports_output_path : Path
         The path to the reports output directory.
-    langfuse_project_name : str | None
+    langfuse_project_name : str | None, optional
         The name of the Langfuse project to use for tracing.
-    after_agent_callback : AfterAgentCallback | None
+        Default is None, which means no tracing will be used.
+    after_agent_callback : AfterAgentCallback | None, optional
         The callback function to be called after the agent has
-        finished executing.
+        finished executing. Default is None.
 
     Returns
     -------
