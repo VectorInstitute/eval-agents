@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def setup_dotenv():
     """Copy .env.example to .env for the test run, then remove it in teardown."""
+    root_dir = Path.cwd()
+    print(f"\nTest root directory (cwd): {root_dir}")
+
     env_existed = Path(".env").exists()
     if env_existed:
         # Moving existing .env to .env.bkp
