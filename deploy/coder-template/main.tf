@@ -46,6 +46,14 @@ resource "coder_agent" "main" {
     echo "Fixing permissions for /home/${local.username}"
     sudo chown -R ${local.username}:${local.username} /home/${local.username}
 
+    # Seed home directory from image on first boot (fast copy, no downloads)
+    if [ ! -f "/home/${local.username}/.home_seeded" ]; then
+      echo "Seeding home directory from image..."
+      cp -a /opt/home-seed/. "/home/${local.username}/"
+      touch "/home/${local.username}/.home_seeded"
+      echo "Home directory seeded"
+    fi
+
     # Install uv
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="/home/${local.username}/.local/bin:$PATH"
@@ -158,6 +166,18 @@ if [ -f ~/${local.repo_name}/.venv/bin/activate ]; then
     source .venv/bin/activate
 fi
 BASHRC
+    fi
+
+    # Configure zshrc to auto-navigate to repo with venv activated
+    if ! grep -q "Auto-navigate to ${local.repo_name}" "/home/${local.username}/.zshrc" 2>/dev/null; then
+      cat >> "/home/${local.username}/.zshrc" <<ZSHRC
+
+# Auto-navigate to ${local.repo_name} and activate venv
+if [ -f ~/${local.repo_name}/.venv/bin/activate ]; then
+    cd ~/${local.repo_name}
+    source .venv/bin/activate
+fi
+ZSHRC
     fi
 
     echo "Startup script ran successfully!"
