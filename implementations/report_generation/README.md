@@ -3,22 +3,29 @@
 This code implements an example of a Report Generation Agent for single-table relational
 data source, including a demo agent demo UI and evaluations with [Langfuse](https://langfuse.com/).
 
-The data source implemented here is [SQLite](https://sqlite.org/) which is supported
-natively by Python and saves the data in disk.
+The data source implemented here is an [SQLite](https://sqlite.org/) database which is
+supported natively by Python and saves the data in disk.
+[SQLAlchemy](https://www.sqlalchemy.org/) is used as a SQL connection tool so this
+SQL connection can be easily swapped for other databases.
 
 The Report Generation Agent will provide an UI to read user queries in natural language
-and procceed to make SQL queries to the database in order to produce the data for
+and proceed to make SQL queries to the database in order to produce the data for
 the report. At the end, the Agent will provide a downloadable link to the report as
 an `.xlsx` file.
 
-This example also provide agent monitoring and evaluations using Langfuse.
+This example also provides agent monitoring and evaluations using Langfuse.
+
+### Running the Demo
+
+To run the demo, you can choose to follow the steps below or follow the instructions in the notebooks in this folder.
+
 
 ## Dataset
 
 The dataset used in this example is the
 [Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail) dataset. It contains
 information about invoices for products that were purchased by customers, which also includes
-product quantity, the invoice date and country that the user resides in. For a more
+product quantity, the invoice date and the country that the customer resides in. For a more
 detailed data structure, please check the [OnlineRetail.ddl](data/Online%20Retail.ddl) file.
 
 ## Importing the Data

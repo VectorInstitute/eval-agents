@@ -31,7 +31,13 @@ load_dotenv(verbose=True)
     default=DEFAULT_EVALUATION_DATASET_NAME,
     help="Name of the Langfuse dataset to evaluate against.",
 )
-def cli(dataset_name: str):
+@click.option(
+    "--max-concurrency",
+    default=5,
+    type=int,
+    help="Maximum concurrent agent runs (default: 5).",
+)
+def cli(dataset_name: str, max_concurrency: int):
     """Command line interface to call the evaluate function.
 
     Parameters
@@ -45,6 +51,7 @@ def cli(dataset_name: str):
             dataset_name,
             reports_output_path=get_reports_output_path(),
             langfuse_project_name=get_langfuse_project_name(),
+            max_concurrency=max_concurrency,
         )
     )
 

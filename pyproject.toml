@@ -28,6 +28,7 @@ dependencies = [
     "pyasn1>=0.6.2",
     "virtualenv>=20.36.1",
     "tenacity>=9.1.2",
+    "certifi>=2026.1.4",
 ]
 
 [dependency-groups]

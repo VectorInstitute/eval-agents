@@ -26,8 +26,19 @@ DDL_FILE_PATH = Path("implementations/report_generation/data/OnlineRetail.ddl")
 
 
 @click.command()
-@click.option("--dataset-path", required=True, help="OnlieRetail dataset CSV path.")
-def main(dataset_path: str):
+@click.option("--dataset-path", required=True, help="OnlineRetail dataset CSV path.")
+def cli(dataset_path: str) -> None:
+    """CLI entry point to import the Online Retail dataset to the database.
+
+    Parameters
+    ----------
+    dataset_path : str
+        The path to the CSV file containing the dataset.
+    """
+    import_online_retail_data(dataset_path)
+
+
+def import_online_retail_data(dataset_path: str) -> None:
     """Import the Online Retail dataset to the database.
 
     Parameters
@@ -43,7 +54,6 @@ def main(dataset_path: str):
     db_path = client_manager.configs.report_generation_db.database
 
     assert Path(dataset_path).exists(), f"Dataset path {dataset_path} does not exist"
-    assert Path(db_path).parent.exists(), f"Database path {db_path} does not exist"
 
     conn = sqlite3.connect(db_path)
     logger.info("Creating tables according to the OnlineRetail.ddl file")
@@ -76,6 +86,9 @@ def convert_date(date_str: str) -> str | None:
     str | None
         Converted date string in format 'YYYY-MM-DD HH:MM' or None if parsing fails.
     """
+    if not is_date_in_format(date_str, "%m/%d/%y %H:%M") and not is_date_in_format(date_str, "%m/%d/%y H:%M"):
+        return date_str
+
     if not date_str or date_str.strip() == "":
         return None
 
@@ -110,5 +123,28 @@ def convert_date(date_str: str) -> str | None:
         return None
 
 
+def is_date_in_format(value: str, fmt: str) -> bool:
+    """Check if a date string is in a given format.
+
+    Parameters
+    ----------
+    value : str
+        The date string to check.
+    fmt : str
+        The format to check the date string against.
+        Example: "%m/%d/%y %H:%M" or "%m/%d/%y H:%M".
+
+    Returns
+    -------
+    bool
+        True if the date string is in the given format, False otherwise.
+    """
+    try:
+        datetime.strptime(value, fmt)
+        return True
+    except ValueError:
+        return False
+
+
 if __name__ == "__main__":
-    main()
+    cli()

@@ -194,15 +194,7 @@ def toggle_feedback_row() -> tuple[dict[str, Any], dict[str, Any]]:
     return gr.update(visible=trace_id is not None and trace_id != ""), gr.update(visible=False)
 
 
-@click.command()
-@click.option("--enable-trace", required=False, default=True, help="Whether to enable tracing with Langfuse.")
-@click.option(
-    "--enable-public-link",
-    required=False,
-    default=False,
-    help="Whether to enable public link for the Gradio app.",
-)
-def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False) -> None:
+async def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False) -> None:
     """Start the Gradio app with the agent session handler.
 
     Parameters
@@ -265,8 +257,36 @@ def start_gradio_app(enable_trace: bool = True, enable_public_link: bool = False
         )
     finally:
         DbManager.get_instance().close()
-        asyncio.run(AsyncClientManager.get_instance().close())
+        await AsyncClientManager.get_instance().close()
+
+
+@click.command()
+@click.option("--enable-trace", required=False, default=True, help="Whether to enable tracing with Langfuse.")
+@click.option(
+    "--enable-public-link",
+    required=False,
+    default=False,
+    help="Whether to enable public link for the Gradio app.",
+)
+def cli(enable_trace: bool = True, enable_public_link: bool = False) -> None:
+    """CLI entry point to start the Gradio app.
+
+    Parameters
+    ----------
+    enable_trace : bool, optional
+        Whether to enable tracing with Langfuse for evaluation purposes.
+        Default is True.
+    enable_public_link : bool, optional
+        Whether to enable public link for the Gradio app. If True,
+        will make the Gradio app available at a public URL. Default is False.
+    """
+    asyncio.run(
+        start_gradio_app(
+            enable_trace=enable_trace,
+            enable_public_link=enable_public_link,
+        )
+    )
 
 
 if __name__ == "__main__":
-    start_gradio_app()
+    cli()

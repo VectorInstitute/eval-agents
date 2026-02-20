@@ -362,25 +362,29 @@ async def run_agent_with_retry(agent: Agent, agent_input: str) -> list[Event]:
     list[Event]
         The events from the agent run.
     """
-    logger.info(f"Running agent {agent.name} with input '{agent_input[:100]}...'")
+    try:
+        logger.info(f"Running agent {agent.name} with input '{agent_input[:100]}...'")
 
-    # Create session and runner
-    session_service = InMemorySessionService()
-    runner = Runner(app_name=agent.name, agent=agent, session_service=session_service)
-    current_session = await session_service.create_session(
-        app_name=agent.name,
-        user_id="user",
-        state={},
-    )
+        # Create session and runner
+        session_service = InMemorySessionService()
+        runner = Runner(app_name=agent.name, agent=agent, session_service=session_service)
+        current_session = await session_service.create_session(
+            app_name=agent.name,
+            user_id="user",
+            state={},
+        )
 
-    # create the user message and run the agent
-    content = Content(role="user", parts=[Part(text=agent_input)])
-    events = []
-    async for event in runner.run_async(
-        user_id="user",
-        session_id=current_session.id,
-        new_message=content,
-    ):
-        events.append(event)
+        # create the user message and run the agent
+        content = Content(role="user", parts=[Part(text=agent_input)])
+        events = []
+        async for event in runner.run_async(
+            user_id="user",
+            session_id=current_session.id,
+            new_message=content,
+        ):
+            events.append(event)
 
-    return events
+        return events
+    except Exception as e:
+        logger.error(f"Error running agent {agent.name} with input '{agent_input[:100]}...': {e}")
+        raise e  # raising the exception so the retry mechanism can try again
