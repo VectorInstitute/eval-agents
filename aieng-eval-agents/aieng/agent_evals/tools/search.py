@@ -156,7 +156,7 @@ def format_response_with_citations(response: GroundedResponse) -> str:
 
 
 async def _google_search_async(
-    query: str, model: str, temperature: float = 1.0, max_retries: int = 3
+    query: str, model: str, temperature: float = 1.0, max_retries: int = 3, api_key: str | None = None
 ) -> dict[str, Any]:
     """Execute a Google search and return results with actual URLs.
 
@@ -193,7 +193,7 @@ async def _google_search_async(
         - **source_count** (int): Number of sources found (success case only)
         - **error** (str): Error message (error case only)
     """
-    client = Client()
+    client = Client(api_key=api_key)
 
     try:
         for attempt in range(max_retries):
@@ -302,7 +302,9 @@ async def google_search(query: str, model: str | None = None) -> dict[str, Any]:
     if model is None:
         model = config.default_worker_model
 
-    return await _google_search_async(query, model=model, temperature=config.default_temperature)
+    return await _google_search_async(
+        query, model=model, temperature=config.default_temperature, api_key=config.openai_api_key.get_secret_value()
+    )
 
 
 def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
@@ -366,6 +368,8 @@ def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
             - **source_count** (int): Number of sources found (success case only)
             - **error** (str): Error message (error case only)
         """
-        return await _google_search_async(query, model=model, temperature=temperature)
+        return await _google_search_async(
+            query, model=model, temperature=temperature, api_key=config.openai_api_key.get_secret_value()
+        )
 
     return FunctionTool(func=google_search)
