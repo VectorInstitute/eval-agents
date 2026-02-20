@@ -18,19 +18,21 @@ logger = logging.getLogger(__name__)
 def setup_dotenv():
     """Copy .env.example to .env for the test run, then remove it in teardown."""
     root_dir = Path.cwd()
-    print(f"\nTest root directory (cwd): {root_dir}")
+    env_dir = root_dir
+    while env_dir.name != "eval-agents":
+        env_dir = env_dir.parent
 
-    env_existed = Path(".env").exists()
-    if env_existed:
+    env_exists = Path(".env").exists()
+    if env_exists:
         # Moving existing .env to .env.bkp
         shutil.move(".env", ".env.bkp")
 
-    shutil.copy(".env.example", ".env")
+    shutil.copy(env_dir / ".env.example", ".env")
 
     yield
 
     Path(".env").unlink()
-    if env_existed:
+    if env_exists:
         # Moving the existing .env back
         shutil.move(".env.bkp", ".env")
 
