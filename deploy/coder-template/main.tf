@@ -143,6 +143,7 @@ resource "coder_agent" "main" {
         --bootcamp-name "$BOOTCAMP_NAME" \
         --output-dir "/home/${local.username}/${local.repo_name}" \
         --test-script "/home/${local.username}/${local.repo_name}/aieng-eval-agents/tests/test_integration.py" \
+        --env-example "/home/${local.username}/${local.repo_name}/.env.example" \
         --test-marker "integration_test" || echo "Onboarding failed, continuing..."
     else
       echo "Onboarding CLI not found, skipping automated onboarding"
