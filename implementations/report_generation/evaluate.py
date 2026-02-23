@@ -15,10 +15,7 @@ from aieng.agent_evals.report_generation.evaluation.offline import evaluate
 from dotenv import load_dotenv
 
 from implementations.report_generation.data.langfuse_upload import DEFAULT_EVALUATION_DATASET_NAME
-from implementations.report_generation.env_vars import (
-    get_langfuse_project_name,
-    get_reports_output_path,
-)
+from implementations.report_generation.env_vars import get_reports_output_path
 
 
 load_dotenv(verbose=True)
@@ -50,7 +47,6 @@ def cli(dataset_name: str, max_concurrency: int):
         evaluate(
             dataset_name,
             reports_output_path=get_reports_output_path(),
-            langfuse_project_name=get_langfuse_project_name(),
             max_concurrency=max_concurrency,
         )
     )

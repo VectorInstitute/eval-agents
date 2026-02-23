@@ -27,7 +27,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 from gradio.components.chatbot import ChatMessage
 
-from implementations.report_generation.env_vars import get_langfuse_project_name, get_reports_output_path
+from implementations.report_generation.env_vars import get_reports_output_path
 from implementations.report_generation.gradio_utils import agent_event_to_gradio_messages
 
 
@@ -73,8 +73,8 @@ async def agent_session_handler(
     main_agent = get_report_generation_agent(
         instructions=MAIN_AGENT_INSTRUCTIONS,
         reports_output_path=get_reports_output_path(),
-        langfuse_project_name=get_langfuse_project_name() if enable_trace else None,
         after_agent_callback=calculate_and_send_scores,
+        langfuse_tracing=enable_trace,
     )
 
     # Construct an in-memory session for the agent to maintain

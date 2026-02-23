@@ -41,14 +41,12 @@ def setup_dotenv():
 def test_get_report_generation_agent_with_langfuse(mock_init_tracing, setup_dotenv):
     """Test the get_report_generation_agent function."""
     test_instructions = "You are a report generation agent."
-    test_langfuse_project_name = "test_langfuse_project_name"
     test_reports_output_path = Path("reports/")
     test_after_agent_callback = Mock()
 
     agent = get_report_generation_agent(
         instructions=test_instructions,
         reports_output_path=test_reports_output_path,
-        langfuse_project_name=test_langfuse_project_name,
         after_agent_callback=test_after_agent_callback,
     )
 
@@ -59,7 +57,7 @@ def test_get_report_generation_agent_with_langfuse(mock_init_tracing, setup_dote
     assert agent.tools[2].__self__.reports_output_path == test_reports_output_path
     assert agent.after_agent_callback == test_after_agent_callback
 
-    mock_init_tracing.assert_called_once_with(test_langfuse_project_name)
+    mock_init_tracing.assert_called_once_with(service_name="ReportGenerationAgent")
 
 
 @patch("aieng.agent_evals.report_generation.agent.init_tracing")
@@ -71,6 +69,7 @@ def test_get_report_generation_agent_without_langfuse(mock_init_tracing, setup_d
     agent = get_report_generation_agent(
         instructions=test_instructions,
         reports_output_path=test_reports_output_path,
+        langfuse_tracing=False,
     )
 
     assert agent is not None

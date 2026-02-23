@@ -167,10 +167,6 @@ class Configs(BaseSettings):
         default=None,
         description="Path to the directory where the report generation agent will save the reports.",
     )
-    report_generation_langfuse_project_name: str | None = Field(
-        default=None,
-        description="Name of the Langfuse project to use for report generation.",
-    )
 
     # Validators for the SecretStr fields
     @field_validator("langfuse_secret_key")

@@ -18,7 +18,6 @@ async def test_evaluate(mock_db_manager_instance, mock_async_client_manager_inst
     """Test the evaluate function."""
     test_dataset_name = "test_dataset"
     test_reports_output_path = Path("reports/")
-    test_langfuse_project_name = "test_project"
     test_max_concurrency = 5
 
     mock_result = Mock()
@@ -34,7 +33,6 @@ async def test_evaluate(mock_db_manager_instance, mock_async_client_manager_inst
     await evaluate(
         dataset_name=test_dataset_name,
         reports_output_path=test_reports_output_path,
-        langfuse_project_name=test_langfuse_project_name,
         max_concurrency=test_max_concurrency,
     )
 
@@ -50,7 +48,6 @@ async def test_evaluate(mock_db_manager_instance, mock_async_client_manager_inst
     assert task.__name__ == "run"
     assert task.__self__.__class__.__name__ == "ReportGenerationTask"
     assert task.__self__.reports_output_path == test_reports_output_path
-    assert task.__self__.langfuse_project_name == test_langfuse_project_name
 
     mock_db_manager_instance.return_value.close.assert_called_once()
     mock_async_client_manager_instance.return_value.close.assert_called_once()
