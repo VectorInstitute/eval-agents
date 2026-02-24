@@ -15,10 +15,14 @@ an `.xlsx` file.
 
 This example also provides agent monitoring and evaluations using Langfuse.
 
+Below is a diagram of the system:
+
+<img src="system_diagram.png" alt="System diagram" width="500" />
+
 ### Running the Demo
 
-To run the demo, you can choose to follow the steps below or follow the instructions in the notebooks in this folder.
-
+To run the demo, you can choose to follow the steps below or follow the instructions
+in the notebooks in this folder.
 
 ## Dataset
 
