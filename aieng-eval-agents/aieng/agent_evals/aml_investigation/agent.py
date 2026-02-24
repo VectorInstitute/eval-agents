@@ -16,6 +16,8 @@ Examples
 'AmlInvestigationAnalyst'
 """
 
+import os
+
 from aieng.agent_evals.aml_investigation.data import AnalystOutput
 from aieng.agent_evals.async_client_manager import AsyncClientManager
 from aieng.agent_evals.db_manager import DbManager
@@ -231,6 +233,11 @@ def create_aml_investigation_agent(
     """
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
+
+    # Google ADK reads GOOGLE_API_KEY from the environment directly.
+    # Bridge from OPENAI_API_KEY (or GEMINI_API_KEY) if not already set.
+    os.environ.setdefault("GOOGLE_API_KEY", client_manager.configs.openai_api_key.get_secret_value())
+
     db = DbManager().aml_db(agent_name=name)
 
     # Initialize tracing if enabled and a name is provided
