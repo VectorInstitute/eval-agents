@@ -16,7 +16,7 @@ from aieng.agent_evals.report_generation.prompts import MAIN_AGENT_INSTRUCTIONS
 from dotenv import load_dotenv
 from google.adk.agents.callback_context import CallbackContext
 
-from .env_vars import get_langfuse_project_name, get_reports_output_path
+from .env_vars import get_reports_output_path
 
 
 load_dotenv(verbose=True)
@@ -62,6 +62,5 @@ def calculate_and_send_scores(callback_context: CallbackContext) -> None:
 root_agent = get_report_generation_agent(
     instructions=MAIN_AGENT_INSTRUCTIONS,
     reports_output_path=get_reports_output_path(),
-    langfuse_project_name=get_langfuse_project_name(),
     after_agent_callback=calculate_and_send_scores,
 )

@@ -11,7 +11,6 @@ Example
 >>> agent = get_report_generation_agent(
 >>>     instructions=MAIN_AGENT_INSTRUCTIONS,
 >>>     reports_output_path=Path("reports/"),
->>>     langfuse_project_name="Report Generation",
 >>> )
 """
 
@@ -37,8 +36,8 @@ logger = logging.getLogger(__name__)
 def get_report_generation_agent(
     instructions: str,
     reports_output_path: Path,
-    langfuse_project_name: str | None,
     after_agent_callback: AfterAgentCallback | None = None,
+    langfuse_tracing: bool = True,
 ) -> Agent:
     """
     Define the report generation agent.
@@ -49,20 +48,22 @@ def get_report_generation_agent(
         The instructions for the agent.
     reports_output_path : Path
         The path to the reports output directory.
-    langfuse_project_name : str | None
-        The name of the Langfuse project to use for tracing.
-    after_agent_callback : AfterAgentCallback | None
+    after_agent_callback : AfterAgentCallback | None, optional
         The callback function to be called after the agent has
-        finished executing.
+        finished executing. Default is None.
+    langfuse_tracing : bool, optional
+        Whether to enable Langfuse tracing. Default is True.
 
     Returns
     -------
     agents.Agent
         The report generation agent.
     """
+    agent_name = "ReportGenerationAgent"
+
     # Setup langfuse tracing if project name is provided
-    if langfuse_project_name:
-        init_tracing(langfuse_project_name)
+    if langfuse_tracing:
+        init_tracing(service_name=agent_name)
 
     # Get the client manager singleton instance
     client_manager = AsyncClientManager.get_instance()
@@ -71,7 +72,7 @@ def get_report_generation_agent(
 
     # Define an agent using Google ADK
     return Agent(
-        name="ReportGenerationAgent",
+        name=agent_name,
         model=client_manager.configs.default_worker_model,
         instruction=instructions,
         tools=[
