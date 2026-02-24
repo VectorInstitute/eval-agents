@@ -7,7 +7,6 @@ Example
 >>> evaluate(
 >>>     dataset_name="OnlineRetailReportEval",
 >>>     reports_output_path=Path("reports/"),
->>>     langfuse_project_name="Report Generation",
 >>> )
 """
 
@@ -61,7 +60,6 @@ class EvaluatorResponse(BaseModel):
 async def evaluate(
     dataset_name: str,
     reports_output_path: Path,
-    langfuse_project_name: str,
     max_concurrency: int = 5,
 ) -> None:
     """Evaluate the report generation agent against a Langfuse dataset.
@@ -90,10 +88,7 @@ async def evaluate(
     # Initialize the task for the report generation agent evaluation
     # We need this task so we can pass parameters to the agent, since
     # the agent has to be instantiated inside the task function
-    report_generation_task = ReportGenerationTask(
-        reports_output_path=reports_output_path,
-        langfuse_project_name=langfuse_project_name,
-    )
+    report_generation_task = ReportGenerationTask(reports_output_path=reports_output_path)
 
     # Run the experiment with the agent task and evaluator
     # against the dataset items
@@ -119,22 +114,15 @@ async def evaluate(
 class ReportGenerationTask:
     """Define a task for the the report generation agent."""
 
-    def __init__(
-        self,
-        reports_output_path: Path,
-        langfuse_project_name: str,
-    ):
+    def __init__(self, reports_output_path: Path):
         """Initialize the task for an report generation agent evaluation.
 
         Parameters
         ----------
         reports_output_path : Path
             The path to the reports output directory.
-        langfuse_project_name : str
-            The name of the Langfuse project to use for tracing.
         """
         self.reports_output_path = reports_output_path
-        self.langfuse_project_name = langfuse_project_name
 
     async def run(self, *, item: LocalExperimentItem | DatasetItemClient, **kwargs: dict[str, Any]) -> EvaluationOutput:
         """Run the report generation agent against an item from a Langfuse dataset.
@@ -154,7 +142,6 @@ class ReportGenerationTask:
         report_generation_agent = get_report_generation_agent(
             instructions=MAIN_AGENT_INSTRUCTIONS,
             reports_output_path=self.reports_output_path,
-            langfuse_project_name=self.langfuse_project_name,
         )
         # Handle both TypedDict and class access patterns
         item_input = item["input"] if isinstance(item, dict) else item.input
