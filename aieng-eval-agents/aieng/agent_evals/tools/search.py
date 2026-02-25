@@ -303,7 +303,7 @@ async def google_search(query: str, model: str | None = None) -> dict[str, Any]:
         model = config.default_worker_model
 
     return await _google_search_async(
-        query, model=model, temperature=config.default_temperature, api_key=config.openai_api_key.get_secret_value()
+        query, model=model, temperature=config.default_temperature, api_key=config.google_api_key.get_secret_value()
     )
 
 
@@ -369,7 +369,7 @@ def create_google_search_tool(config: Configs | None = None) -> FunctionTool:
             - **error** (str): Error message (error case only)
         """
         return await _google_search_async(
-            query, model=model, temperature=temperature, api_key=config.openai_api_key.get_secret_value()
+            query, model=model, temperature=temperature, api_key=config.google_api_key.get_secret_value()
         )
 
     return FunctionTool(func=google_search)
