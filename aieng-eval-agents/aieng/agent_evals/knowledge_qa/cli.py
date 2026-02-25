@@ -162,8 +162,6 @@ def _parse_structured_answer(text: str) -> dict[str, str] | None:
     result = {"answer": "", "sources": "", "reasoning": ""}
 
     # Find positions of each section (case-insensitive)
-    import re  # noqa: PLC0415
-
     # Match ANSWER:, SOURCES:, REASONING: with flexible spacing
     answer_match = re.search(r"ANSWER:\s*", text, re.IGNORECASE)
     sources_match = re.search(r"SOURCES:\s*", text, re.IGNORECASE)
