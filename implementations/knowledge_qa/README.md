@@ -1,19 +1,18 @@
 # Knowledge-Grounded QA Agent
 
-This implementation demonstrates a knowledge-grounded question answering agent using **Google ADK** with explicit **Google Search tool calls**, evaluated on the **DeepSearchQA** benchmark.
+This implementation demonstrates a knowledge-grounded question answering agent using **Google ADK** with a **PlanReAct** architecture, evaluated on the **DeepSearchQA** benchmark.
 
 ## Overview
 
-The knowledge agent uses a ReAct (Reasoning + Acting) architecture powered by Google ADK. It explicitly calls Google Search as a tool, making the reasoning process transparent through observable Thought → Action → Observation cycles. This approach searches the live web to find relevant information for questions requiring real-time data.
+The agent combines two patterns: **PlanReAct** (creates an explicit numbered research plan before executing) and a **ReAct loop** within each step (Thought → Tool Call → Observation). It searches the live web to find and verify facts rather than relying on training data.
 
 ## Features
 
-- **ReAct Architecture**: Explicit tool calls with traceable reasoning (Thought → Action → Observation)
-- **Google Search Tool**: Uses ADK's `GoogleSearchTool` for real-time web search
-- **Source Citation**: Automatically extracts and includes source URLs from search results
-- **DeepSearchQA Evaluation**: Built-in evaluation on the DeepSearchQA benchmark (900 research tasks)
+- **PlanReAct Architecture**: Explicit research plan with step statuses, revised mid-run if needed
+- **Five Tools**: `google_search`, `web_fetch`, `fetch_file`, `grep_file`, `read_file`
+- **Source Citation**: Extracts and cites source URLs from search results
+- **DeepSearchQA Evaluation**: LLM-as-judge evaluation on the DeepSearchQA benchmark (896 questions)
 - **Multi-turn Conversations**: Session management via ADK's `InMemorySessionService`
-- **Gradio Interface**: Interactive chat UI for testing
 
 ## Setup
 
@@ -36,14 +35,6 @@ uv sync
 
 ## Usage
 
-### Interactive Chat
-
-Run the Gradio app:
-
-```bash
-uv run --env-file .env gradio implementations/knowledge_qa/gradio_app.py
-```
-
 ### Programmatic Usage
 
 ```python
@@ -64,43 +55,66 @@ print(f"Tool calls: {response.tool_calls}")
 
 ### Evaluation on DeepSearchQA
 
-```python
-from aieng.agent_evals.knowledge_qa import (
-    KnowledgeGroundedAgent,
-    DeepSearchQAEvaluator,
-)
+Use the main evaluation script to run comprehensive evaluations:
 
-agent = KnowledgeGroundedAgent()
-evaluator = DeepSearchQAEvaluator(agent)
+```bash
+# Run evaluation on 3 samples
+python implementations/knowledge_qa/evaluate.py --samples 3
 
-# Evaluate a sample (use await in Jupyter)
-results = await evaluator.evaluate_sample_async(n=10, random_state=42)
+# Run with specific example IDs
+python implementations/knowledge_qa/evaluate.py --ids 123 456 789
 
-# Convert to DataFrame for analysis
-df = evaluator.results_to_dataframe(results)
-print(df[["example_id", "ground_truth", "prediction", "sources_used"]])
+# Enable trace groundedness evaluation
+ENABLE_TRACE_GROUNDEDNESS=true python implementations/knowledge_qa/evaluate.py
+```
+
+Or use the CLI:
+
+```bash
+# Run evaluation via CLI
+uv run --env-file .env knowledge-qa eval --samples 3
+uv run --env-file .env knowledge-qa eval --ids 123 456 --show-plan
+```
+
+## Run with ADK Web UI
+
+To inspect the agent interactively, the module exposes a top-level `root_agent` for ADK discovery.
+
+```bash
+uv run adk web --port 8000 --reload --reload_agents implementations/
 ```
 
 ## Notebooks
 
-1. **01_grounding_basics.ipynb**: Introduction to the knowledge agent and Google Search tool
-2. **02_agent_basics.ipynb**: Creating agents with custom instructions
-3. **03_multi_turn.ipynb**: Multi-turn conversations and DeepSearchQA evaluation
+1. **01_dataset_and_tools.ipynb**: The DeepSearchQA dataset and the agent's five tools
+2. **02_running_the_agent.ipynb**: PlanReAct architecture, live progress display, multi-turn conversations, and Langfuse tracing
+3. **03_evaluation.ipynb**: Systematic evaluation with `run_experiment`, LLM-as-judge grading, and result inspection
 
 ## Architecture
 
 ```
 aieng.agent_evals.knowledge_qa/
-├── config.py          # Configuration (Pydantic settings)
-├── grounding_tool.py  # GoogleSearchTool wrapper and response models
-├── agent.py           # KnowledgeGroundedAgent (ADK Agent + Runner)
-├── session.py         # Conversation session management
-└── evaluation.py      # DeepSearchQA dataset and evaluator
+├── agent.py                # KnowledgeGroundedAgent (ADK Agent + Runner)
+├── data/                   # DeepSearchQA dataset loader
+├── deepsearchqa_grader.py  # LLM-as-judge evaluation
+├── planner.py              # Research planning
+├── token_tracker.py        # Token usage tracking
+└── cli.py                  # Rich CLI interface
+
+aieng.agent_evals/
+├── configs.py              # Configuration (Pydantic settings)
+├── evaluation/             # Evaluation harness
+│   ├── experiment.py       # Langfuse experiment runner
+│   └── graders/            # Evaluators (trace groundedness, etc.)
+└── tools/                  # Shared tools
+    ├── search.py           # GoogleSearchTool wrapper
+    ├── web.py              # web_fetch for HTML/PDF
+    └── file.py             # fetch_file, grep_file, read_file
 ```
 
 ## DeepSearchQA Dataset
 
-The [DeepSearchQA](https://www.kaggle.com/datasets/deepmind/deepsearchqa) benchmark consists of 900 "causal chain" research tasks across 17 categories. These questions require:
+The [DeepSearchQA](https://www.kaggle.com/datasets/deepmind/deepsearchqa) benchmark consists of 896 "causal chain" research tasks across 17 categories. These questions require:
 
 - Multi-source lookups
 - Statistical comparisons
