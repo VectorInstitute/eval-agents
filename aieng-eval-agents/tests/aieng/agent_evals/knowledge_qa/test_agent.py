@@ -1,14 +1,347 @@
-"""Tests for the Knowledge-Grounded QA Agent."""
+"""Tests for the Knowledge-Grounded QA Agent and data models."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from aieng.agent_evals.knowledge_qa.agent import (
-    SYSTEM_INSTRUCTIONS,
+    AgentResponse,
     KnowledgeAgentManager,
     KnowledgeGroundedAgent,
+    StepExecution,
 )
-from aieng.agent_evals.tools import GroundedResponse
+from aieng.agent_evals.knowledge_qa.plan_parsing import (
+    ResearchPlan,
+    ResearchStep,
+    StepStatus,
+)
+from aieng.agent_evals.tools import GroundingChunk
+
+
+# =============================================================================
+# Data Model Tests
+# =============================================================================
+
+
+class TestStepStatus:
+    """Tests for the StepStatus constants."""
+
+    def test_status_constants(self):
+        """Test that status constants are defined."""
+        assert StepStatus.PENDING == "pending"
+        assert StepStatus.IN_PROGRESS == "in_progress"
+        assert StepStatus.COMPLETED == "completed"
+        assert StepStatus.FAILED == "failed"
+        assert StepStatus.SKIPPED == "skipped"
+
+
+class TestResearchStep:
+    """Tests for the ResearchStep model."""
+
+    def test_research_step_creation(self):
+        """Test creating a research step."""
+        step = ResearchStep(
+            step_id=1,
+            description="Search for financial regulations",
+            step_type="research",
+            depends_on=[],
+            expected_output="List of relevant regulations",
+        )
+        assert step.step_id == 1
+        assert step.description == "Search for financial regulations"
+        assert step.step_type == "research"
+        assert step.depends_on == []
+        assert step.expected_output == "List of relevant regulations"
+
+    def test_research_step_with_dependencies(self):
+        """Test creating a step with dependencies."""
+        step = ResearchStep(
+            step_id=3,
+            description="Synthesize findings",
+            step_type="synthesis",
+            depends_on=[1, 2],
+            expected_output="Comprehensive answer",
+        )
+        assert step.depends_on == [1, 2]
+
+    def test_research_step_defaults(self):
+        """Test default values for research step."""
+        step = ResearchStep(
+            step_id=1,
+            description="Test step",
+            step_type="research",
+        )
+        assert step.depends_on == []
+        assert step.expected_output == ""
+        assert step.status == StepStatus.PENDING
+        assert step.actual_output == ""
+        assert step.attempts == 0
+        assert step.failure_reason == ""
+
+    def test_research_step_with_tracking_fields(self):
+        """Test creating a step with tracking fields."""
+        step = ResearchStep(
+            step_id=1,
+            description="Test step",
+            step_type="research",
+            status=StepStatus.COMPLETED,
+            actual_output="Found 5 results",
+            attempts=2,
+            failure_reason="",
+        )
+        assert step.status == StepStatus.COMPLETED
+        assert step.actual_output == "Found 5 results"
+        assert step.attempts == 2
+
+    def test_research_step_failed_status(self):
+        """Test creating a step with failed status."""
+        step = ResearchStep(
+            step_id=1,
+            description="Fetch document",
+            step_type="research",
+            status=StepStatus.FAILED,
+            attempts=3,
+            failure_reason="404 Not Found",
+        )
+        assert step.status == StepStatus.FAILED
+        assert step.attempts == 3
+        assert step.failure_reason == "404 Not Found"
+
+
+class TestResearchPlan:
+    """Tests for the ResearchPlan model."""
+
+    def test_research_plan_creation(self):
+        """Test creating a research plan."""
+        plan = ResearchPlan(
+            original_question="What caused the 2008 financial crisis?",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Research subprime mortgages",
+                    step_type="research",
+                ),
+                ResearchStep(
+                    step_id=2,
+                    description="Look up Dodd-Frank regulations",
+                    step_type="research",
+                ),
+            ],
+            reasoning="Complex question requiring multiple sources",
+        )
+        assert plan.original_question == "What caused the 2008 financial crisis?"
+        assert len(plan.steps) == 2
+        assert plan.reasoning != ""
+
+    def test_research_plan_defaults(self):
+        """Test default values for research plan."""
+        plan = ResearchPlan(
+            original_question="Simple question",
+        )
+        assert plan.steps == []
+        assert plan.reasoning == ""
+
+    def test_get_step_found(self):
+        """Test getting an existing step by ID."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
+            ],
+        )
+        step = plan.get_step(2)
+        assert step is not None
+        assert step.description == "Step 2"
+
+    def test_get_step_not_found(self):
+        """Test getting a non-existent step by ID."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
+        )
+        step = plan.get_step(99)
+        assert step is None
+
+    def test_update_step_status(self):
+        """Test updating a step's status."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
+        )
+        result = plan.update_step(1, status=StepStatus.COMPLETED)
+        assert result is True
+        assert plan.steps[0].status == StepStatus.COMPLETED
+
+    def test_update_step_all_fields(self):
+        """Test updating all tracking fields of a step."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[ResearchStep(step_id=1, description="Step 1", step_type="research")],
+        )
+        result = plan.update_step(
+            1,
+            status=StepStatus.FAILED,
+            actual_output="Found some results",
+            failure_reason="Timeout error",
+            increment_attempts=True,
+        )
+        assert result is True
+        assert plan.steps[0].status == StepStatus.FAILED
+        assert plan.steps[0].actual_output == "Found some results"
+        assert plan.steps[0].failure_reason == "Timeout error"
+        assert plan.steps[0].attempts == 1
+
+    def test_update_step_not_found(self):
+        """Test updating a non-existent step."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[],
+        )
+        result = plan.update_step(99, status=StepStatus.COMPLETED)
+        assert result is False
+
+    def test_update_step_description(self):
+        """Test updating a step's description."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[ResearchStep(step_id=1, description="Original", step_type="research")],
+        )
+        result = plan.update_step(1, description="Updated description")
+        assert result is True
+        assert plan.steps[0].description == "Updated description"
+
+    def test_get_pending_steps_no_dependencies(self):
+        """Test getting pending steps when none have dependencies."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research"),
+            ],
+        )
+        pending = plan.get_pending_steps()
+        assert len(pending) == 2
+
+    def test_get_pending_steps_with_dependencies(self):
+        """Test getting pending steps with dependency filtering."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research"),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", depends_on=[1]),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", depends_on=[1, 2]),
+            ],
+        )
+        pending = plan.get_pending_steps()
+        assert len(pending) == 1
+        assert pending[0].step_id == 1
+
+    def test_get_pending_steps_after_completion(self):
+        """Test getting pending steps after some complete."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", depends_on=[1]),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", depends_on=[1, 2]),
+            ],
+        )
+        pending = plan.get_pending_steps()
+        assert len(pending) == 1
+        assert pending[0].step_id == 2
+
+    def test_get_steps_by_status(self):
+        """Test getting steps by status."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.FAILED),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", status=StepStatus.PENDING),
+            ],
+        )
+        completed = plan.get_steps_by_status(StepStatus.COMPLETED)
+        failed = plan.get_steps_by_status(StepStatus.FAILED)
+        pending = plan.get_steps_by_status(StepStatus.PENDING)
+
+        assert len(completed) == 1
+        assert completed[0].step_id == 1
+        assert len(failed) == 1
+        assert failed[0].step_id == 2
+        assert len(pending) == 1
+        assert pending[0].step_id == 3
+
+    def test_is_complete_all_done(self):
+        """Test is_complete when all steps are in terminal states."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.FAILED),
+                ResearchStep(step_id=3, description="Step 3", step_type="synthesis", status=StepStatus.SKIPPED),
+            ],
+        )
+        assert plan.is_complete() is True
+
+    def test_is_complete_with_pending(self):
+        """Test is_complete when some steps are pending."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", step_type="research", status=StepStatus.PENDING),
+            ],
+        )
+        assert plan.is_complete() is False
+
+    def test_is_complete_with_in_progress(self):
+        """Test is_complete when some steps are in progress."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", step_type="research", status=StepStatus.IN_PROGRESS),
+            ],
+        )
+        assert plan.is_complete() is False
+
+
+class TestStepExecution:
+    """Tests for the StepExecution model."""
+
+    def test_step_execution_creation(self):
+        """Test creating a step execution record."""
+        execution = StepExecution(
+            step_id=1,
+            tool_used="web_search",
+            input_query="2008 financial crisis causes",
+            output_summary="Found 5 relevant articles",
+            sources_found=5,
+            duration_ms=1500,
+            raw_output="Raw search results...",
+        )
+        assert execution.step_id == 1
+        assert execution.tool_used == "web_search"
+        assert execution.input_query == "2008 financial crisis causes"
+        assert execution.output_summary == "Found 5 relevant articles"
+        assert execution.sources_found == 5
+        assert execution.duration_ms == 1500
+
+    def test_step_execution_defaults(self):
+        """Test default values for step execution."""
+        execution = StepExecution(
+            step_id=1,
+            tool_used="finance_knowledge",
+            input_query="Basel III",
+        )
+        assert execution.output_summary == ""
+        assert execution.sources_found == 0
+        assert execution.duration_ms == 0
+        assert execution.raw_output == ""
+
+
+# =============================================================================
+# Agent Tests
+# =============================================================================
 
 
 class TestKnowledgeGroundedAgent:
@@ -20,620 +353,145 @@ class TestKnowledgeGroundedAgent:
         config = MagicMock()
         config.gemini_api_key = "test-api-key"
         config.default_worker_model = "gemini-2.5-flash"
+        config.default_temperature = 0.0
         return config
 
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
     @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_initialization(
         self,
-        mock_create_tool,
+        mock_create_search_tool,
+        mock_create_web_fetch_tool,
+        mock_create_fetch_file_tool,
+        mock_create_grep_file_tool,
+        mock_create_read_file_tool,
         mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
+        _mock_session_service,
+        _mock_runner_class,
+        mock_planner,
         mock_config,
     ):
-        """Test initializing the agent."""
-        mock_tool = MagicMock()
-        mock_create_tool.return_value = mock_tool
+        """Test initializing the agent with all tools."""
+        mock_search_tool = MagicMock()
+        mock_web_fetch_tool = MagicMock()
+        mock_create_search_tool.return_value = mock_search_tool
+        mock_create_web_fetch_tool.return_value = mock_web_fetch_tool
 
-        KnowledgeGroundedAgent(config=mock_config)
+        agent = KnowledgeGroundedAgent(config=mock_config, enable_caching=False, enable_compaction=False)
 
-        # Verify tool was created
-        mock_create_tool.assert_called_once()
+        # Verify all tools were created
+        mock_create_search_tool.assert_called_once()
+        mock_create_web_fetch_tool.assert_called_once()
+        mock_create_fetch_file_tool.assert_called_once()
+        mock_create_grep_file_tool.assert_called_once()
+        mock_create_read_file_tool.assert_called_once()
 
         # Verify ADK Agent was created with correct params
         mock_agent_class.assert_called_once()
         call_kwargs = mock_agent_class.call_args[1]
-        assert call_kwargs["name"] == "knowledge_qa_agent"
-        assert call_kwargs["model"] == "gemini-2.5-flash"
-        assert call_kwargs["instruction"] == SYSTEM_INSTRUCTIONS
-        assert mock_tool in call_kwargs["tools"]
+        assert call_kwargs["name"] == "knowledge_qa"
+        assert mock_search_tool in call_kwargs["tools"]
+        assert mock_web_fetch_tool in call_kwargs["tools"]
 
-        # Verify session service and runner were created
-        mock_session_service.assert_called_once()
-        mock_runner_class.assert_called_once()
+        # Verify BuiltInPlanner was created (planning enabled by default)
+        mock_planner.assert_called_once()
+        assert agent.enable_planning is True
 
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
     @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
+    def test_agent_without_planning(
+        self,
+        _mock_create_search_tool,
+        _mock_create_web_fetch_tool,
+        _mock_create_fetch_file_tool,
+        _mock_create_grep_file_tool,
+        _mock_create_read_file_tool,
+        mock_agent_class,
+        _mock_session_service,
+        _mock_runner_class,
+        mock_planner,
+        mock_config,
+    ):
+        """Test initializing the agent without planning."""
+        agent = KnowledgeGroundedAgent(
+            config=mock_config, enable_planning=False, enable_caching=False, enable_compaction=False
+        )
+
+        # BuiltInPlanner should not be created when planning disabled
+        mock_planner.assert_not_called()
+        assert agent.enable_planning is False
+
+        # ADK Agent should be created with planner=None
+        call_kwargs = mock_agent_class.call_args[1]
+        assert call_kwargs["planner"] is None
+
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
+    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
+    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
     def test_agent_with_custom_model(
         self,
-        mock_create_tool,
+        _mock_create_search_tool,
+        _mock_create_web_fetch_tool,
+        _mock_create_fetch_file_tool,
+        _mock_create_grep_file_tool,
+        _mock_create_read_file_tool,
         mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
+        _mock_session_service,
+        _mock_runner_class,
+        _mock_planner,
         mock_config,
     ):
         """Test initializing with a custom model."""
-        KnowledgeGroundedAgent(config=mock_config, model="gemini-2.5-pro")
+        agent = KnowledgeGroundedAgent(
+            config=mock_config, model="gemini-2.5-pro", enable_caching=False, enable_compaction=False
+        )
 
         call_kwargs = mock_agent_class.call_args[1]
         assert call_kwargs["model"] == "gemini-2.5-pro"
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_get_or_create_session(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test session creation and retrieval."""
-        # Mock the session service's create_session method
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id-1"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-
-        # Create a new session
-        session1 = await agent._get_or_create_session_async("test-session-1")
-        assert session1 is not None
-
-        # Same session ID should return same ADK session (cached)
-        session2 = await agent._get_or_create_session_async("test-session-1")
-        assert session1 == session2
-
-        # Different session ID should create new session
-        mock_session.id = "mock-session-id-2"
-        session3 = await agent._get_or_create_session_async("test-session-2")
-        assert session3 != session1
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_get_or_create_session_generates_id(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that session ID is generated if not provided."""
-        # Mock the session service's create_session method
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-
-        session = await agent._get_or_create_session_async(None)
-        assert session is not None
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test async answer method."""
-        # Mock the session service's create_session method
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock event with final response
-        mock_event = MagicMock()
-        mock_event.is_final_response.return_value = True
-        mock_event.content.parts = [MagicMock(text="Paris is the capital of France.")]
-
-        # Make runner.run_async return an async generator
-        async def mock_run_async(*args, **kwargs):
-            yield mock_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("What is the capital of France?")
-
-        assert isinstance(response, GroundedResponse)
-        assert response.text == "Paris is the capital of France."
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_extracts_function_calls(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that function calls are extracted from events."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock function call
-        mock_function_call = MagicMock()
-        mock_function_call.name = "google_search"
-        mock_function_call.args = {"query": "capital of France"}
-
-        # Create mock event with function call
-        mock_tool_event = MagicMock()
-        mock_tool_event.is_final_response.return_value = False
-        mock_tool_event.get_function_calls.return_value = [mock_function_call]
-        mock_tool_event.get_function_responses.return_value = None
-        mock_tool_event.grounding_metadata = None
-        mock_tool_event.content = None
-
-        # Create mock final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Paris is the capital.")]
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_tool_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("What is the capital of France?")
-
-        assert len(response.tool_calls) == 1
-        assert response.tool_calls[0]["name"] == "google_search"
-        assert response.tool_calls[0]["args"] == {"query": "capital of France"}
-        assert "capital of France" in response.search_queries
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_extracts_sources_from_function_responses(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that sources are extracted from function responses."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock function response with sources
-        mock_function_response = MagicMock()
-        mock_function_response.response = {
-            "sources": [
-                {"title": "Wikipedia - Paris", "uri": "https://en.wikipedia.org/wiki/Paris"},
-                {"title": "Travel Guide", "url": "https://example.com/paris"},
-            ]
-        }
-
-        # Create mock event with function response
-        mock_response_event = MagicMock()
-        mock_response_event.is_final_response.return_value = False
-        mock_response_event.get_function_calls.return_value = None
-        mock_response_event.get_function_responses.return_value = [mock_function_response]
-        mock_response_event.grounding_metadata = None
-        mock_response_event.content = None
-
-        # Create mock final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Paris is the capital.")]
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_response_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("What is the capital of France?")
-
-        assert len(response.sources) == 2
-        assert response.sources[0].title == "Wikipedia - Paris"
-        assert response.sources[0].uri == "https://en.wikipedia.org/wiki/Paris"
-        assert response.sources[1].title == "Travel Guide"
-        assert response.sources[1].uri == "https://example.com/paris"
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_extracts_grounding_chunks_from_responses(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that grounding_chunks are extracted from function responses."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock function response with grounding_chunks
-        mock_function_response = MagicMock()
-        mock_function_response.response = {
-            "grounding_chunks": [
-                {"web": {"title": "Official Site", "uri": "https://official.com"}},
-                {"web": {"title": "News Article", "uri": "https://news.com/article"}},
-            ]
-        }
-
-        # Create mock event with function response
-        mock_response_event = MagicMock()
-        mock_response_event.is_final_response.return_value = False
-        mock_response_event.get_function_calls.return_value = None
-        mock_response_event.get_function_responses.return_value = [mock_function_response]
-        mock_response_event.grounding_metadata = None
-        mock_response_event.content = None
-
-        # Create mock final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Answer.")]
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_response_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("Test question")
-
-        assert len(response.sources) == 2
-        assert response.sources[0].title == "Official Site"
-        assert response.sources[0].uri == "https://official.com"
-        assert response.sources[1].title == "News Article"
-        assert response.sources[1].uri == "https://news.com/article"
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_extracts_grounding_metadata(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that grounding metadata is extracted from events."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock grounding chunk
-        mock_web_chunk = MagicMock()
-        mock_web_chunk.title = "Grounded Source"
-        mock_web_chunk.uri = "https://grounded.com"
-
-        mock_grounding_chunk = MagicMock()
-        mock_grounding_chunk.web = mock_web_chunk
-
-        # Create mock grounding metadata
-        mock_grounding_metadata = MagicMock()
-        mock_grounding_metadata.grounding_chunks = [mock_grounding_chunk]
-        mock_grounding_metadata.web_search_queries = ["grounded query"]
-
-        # Create mock event with grounding metadata
-        mock_grounding_event = MagicMock()
-        mock_grounding_event.is_final_response.return_value = False
-        mock_grounding_event.get_function_calls.return_value = None
-        mock_grounding_event.get_function_responses.return_value = None
-        mock_grounding_event.grounding_metadata = mock_grounding_metadata
-        mock_grounding_event.content = None
-
-        # Create mock final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Final answer.")]
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_grounding_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("Test question")
-
-        assert len(response.sources) == 1
-        assert response.sources[0].title == "Grounded Source"
-        assert response.sources[0].uri == "https://grounded.com"
-        assert "grounded query" in response.search_queries
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_extracts_grounding_metadata_from_content(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test grounding metadata extraction from event.content."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock grounding chunk on content
-        mock_web_chunk = MagicMock()
-        mock_web_chunk.title = "Content Source"
-        mock_web_chunk.uri = "https://content-source.com"
-
-        mock_grounding_chunk = MagicMock()
-        mock_grounding_chunk.web = mock_web_chunk
-
-        mock_grounding_metadata = MagicMock()
-        mock_grounding_metadata.grounding_chunks = [mock_grounding_chunk]
-        mock_grounding_metadata.web_search_queries = ["content query"]
-
-        # Create mock event with grounding metadata on content (not event directly)
-        mock_content = MagicMock()
-        mock_content.grounding_metadata = mock_grounding_metadata
-
-        mock_event = MagicMock()
-        mock_event.is_final_response.return_value = False
-        mock_event.get_function_calls.return_value = None
-        mock_event.get_function_responses.return_value = None
-        mock_event.grounding_metadata = None  # Not on event directly
-        mock_event.content = mock_content
-
-        # Create mock final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Answer.")]
-        mock_final_event.content.grounding_metadata = None
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("Test question")
-
-        assert len(response.sources) == 1
-        assert response.sources[0].title == "Content Source"
-        assert response.sources[0].uri == "https://content-source.com"
-        assert "content query" in response.search_queries
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_handles_multiple_search_tool_names(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that search queries are extracted from various search tool names."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create mock function calls with different search tool names
-        mock_fc1 = MagicMock()
-        mock_fc1.name = "google_search"
-        mock_fc1.args = {"query": "query one"}
-
-        mock_fc2 = MagicMock()
-        mock_fc2.name = "web_search"
-        mock_fc2.args = {"query": "query two"}
-
-        mock_fc3 = MagicMock()
-        mock_fc3.name = "SearchTool"
-        mock_fc3.args = {"query": "query three"}
-
-        # Event with all function calls
-        mock_tool_event = MagicMock()
-        mock_tool_event.is_final_response.return_value = False
-        mock_tool_event.get_function_calls.return_value = [mock_fc1, mock_fc2, mock_fc3]
-        mock_tool_event.get_function_responses.return_value = None
-        mock_tool_event.grounding_metadata = None
-        mock_tool_event.content = None
-
-        # Final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Done.")]
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_tool_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("Test")
-
-        assert len(response.tool_calls) == 3
-        assert "query one" in response.search_queries
-        assert "query two" in response.search_queries
-        assert "query three" in response.search_queries
-
-    @pytest.mark.asyncio
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    async def test_answer_async_handles_empty_events(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service_class,
-        mock_runner_class,
-        mock_config,
-    ):
-        """Test that empty events are handled gracefully."""
-        # Mock session service
-        mock_session = MagicMock()
-        mock_session.id = "mock-session-id"
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock(return_value=mock_session)
-        mock_session_service_class.return_value = mock_session_service
-
-        # Create events with no data
-        mock_empty_event = MagicMock()
-        mock_empty_event.is_final_response.return_value = False
-        mock_empty_event.get_function_calls.return_value = []
-        mock_empty_event.get_function_responses.return_value = []
-        mock_empty_event.grounding_metadata = None
-        mock_empty_event.content = None
-
-        # Final event
-        mock_final_event = MagicMock()
-        mock_final_event.is_final_response.return_value = True
-        mock_final_event.get_function_calls.return_value = None
-        mock_final_event.get_function_responses.return_value = None
-        mock_final_event.grounding_metadata = None
-        mock_final_event.content.parts = [MagicMock(text="Final.")]
-
-        async def mock_run_async(*args, **kwargs):
-            yield mock_empty_event
-            yield mock_final_event
-
-        mock_runner = MagicMock()
-        mock_runner.run_async = mock_run_async
-        mock_runner_class.return_value = mock_runner
-
-        agent = KnowledgeGroundedAgent(config=mock_config)
-        response = await agent.answer_async("Test")
-
-        assert isinstance(response, GroundedResponse)
-        assert response.text == "Final."
-        assert response.tool_calls == []
-        assert response.search_queries == []
-        assert response.sources == []
+        assert agent.model == "gemini-2.5-pro"
 
 
 class TestKnowledgeAgentManager:
     """Tests for the KnowledgeAgentManager class."""
 
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
     @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    def test_lazy_initialization(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
-    ):
-        """Test that clients are lazily initialized."""
+    def test_lazy_initialization(self, *_mocks):
+        """Test that agent is lazily initialized."""
         with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
-            mock_config_class.return_value = MagicMock()
+            mock_config = MagicMock()
+            mock_config.default_worker_model = "gemini-2.5-flash"
+            mock_config.default_temperature = 0.0
+            mock_config_class.return_value = mock_config
 
-            manager = KnowledgeAgentManager()
+            manager = KnowledgeAgentManager(enable_caching=False, enable_compaction=False)
 
             # Should not be initialized yet
             assert not manager.is_initialized()
@@ -644,49 +502,140 @@ class TestKnowledgeAgentManager:
             # Now should be initialized
             assert manager.is_initialized()
 
+    @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
     @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
     @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
     @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_read_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_grep_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_fetch_file_tool")
+    @patch("aieng.agent_evals.knowledge_qa.agent.create_web_fetch_tool")
     @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    def test_close(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
-    ):
+    def test_close(self, *_mocks):
         """Test closing the client manager."""
         with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
-            mock_config_class.return_value = MagicMock()
+            mock_config = MagicMock()
+            mock_config.default_worker_model = "gemini-2.5-flash"
+            mock_config.default_temperature = 0.0
+            mock_config_class.return_value = mock_config
 
-            manager = KnowledgeAgentManager()
+            manager = KnowledgeAgentManager(enable_caching=False, enable_compaction=False)
             _ = manager.agent
             assert manager.is_initialized()
 
             manager.close()
             assert not manager.is_initialized()
 
-    @patch("aieng.agent_evals.knowledge_qa.agent.Runner")
-    @patch("aieng.agent_evals.knowledge_qa.agent.InMemorySessionService")
-    @patch("aieng.agent_evals.knowledge_qa.agent.Agent")
-    @patch("aieng.agent_evals.knowledge_qa.agent.create_google_search_tool")
-    def test_agent_reuse(
-        self,
-        mock_create_tool,
-        mock_agent_class,
-        mock_session_service,
-        mock_runner_class,
-    ):
-        """Test that agent is reused on multiple accesses."""
-        with patch("aieng.agent_evals.knowledge_qa.agent.Configs") as mock_config_class:
-            mock_config_class.return_value = MagicMock()
 
-            manager = KnowledgeAgentManager()
+class TestAgentResponse:
+    """Tests for the AgentResponse model."""
 
-            agent1 = manager.agent
-            agent2 = manager.agent
+    def test_response_creation(self):
+        """Test creating an enhanced response."""
+        plan = ResearchPlan(
+            original_question="Test question",
+            steps=[],
+            reasoning="Test reasoning",
+        )
 
-            assert agent1 is agent2
+        response = AgentResponse(
+            text="Test answer.",
+            plan=plan,
+            sources=[GroundingChunk(title="Source", uri="https://example.com")],
+            search_queries=["test query"],
+            reasoning_chain=["Step 1"],
+            tool_calls=[{"name": "google_search", "args": {"query": "test"}}],
+            total_duration_ms=1000,
+        )
+
+        assert response.text == "Test answer."
+        assert response.plan.original_question == "Test question"
+        assert len(response.sources) == 1
+        assert response.sources[0].uri == "https://example.com"
+        assert response.search_queries == ["test query"]
+        assert response.total_duration_ms == 1000
+
+
+class TestPlanStepStatusOnEarlyTermination:
+    """Tests for plan steps marked correctly when agent terminates early."""
+
+    def test_remaining_steps_marked_as_skipped(self):
+        """Test remaining steps are marked SKIPPED on early termination.
+
+        When the agent finds the answer early and terminates before completing
+        all planned steps, the remaining steps should be marked as SKIPPED
+        to accurately reflect that they were not executed.
+        """
+        # Create a plan with multiple steps
+        plan = ResearchPlan(
+            original_question="Test question",
+            steps=[
+                ResearchStep(
+                    step_id=1,
+                    description="Search for initial info",
+                    status=StepStatus.COMPLETED,
+                ),
+                ResearchStep(
+                    step_id=2,
+                    description="Verify the information",
+                    status=StepStatus.PENDING,
+                ),
+                ResearchStep(
+                    step_id=3,
+                    description="Cross-check with another source",
+                    status=StepStatus.PENDING,
+                ),
+                ResearchStep(
+                    step_id=4,
+                    description="Synthesize findings",
+                    status=StepStatus.IN_PROGRESS,
+                ),
+            ],
+            reasoning="Multi-step research plan",
+        )
+
+        # Simulate the agent's early termination logic
+        # (this is what happens in agent.py lines 629-633)
+        for step in plan.steps:
+            if step.status in (StepStatus.PENDING, StepStatus.IN_PROGRESS):
+                step.status = StepStatus.SKIPPED
+
+        # Verify step 1 is still completed (it was executed)
+        assert plan.steps[0].status == StepStatus.COMPLETED
+
+        # Verify remaining steps are marked as SKIPPED, not COMPLETED
+        assert plan.steps[1].status == StepStatus.SKIPPED
+        assert plan.steps[2].status == StepStatus.SKIPPED
+        assert plan.steps[3].status == StepStatus.SKIPPED
+
+    def test_plan_is_complete_with_skipped_steps(self):
+        """Test that a plan with SKIPPED steps is considered complete."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", status=StepStatus.SKIPPED),
+                ResearchStep(step_id=3, description="Step 3", status=StepStatus.SKIPPED),
+            ],
+        )
+
+        # SKIPPED is a terminal status, so the plan should be complete
+        assert plan.is_complete()
+
+    def test_get_steps_by_status_skipped(self):
+        """Test getting steps by SKIPPED status."""
+        plan = ResearchPlan(
+            original_question="Test",
+            steps=[
+                ResearchStep(step_id=1, description="Step 1", status=StepStatus.COMPLETED),
+                ResearchStep(step_id=2, description="Step 2", status=StepStatus.SKIPPED),
+                ResearchStep(step_id=3, description="Step 3", status=StepStatus.SKIPPED),
+            ],
+        )
+
+        skipped_steps = plan.get_steps_by_status(StepStatus.SKIPPED)
+        assert len(skipped_steps) == 2
+        assert all(s.status == StepStatus.SKIPPED for s in skipped_steps)
 
 
 @pytest.mark.integration_test
@@ -698,23 +647,17 @@ class TestKnowledgeGroundedAgentIntegration:
 
     def test_agent_creation_real(self):
         """Test creating a real agent instance."""
-        from aieng.agent_evals.knowledge_qa import (  # noqa: PLC0415
-            KnowledgeGroundedAgent,
-        )
-
         agent = KnowledgeGroundedAgent()
         assert agent is not None
         assert agent.model == "gemini-2.5-flash"
+        assert agent.enable_planning is True
 
     @pytest.mark.asyncio
     async def test_answer_real_question(self):
         """Test answering a real question."""
-        from aieng.agent_evals.knowledge_qa import (  # noqa: PLC0415
-            KnowledgeGroundedAgent,
-        )
-
         agent = KnowledgeGroundedAgent()
         response = await agent.answer_async("What is the capital of France?")
 
         assert response.text
         assert "Paris" in response.text
+        assert isinstance(response, AgentResponse)

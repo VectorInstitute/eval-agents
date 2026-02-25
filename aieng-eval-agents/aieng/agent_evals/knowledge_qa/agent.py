@@ -1,249 +1,178 @@
 """Knowledge-grounded QA agent using Google ADK with Google Search.
 
-This module provides a proper ReAct agent that explicitly calls
-Google Search and shows the reasoning process through observable tool calls.
+This module provides a ReAct agent with built-in planning via Gemini's thinking
+mode that explicitly calls tools and shows the reasoning process through observable
+tool calls.
 """
 
 import asyncio
 import logging
+import time
 import uuid
+import warnings
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
-    GroundedResponse,
     GroundingChunk,
+    create_fetch_file_tool,
     create_google_search_tool,
+    create_grep_file_tool,
+    create_read_file_tool,
+    create_web_fetch_tool,
 )
 from google.adk.agents import Agent
+from google.adk.agents.context_cache_config import ContextCacheConfig
+from google.adk.apps.app import App, EventsCompactionConfig
+from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
+from google.adk.models import Gemini
+from google.adk.planners import PlanReActPlanner
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from google.genai.errors import ClientError
+from pydantic import BaseModel, Field
+from tenacity import (
+    RetryError,
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
+from .event_extraction import (
+    extract_event_text,
+    extract_final_response,
+    extract_grounding_queries,
+    extract_grounding_sources,
+    extract_search_queries_from_tool_calls,
+    extract_sources_from_responses,
+    extract_thoughts_from_event,
+    extract_tool_calls,
+    resolve_source_urls,
+)
+from .plan_parsing import (
+    PLANNING_TAG,
+    REPLANNING_TAG,
+    ResearchPlan,
+    StepStatus,
+    extract_final_answer_text,
+    extract_plan_text,
+    extract_reasoning_text,
+    parse_plan_steps_from_text,
+)
+from .retry import (
+    API_RETRY_INITIAL_WAIT,
+    API_RETRY_JITTER,
+    API_RETRY_MAX_ATTEMPTS,
+    API_RETRY_MAX_WAIT,
+    MAX_EMPTY_RESPONSE_RETRIES,
+    is_context_overflow_error,
+    is_retryable_api_error,
+)
+from .system_instructions import build_system_instructions
+from .token_tracker import TokenTracker
+
+
+# Suppress experimental warnings from ADK
+warnings.filterwarnings("ignore", message=r".*EXPERIMENTAL.*ContextCacheConfig.*")
+warnings.filterwarnings("ignore", message=r".*EXPERIMENTAL.*EventsCompactionConfig.*")
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_tool_calls(event: Any) -> list[dict[str, Any]]:
-    """Extract tool calls from event function calls.
+class StepExecution(BaseModel):
+    """Record of executing a single research step.
 
-    Parameters
+    This model captures the execution trace for evaluation purposes.
+
+    Attributes
     ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        List of tool call dictionaries with 'name' and 'args' keys.
+    step_id : int
+        The step ID that was executed.
+    tool_used : str
+        The actual tool that was used.
+    input_query : str
+        The query or input provided to the tool.
+    output_summary : str
+        Summary of what the step produced.
+    sources_found : int
+        Number of sources discovered in this step.
+    duration_ms : int
+        Execution time in milliseconds.
+    raw_output : str
+        Raw output from the tool for debugging.
     """
-    if not hasattr(event, "get_function_calls"):
-        return []
-    function_calls = event.get_function_calls()
-    if not function_calls:
-        return []
 
-    tool_calls = []
-    for fc in function_calls:
-        tool_call_info = {
-            "name": getattr(fc, "name", "unknown"),
-            "args": getattr(fc, "args", {}),
-        }
-        tool_calls.append(tool_call_info)
-        logger.info(f"Tool call: {tool_call_info['name']}({tool_call_info['args']})")
-    return tool_calls
+    step_id: int
+    tool_used: str
+    input_query: str
+    output_summary: str = ""
+    sources_found: int = 0
+    duration_ms: int = 0
+    raw_output: str = ""
 
 
-def _extract_search_queries_from_tool_calls(tool_calls: list[dict[str, Any]]) -> list[str]:
-    """Extract search queries from tool calls.
+class AgentResponse(BaseModel):
+    """Response from the knowledge agent with execution trace.
 
-    Parameters
+    Contains the answer text along with metadata about how the agent
+    arrived at the answer: the research plan, tool calls, sources, and reasoning.
+
+    Attributes
     ----------
-    tool_calls : list[dict[str, Any]]
-        List of tool call dictionaries.
-
-    Returns
-    -------
-    list[str]
-        Search queries found in the tool calls.
+    text : str
+        The generated response text.
+    plan : ResearchPlan
+        The research plan created for the question.
+    execution_trace : list[StepExecution]
+        Record of each step's execution.
+    sources : list[GroundingChunk]
+        Web sources used in the response.
+    search_queries : list[str]
+        Search queries executed.
+    reasoning_chain : list[str]
+        Step-by-step reasoning trace.
+    tool_calls : list[dict]
+        Raw tool calls made during execution.
+    total_duration_ms : int
+        Total execution time in milliseconds.
     """
-    queries = []
-    for tool_call in tool_calls:
-        tool_name = str(tool_call.get("name", ""))
-        tool_args = tool_call.get("args", {})
-        if "search" in tool_name.lower() and isinstance(tool_args, dict):
-            query = tool_args.get("query", "")
-            if query:
-                queries.append(query)
-    return queries
 
-
-def _extract_sources_from_responses(event: Any) -> list[GroundingChunk]:
-    """Extract sources from event function responses.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[GroundingChunk]
-        Sources extracted from the function responses.
-    """
-    if not hasattr(event, "get_function_responses"):
-        return []
-    function_responses = event.get_function_responses()
-    if not function_responses:
-        return []
-
-    sources = []
-    for fr in function_responses:
-        response_data = getattr(fr, "response", {})
-        if not isinstance(response_data, dict):
-            continue
-        # Extract sources from search tool response
-        for src in response_data.get("sources", []):
-            if isinstance(src, dict):
-                sources.append(
-                    GroundingChunk(
-                        title=src.get("title", ""),
-                        uri=src.get("uri") or src.get("url") or "",
-                    )
-                )
-        # Extract grounding_chunks if present
-        for chunk in response_data.get("grounding_chunks", []):
-            if isinstance(chunk, dict) and "web" in chunk:
-                sources.append(
-                    GroundingChunk(
-                        title=chunk["web"].get("title", ""),
-                        uri=chunk["web"].get("uri", ""),
-                    )
-                )
-    return sources
-
-
-def _extract_grounding_sources(event: Any) -> list[GroundingChunk]:
-    """Extract sources from grounding metadata.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[GroundingChunk]
-        Sources extracted from the grounding metadata.
-    """
-    gm = getattr(event, "grounding_metadata", None)
-    if not gm and hasattr(event, "content") and event.content:
-        gm = getattr(event.content, "grounding_metadata", None)
-    if not gm:
-        return []
-
-    sources = []
-    if hasattr(gm, "grounding_chunks") and gm.grounding_chunks:
-        for chunk in gm.grounding_chunks:
-            if hasattr(chunk, "web") and chunk.web:
-                sources.append(
-                    GroundingChunk(
-                        title=getattr(chunk.web, "title", "") or "",
-                        uri=getattr(chunk.web, "uri", "") or "",
-                    )
-                )
-    return sources
-
-
-def _extract_grounding_queries(event: Any) -> list[str]:
-    """Extract search queries from grounding metadata.
-
-    Parameters
-    ----------
-    event : Any
-        An event from the ADK runner.
-
-    Returns
-    -------
-    list[str]
-        Search queries from the grounding metadata.
-    """
-    gm = getattr(event, "grounding_metadata", None)
-    if not gm and hasattr(event, "content") and event.content:
-        gm = getattr(event.content, "grounding_metadata", None)
-    if not gm:
-        return []
-
-    queries = []
-    if hasattr(gm, "web_search_queries") and gm.web_search_queries:
-        for q in gm.web_search_queries:
-            if q:
-                queries.append(q)
-    return queries
-
-
-def _extract_final_response(event: Any) -> str | None:
-    """Extract final response text from event if it's a final response."""
-    if not hasattr(event, "is_final_response") or not event.is_final_response():
-        return None
-    if not hasattr(event, "content") or not event.content:
-        return None
-    if not hasattr(event.content, "parts") or not event.content.parts:
-        return None
-    return event.content.parts[0].text or ""
-
-
-SYSTEM_INSTRUCTIONS = """\
-You are a knowledge-grounded research assistant. Your role is to answer
-questions accurately by searching the web for relevant information.
-
-## How to Answer Questions
-
-1. **Search First**: Always search the web before answering factual questions
-   that require current information. Do not rely solely on your training data.
-
-2. **Be Thorough**: For complex questions, search multiple times to gather
-   all relevant facts before synthesizing your answer.
-
-3. **Cite Sources**: Always mention which sources you used to answer the question.
-
-4. **Be Honest**: If you cannot find relevant information, say so clearly.
-
-5. **Synthesize Information**: When answering complex questions, synthesize
-   findings from multiple sources into a coherent response.
-
-## Response Format
-
-When answering questions:
-- Provide a clear, direct answer first
-- Include relevant context and details from your sources
-- List the sources used at the end of your response
-"""
+    text: str
+    plan: ResearchPlan
+    execution_trace: list[StepExecution] = Field(default_factory=list)
+    sources: list[GroundingChunk] = Field(default_factory=list)
+    search_queries: list[str] = Field(default_factory=list)
+    reasoning_chain: list[str] = Field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    total_duration_ms: int = 0
 
 
 class KnowledgeGroundedAgent:
-    """A ReAct agent for knowledge-grounded QA using Google Search.
+    """A ReAct agent with built-in planning via Gemini's thinking mode.
 
-    This agent uses Google ADK with explicit Google Search tool calls,
-    making the reasoning process observable and traceable.
+    This agent uses Google ADK with BuiltInPlanner to enable Gemini's native
+    thinking capabilities, which plan and execute research in a unified loop.
 
     Parameters
     ----------
     config : Configs, optional
         Configuration settings. If not provided, creates default config.
     model : str, optional
-        The model to use. If not provided, uses config.default_worker_model.
-
-    Attributes
-    ----------
-    config : Configs
-        The configuration settings.
+        The model to use for answering. If not provided, uses
+        config.default_worker_model.
+    enable_planning : bool, default True
+        Whether to enable the built-in planner (Gemini thinking mode).
+    thinking_budget : int, default 8192
+        Token budget for the model's thinking/planning phase.
 
     Examples
     --------
     >>> from aieng.agent_evals.knowledge_qa import KnowledgeGroundedAgent
     >>> agent = KnowledgeGroundedAgent()
-    >>> response = agent.answer("Who won the 2024 Nobel Prize in Physics?")
+    >>> response = agent.answer("What are the Basel III capital requirements?")
     >>> print(response.text)
     """
 
@@ -251,8 +180,13 @@ class KnowledgeGroundedAgent:
         self,
         config: Configs | None = None,
         model: str | None = None,
+        enable_planning: bool = True,
+        enable_caching: bool = True,
+        enable_compaction: bool = True,
+        compaction_interval: int = 10,
+        thinking_budget: int = 8192,
     ) -> None:
-        """Initialize the knowledge-grounded agent.
+        """Initialize the knowledge-grounded agent with built-in planning.
 
         Parameters
         ----------
@@ -260,55 +194,191 @@ class KnowledgeGroundedAgent:
             Configuration settings. If not provided, creates default config.
         model : str, optional
             The model to use. If not provided, uses config.default_worker_model.
+        enable_planning : bool, default True
+            Whether to enable the built-in planner (Gemini thinking mode).
+        enable_caching : bool, default True
+            Whether to enable context caching for reduced latency and cost.
+        enable_compaction : bool, default True
+            Whether to enable context compaction. When enabled, ADK automatically
+            summarizes older events to prevent running out of context.
+        compaction_interval : int, default 3
+            Number of invocations before triggering context compaction.
+        thinking_budget : int, default 8192
+            Token budget for the model's thinking/planning phase.
         """
+        self._enable_compaction = enable_compaction
+        self._compaction_interval = compaction_interval
         if config is None:
             config = Configs()  # type: ignore[call-arg]
 
         self.config = config
         self.model = model or config.default_worker_model
+        self.temperature = config.default_temperature
+        self.enable_planning = enable_planning
+        self._thinking_budget = thinking_budget
 
-        # Create the Google Search tool
-        self._search_tool = create_google_search_tool()
+        # Create tools - use function tool for search so agent sees actual URLs
+        self._search_tool = create_google_search_tool(config=config)
+        self._web_fetch_tool = create_web_fetch_tool()
+        self._fetch_file_tool = create_fetch_file_tool()
+        self._grep_file_tool = create_grep_file_tool()
+        self._read_file_tool = create_read_file_tool()
 
-        # Create ADK agent with Google Search tool
+        # Create planner if enabled
+        planner = None
+        if enable_planning:
+            planner = PlanReActPlanner()
+
+        # Create ADK agent with built-in planner
+        # Configure thinking for models that support it (gemini-2.5-*, gemini-3-*)
+        thinking_config = None
+        if thinking_budget > 0 and self._supports_thinking(self.model):
+            thinking_config = types.ThinkingConfig(thinking_budget=thinking_budget)
+
         self._agent = Agent(
-            name="knowledge_qa_agent",
+            name="knowledge_qa",
             model=self.model,
-            instruction=SYSTEM_INSTRUCTIONS,
-            tools=[self._search_tool],
+            instruction=build_system_instructions(),
+            tools=[
+                self._search_tool,
+                self._web_fetch_tool,
+                self._fetch_file_tool,
+                self._grep_file_tool,
+                self._read_file_tool,
+            ],
+            planner=planner,
+            generate_content_config=types.GenerateContentConfig(
+                temperature=self.temperature,
+                thinking_config=thinking_config,
+            ),
         )
+
+        # Current research plan (populated from model's thinking for CLI display)
+        self._current_plan: ResearchPlan | None = None
+
+        # Token tracking for context usage display
+        self._token_tracker = TokenTracker(model=self.model)
 
         # Session service for conversation history
         self._session_service = InMemorySessionService()
 
-        # Runner orchestrates the ReAct loop
-        self._runner = Runner(
-            app_name="knowledge_qa",
-            agent=self._agent,
-            session_service=self._session_service,
-        )
+        # Create App and Runner based on enabled features
+        self._app: App | None
+        if enable_caching or enable_compaction:
+            self._app, self._runner = self._create_app_and_runner(config, enable_caching, enable_compaction)
+        else:
+            self._app = None
+            self._runner = Runner(
+                app_name="knowledge_qa",
+                agent=self._agent,
+                session_service=self._session_service,
+            )
 
         # Track active sessions
-        self._sessions: dict[str, str] = {}  # Maps external session_id to ADK session_id
+        self._sessions: dict[str, str] = {}
+
+    def _create_app_and_runner(
+        self,
+        config: Configs,
+        enable_caching: bool,
+        enable_compaction: bool,
+    ) -> tuple[App, Runner]:
+        """Create App and Runner with caching/compaction config."""
+        app_kwargs: dict[str, Any] = {
+            "name": "knowledge_qa",
+            "root_agent": self._agent,
+        }
+
+        if enable_caching:
+            app_kwargs["context_cache_config"] = ContextCacheConfig(
+                min_tokens=2048,
+                ttl_seconds=3600,  # 1 hour (increased from 10 min)
+                cache_intervals=50,  # 50 reuses (increased from 10)
+            )
+
+        if enable_compaction:
+            summarizer = LlmEventSummarizer(llm=Gemini(model=config.default_worker_model))
+            app_kwargs["events_compaction_config"] = EventsCompactionConfig(
+                compaction_interval=self._compaction_interval,
+                overlap_size=1,
+                summarizer=summarizer,
+            )
+
+        app = App(**app_kwargs)
+        runner = Runner(
+            app=app,
+            session_service=self._session_service,
+        )
+        return app, runner
+
+    @staticmethod
+    def _supports_thinking(model: str) -> bool:
+        """Check if a model supports thinking configuration.
+
+        Thinking is supported by gemini-2.5-* and gemini-3-* models.
+        """
+        model_lower = model.lower()
+        return "gemini-2.5" in model_lower or "gemini-3" in model_lower
+
+    def reset(self) -> None:
+        """Reset agent state for a new question.
+
+        Clears session history and plan state to ensure clean execution
+        for each new question. Call this between evaluation examples.
+        """
+        self._sessions.clear()
+        self._session_service = InMemorySessionService()
+        self._current_plan = None
+        self._token_tracker = TokenTracker(model=self.model)
+
+        # Recreate runner with fresh session service
+        if self._app is not None:
+            self._runner = Runner(
+                app=self._app,
+                session_service=self._session_service,
+            )
+        else:
+            self._runner = Runner(
+                app_name="knowledge_qa",
+                agent=self._agent,
+                session_service=self._session_service,
+            )
+        logger.debug("Agent state reset for new question")
+
+    @property
+    def current_plan(self) -> ResearchPlan | None:
+        """Get the current research plan if one exists."""
+        return self._current_plan
+
+    @property
+    def token_tracker(self) -> TokenTracker:
+        """Get the token tracker for context usage monitoring."""
+        return self._token_tracker
+
+    async def create_plan_async(self, question: str) -> ResearchPlan | None:
+        """Initialize plan tracking for CLI display.
+
+        Creates an empty plan that will be populated from the model's
+        PLANNING output during answer_async(). The actual plan steps
+        are extracted from the model's first response.
+        """
+        if not self.enable_planning:
+            return None
+
+        # Create empty plan - will be populated from model's PLANNING output
+        self._current_plan = ResearchPlan(
+            original_question=question,
+            steps=[],
+            reasoning="",
+        )
+        return self._current_plan
 
     async def _get_or_create_session_async(self, session_id: str | None = None) -> str:
-        """Get or create an ADK session for the given session ID.
-
-        Parameters
-        ----------
-        session_id : str, optional
-            External session ID. If not provided, generates a new one.
-
-        Returns
-        -------
-        str
-            The ADK session ID.
-        """
+        """Get or create an ADK session for the given session ID."""
         if session_id is None:
             session_id = str(uuid.uuid4())
 
         if session_id not in self._sessions:
-            # Create a new ADK session through the session service
             session = await self._session_service.create_session(
                 app_name="knowledge_qa",
                 user_id="user",
@@ -318,12 +388,250 @@ class KnowledgeGroundedAgent:
 
         return self._sessions[session_id]
 
+    def _update_plan_from_text(self, text: str, question: str, is_replan: bool = False) -> bool:
+        """Update the current plan from PLANNING or REPLANNING tagged text."""
+        plan_text = extract_plan_text(text)
+        if not plan_text:
+            return False
+
+        steps = parse_plan_steps_from_text(plan_text)
+        if not steps:
+            return False
+
+        if is_replan and self._current_plan:
+            # Replanning: preserve completed steps, update remaining
+            completed_steps = [s for s in self._current_plan.steps if s.status == StepStatus.COMPLETED]
+            # Renumber new steps starting after completed ones
+            next_id = len(completed_steps) + 1
+            for i, step in enumerate(steps):
+                step.step_id = next_id + i
+            self._current_plan.steps = completed_steps + steps
+            self._current_plan.reasoning = f"Replanned: {plan_text[:300]}"
+            logger.info(f"Replanned with {len(steps)} new steps (keeping {len(completed_steps)} completed)")
+        else:
+            # New plan
+            self._current_plan = ResearchPlan(
+                original_question=question,
+                steps=steps,
+                reasoning=plan_text[:500],
+            )
+            logger.info(f"Extracted plan with {len(steps)} steps")
+
+        # Mark first pending step as in progress
+        for step in self._current_plan.steps:
+            if step.status == StepStatus.PENDING:
+                step.status = StepStatus.IN_PROGRESS
+                break
+
+        return True
+
+    def _process_event_text_for_plan(self, text: str, question: str) -> None:
+        """Process event text to extract and update plan."""
+        if not text or not self._current_plan:
+            return
+
+        # Check for replanning first
+        if REPLANNING_TAG in text:
+            self._update_plan_from_text(text, question, is_replan=True)
+        # Check for initial planning (only if plan is empty)
+        elif PLANNING_TAG in text and len(self._current_plan.steps) == 0:
+            self._update_plan_from_text(text, question, is_replan=False)
+
+    def _update_plan_step_from_tool_call(self, tool_name: str) -> None:
+        """Record tool call against current plan step."""
+        if not self._current_plan or not self._current_plan.steps:
+            return
+
+        # Find current in-progress step and record the tool used
+        for step in self._current_plan.steps:
+            if step.status == StepStatus.IN_PROGRESS:
+                # Append tool to actual_output
+                if step.actual_output:
+                    step.actual_output += f", {tool_name}"
+                else:
+                    step.actual_output = f"Used: {tool_name}"
+                break
+
+    def _advance_plan_step_on_reasoning(self) -> None:
+        """Advance to next plan step when reasoning is detected."""
+        if not self._current_plan or not self._current_plan.steps:
+            return
+
+        # Find current in-progress step
+        for i, step in enumerate(self._current_plan.steps):
+            if step.status == StepStatus.IN_PROGRESS:
+                # Mark current step as completed
+                step.status = StepStatus.COMPLETED
+                # Mark next step as in progress (if exists)
+                if i + 1 < len(self._current_plan.steps):
+                    self._current_plan.steps[i + 1].status = StepStatus.IN_PROGRESS
+                break
+
+    def _create_execution_trace(
+        self,
+        tool_calls: list[dict[str, Any]],
+        total_duration_ms: int,
+    ) -> list[StepExecution]:
+        """Create execution trace from tool calls."""
+        return [
+            StepExecution(
+                step_id=i + 1,
+                tool_used=str(tc.get("name", "unknown")),
+                input_query=str(tc.get("args", {})),
+                output_summary=f"Tool call {i + 1}",
+                sources_found=0,
+                duration_ms=total_duration_ms // max(len(tool_calls), 1),
+            )
+            for i, tc in enumerate(tool_calls)
+        ]
+
+    def _process_event(
+        self,
+        event: Any,
+        question: str,
+        results: dict[str, Any],
+    ) -> None:
+        """Process a single event from the agent run loop.
+
+        Updates results dict in place with extracted information.
+        """
+        self._token_tracker.add_from_event(event)
+        event_text = extract_event_text(event)
+
+        # Extract thoughts for reasoning chain
+        thoughts = extract_thoughts_from_event(event)
+        if thoughts:
+            results["reasoning_chain"].append(thoughts[:300])
+
+        # Process plan tags and reasoning
+        if event_text:
+            self._process_event_text_for_plan(event_text, question)
+            reasoning_text = extract_reasoning_text(event_text)
+            if reasoning_text:
+                results["reasoning_chain"].append(reasoning_text)
+                self._advance_plan_step_on_reasoning()
+
+        # Extract tool calls
+        new_tool_calls = extract_tool_calls(event)
+        results["tool_calls"].extend(new_tool_calls)
+        results["search_queries"].extend(extract_search_queries_from_tool_calls(new_tool_calls))
+        for tc in new_tool_calls:
+            self._update_plan_step_from_tool_call(tc.get("name", ""))
+
+        # Extract sources
+        results["sources"].extend(extract_sources_from_responses(event))
+        results["sources"].extend(extract_grounding_sources(event))
+        for q in extract_grounding_queries(event):
+            if q not in results["search_queries"]:
+                results["search_queries"].append(q)
+
+        # Extract final response - prefer tagged answer, fall back to final response
+        # Only overwrite with non-empty content to avoid losing valid responses
+        final_answer = extract_final_answer_text(event_text) if event_text else None
+        if final_answer:
+            results["final_response"] = final_answer
+        else:
+            text = extract_final_response(event)
+            if text:  # Only set if non-empty (don't overwrite valid response with empty)
+                results["final_response"] = text
+
+    async def _run_agent_once_inner(
+        self,
+        question: str,
+        adk_session_id: str,
+    ) -> dict[str, Any]:
+        """Run the agent once and collect results (inner implementation)."""
+        content = types.Content(role="user", parts=[types.Part(text=question)])
+
+        # Collect results in a mutable dict for _process_event
+        results: dict[str, Any] = {
+            "tool_calls": [],
+            "sources": [],
+            "search_queries": [],
+            "reasoning_chain": [],
+            "final_response": "",
+        }
+
+        event_count = 0
+        async for event in self._runner.run_async(
+            user_id="user",
+            session_id=adk_session_id,
+            new_message=content,
+        ):
+            event_count += 1
+            self._process_event(event, question, results)
+
+        logger.debug(f"Processed {event_count} events. Final response length: {len(results.get('final_response', ''))}")
+        return results
+
+    async def _run_agent_once(
+        self,
+        question: str,
+        adk_session_id: str,
+    ) -> dict[str, Any]:
+        """Run the agent once with retry logic for rate limits and context overflow.
+
+        Wraps _run_agent_once_inner with exponential backoff retry for
+        429/RESOURCE_EXHAUSTED errors from the Gemini API. If a context overflow
+        error occurs, resets the session and retries once with fresh context.
+        """
+
+        # Create a retry-wrapped version of the inner method
+        @retry(
+            retry=retry_if_exception(is_retryable_api_error),
+            wait=wait_exponential_jitter(
+                initial=API_RETRY_INITIAL_WAIT,
+                max=API_RETRY_MAX_WAIT,
+                jitter=API_RETRY_JITTER,
+            ),
+            stop=stop_after_attempt(API_RETRY_MAX_ATTEMPTS),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=False,  # Don't reraise to avoid noisy stack traces
+        )
+        async def _run_with_retry() -> dict[str, Any]:
+            return await self._run_agent_once_inner(question, adk_session_id)
+
+        try:
+            return await _run_with_retry()
+        except RetryError as e:
+            # Clean error message when retries are exhausted
+            original_error = e.last_attempt.exception()
+            logger.error(f"API retry failed after {API_RETRY_MAX_ATTEMPTS} attempts: {original_error}")
+            raise RuntimeError(
+                f"API request failed after {API_RETRY_MAX_ATTEMPTS} retry attempts. Last error: {original_error}"
+            ) from original_error
+        except ClientError as e:
+            # Handle context overflow by resetting session
+            if is_context_overflow_error(e):
+                logger.warning(f"Context overflow detected: {e}")
+                logger.warning("Resetting session and retrying with fresh context...")
+
+                # Create fresh session to clear accumulated history
+                self._session_service = InMemorySessionService()
+                new_session_id = await self._get_or_create_session_async()
+
+                # Retry once with fresh session
+                try:
+                    return await self._run_agent_once_inner(question, new_session_id)
+                except Exception as retry_error:
+                    logger.error(f"Retry with fresh session failed: {retry_error}")
+                    raise RuntimeError(
+                        f"Context overflow error. Original error: {e}. "
+                        f"Retry with fresh session also failed: {retry_error}"
+                    ) from e
+
+            # Re-raise non-context-overflow errors
+            raise
+
     async def answer_async(
         self,
         question: str,
         session_id: str | None = None,
-    ) -> GroundedResponse:
-        """Answer a question using the ReAct loop asynchronously.
+    ) -> AgentResponse:
+        """Answer a question using built-in planning and tools.
+
+        The agent uses PlanReAct planning to create and execute research steps.
+        The plan is captured and updated in real-time for CLI display.
 
         Parameters
         ----------
@@ -334,63 +642,91 @@ class KnowledgeGroundedAgent:
 
         Returns
         -------
-        GroundedResponse
-            The response with text, tool calls, and sources.
+        AgentResponse
+            The response with plan, execution trace, and sources.
         """
-        logger.info(f"Answering question (async): {question[:100]}...")
+        start_time = time.time()
+        logger.info(f"Answering question: {question[:100]}...")
 
         adk_session_id = await self._get_or_create_session_async(session_id)
 
-        # Create the user message
-        content = types.Content(
-            role="user",
-            parts=[types.Part(text=question)],
-        )
+        if self._current_plan is None and self.enable_planning:
+            await self.create_plan_async(question)
 
-        # Collect events from the ReAct loop
-        tool_calls: list[dict[str, Any]] = []
-        sources: list[GroundingChunk] = []
-        search_queries: list[str] = []
-        final_response = ""
+        # Run agent with retry logic for empty responses
+        results: dict[str, Any] = {}
+        current_session_id = adk_session_id
 
-        async for event in self._runner.run_async(
-            user_id="user",
-            session_id=adk_session_id,
-            new_message=content,
-        ):
-            logger.debug(f"Event: {event}")
+        for attempt in range(MAX_EMPTY_RESPONSE_RETRIES + 1):
+            results = await self._run_agent_once(question, current_session_id)
 
-            # Extract tool calls and search queries from function calls
-            new_tool_calls = _extract_tool_calls(event)
-            tool_calls.extend(new_tool_calls)
-            search_queries.extend(_extract_search_queries_from_tool_calls(new_tool_calls))
+            # Check if we got a non-empty response
+            if results.get("final_response", "").strip():
+                break
 
-            # Extract sources from function responses
-            sources.extend(_extract_sources_from_responses(event))
+            # Empty response - log and retry if we have attempts left
+            if attempt < MAX_EMPTY_RESPONSE_RETRIES:
+                logger.warning(
+                    f"Empty model response (attempt {attempt + 1}/{MAX_EMPTY_RESPONSE_RETRIES + 1}), "
+                    "creating fresh session and retrying..."
+                )
+                # Create fresh session for retry to avoid polluted history
+                fresh_session = await self._session_service.create_session(
+                    app_name="knowledge_qa",
+                    user_id="user",
+                    state={},
+                )
+                current_session_id = fresh_session.id
+                # Reset plan for retry
+                if self.enable_planning:
+                    await self.create_plan_async(question)
+            else:
+                # All retries exhausted - log detailed diagnostics
+                tool_call_count = len(results.get("tool_calls", []))
+                reasoning_count = len(results.get("reasoning_chain", []))
+                source_count = len(results.get("sources", []))
+                logger.error(
+                    f"Empty model response after {MAX_EMPTY_RESPONSE_RETRIES + 1} attempts. "
+                    f"Tool calls: {tool_call_count}, Reasoning steps: {reasoning_count}, "
+                    f"Sources: {source_count}. The model may have only produced thinking tokens."
+                )
+                # Log reasoning chain to debug why no final answer was generated
+                if results.get("reasoning_chain"):
+                    logger.error("Last reasoning steps (for debugging):")
+                    for i, reasoning in enumerate(results["reasoning_chain"][-3:], 1):
+                        logger.error(f"  Reasoning {i}: {reasoning[:500]}...")  # Log first 500 chars
 
-            # Extract sources and queries from grounding metadata
-            sources.extend(_extract_grounding_sources(event))
-            for q in _extract_grounding_queries(event):
-                if q not in search_queries:
-                    search_queries.append(q)
+        total_duration_ms = int((time.time() - start_time) * 1000)
 
-            text = _extract_final_response(event)
-            if text is not None:
-                final_response = text
+        # Mark remaining steps as skipped (not completed - they weren't executed)
+        if self._current_plan:
+            for step in self._current_plan.steps:
+                if step.status in (StepStatus.PENDING, StepStatus.IN_PROGRESS):
+                    step.status = StepStatus.SKIPPED
 
-        return GroundedResponse(
-            text=final_response,
-            search_queries=search_queries,
-            sources=sources,
-            tool_calls=tool_calls,
+        # Resolve redirect URLs and build response
+        resolved_sources = await resolve_source_urls(results.get("sources", []))
+        plan = self._current_plan or ResearchPlan(original_question=question, steps=[], reasoning="No planning enabled")
+        execution_trace = self._create_execution_trace(results.get("tool_calls", []), total_duration_ms)
+        self._current_plan = None
+
+        return AgentResponse(
+            text=results.get("final_response", ""),
+            plan=plan,
+            execution_trace=execution_trace,
+            sources=resolved_sources,
+            search_queries=results.get("search_queries", []),
+            reasoning_chain=results.get("reasoning_chain", []),
+            tool_calls=results.get("tool_calls", []),
+            total_duration_ms=total_duration_ms,
         )
 
     def answer(
         self,
         question: str,
         session_id: str | None = None,
-    ) -> GroundedResponse:
-        """Answer a question using the ReAct loop.
+    ) -> AgentResponse:
+        """Answer a question using built-in planning and tools (sync).
 
         Parameters
         ----------
@@ -401,25 +737,48 @@ class KnowledgeGroundedAgent:
 
         Returns
         -------
-        GroundedResponse
-            The response with text, tool calls, and sources.
-
-        Notes
-        -----
-        This is a synchronous wrapper around answer_async(). For Jupyter notebooks,
-        use `await agent.answer_async(question)` directly instead.
+        AgentResponse
+            The response with plan, execution trace, and sources.
         """
-        logger.info(f"Answering question: {question[:100]}...")
+        logger.info(f"Answering question (sync): {question[:100]}...")
         return asyncio.run(self.answer_async(question, session_id))
+
+    def format_answer(self, response: AgentResponse) -> str:
+        """Format an enhanced response for display.
+
+        Parameters
+        ----------
+        response : AgentResponse
+            The response to format.
+
+        Returns
+        -------
+        str
+            Formatted response with plan and citations.
+        """
+        parts = [response.text]
+
+        # Add plan summary
+        if response.plan.steps:
+            parts.append("\n\n**Research Plan:**")
+            for step in response.plan.steps:
+                parts.append(f"  {step.step_id}. {step.description}")
+
+        # Add web sources
+        if response.sources:
+            parts.append("\n\n**Sources:**")
+            for i, source in enumerate(response.sources, 1):
+                if source.uri:
+                    parts.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
+
+        return "\n".join(parts)
 
 
 class KnowledgeAgentManager:
     """Manages KnowledgeGroundedAgent lifecycle with lazy initialization.
 
     This class provides convenient lifecycle management for the knowledge agent,
-    with lazy initialization and state tracking. Unlike the general-purpose
-    AsyncClientManager (for infrastructure clients), this is specific to the
-    knowledge agent and is not a singleton.
+    with lazy initialization and state tracking.
 
     Parameters
     ----------
@@ -435,42 +794,50 @@ class KnowledgeAgentManager:
     >>> manager.close()
     """
 
-    def __init__(self, config: Configs | None = None) -> None:
+    def __init__(
+        self,
+        config: Configs | None = None,
+        enable_caching: bool = True,
+        enable_planning: bool = True,
+        enable_compaction: bool = True,
+    ) -> None:
         """Initialize the client manager.
 
         Parameters
         ----------
         config : Configs, optional
             Configuration object. If not provided, creates default config.
+        enable_caching : bool, default True
+            Whether to enable context caching.
+        enable_planning : bool, default True
+            Whether to enable built-in planning (Gemini thinking mode).
+        enable_compaction : bool, default True
+            Whether to enable context compaction.
         """
         self._config = config
+        self._enable_caching = enable_caching
+        self._enable_planning = enable_planning
+        self._enable_compaction = enable_compaction
         self._agent: KnowledgeGroundedAgent | None = None
         self._initialized = False
 
     @property
     def config(self) -> Configs:
-        """Get or create the config instance.
-
-        Returns
-        -------
-        Configs
-            The configuration settings.
-        """
+        """Get or create the config instance."""
         if self._config is None:
             self._config = Configs()  # type: ignore[call-arg]
         return self._config
 
     @property
     def agent(self) -> KnowledgeGroundedAgent:
-        """Get or create the knowledge-grounded agent.
-
-        Returns
-        -------
-        KnowledgeGroundedAgent
-            The knowledge-grounded QA agent.
-        """
+        """Get or create the knowledge-grounded agent."""
         if self._agent is None:
-            self._agent = KnowledgeGroundedAgent(config=self.config)
+            self._agent = KnowledgeGroundedAgent(
+                config=self.config,
+                enable_caching=self._enable_caching,
+                enable_planning=self._enable_planning,
+                enable_compaction=self._enable_compaction,
+            )
             self._initialized = True
         return self._agent
 
@@ -480,11 +847,5 @@ class KnowledgeAgentManager:
         self._initialized = False
 
     def is_initialized(self) -> bool:
-        """Check if any clients have been initialized.
-
-        Returns
-        -------
-        bool
-            True if any clients have been initialized.
-        """
+        """Check if any clients have been initialized."""
         return self._initialized
