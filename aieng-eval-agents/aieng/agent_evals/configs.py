@@ -96,11 +96,6 @@ class Configs(BaseSettings):
         validation_alias=AliasChoices("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
         description="API key for OpenAI-compatible API (accepts OPENAI_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY).",
     )
-    gemini_api_key: SecretStr = Field(
-        default=SecretStr("default-gemini-api-key"),  # setting a default so some implementations can run without it
-        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"),
-        description="API key for Google/Gemini API (accepts GEMINI_API_KEY, or GOOGLE_API_KEY).",
-    )
     default_planner_model: str = Field(
         default="gemini-2.5-pro",
         description="Model name for planning/complex reasoning tasks.",

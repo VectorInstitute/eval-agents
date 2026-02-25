@@ -351,9 +351,9 @@ class TestKnowledgeGroundedAgent:
     def mock_config(self):
         """Create a mock config for testing."""
         config = MagicMock()
-        config.gemini_api_key = "test-api-key"
         config.default_worker_model = "gemini-2.5-flash"
         config.default_temperature = 0.0
+        config.openai_api_key.get_secret_value.return_value = "test-api-key"
         return config
 
     @patch("aieng.agent_evals.knowledge_qa.agent.PlanReActPlanner")
@@ -489,6 +489,7 @@ class TestKnowledgeAgentManager:
             mock_config = MagicMock()
             mock_config.default_worker_model = "gemini-2.5-flash"
             mock_config.default_temperature = 0.0
+            mock_config.openai_api_key.get_secret_value.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
 
             manager = KnowledgeAgentManager(enable_caching=False, enable_compaction=False)
@@ -517,6 +518,7 @@ class TestKnowledgeAgentManager:
             mock_config = MagicMock()
             mock_config.default_worker_model = "gemini-2.5-flash"
             mock_config.default_temperature = 0.0
+            mock_config.openai_api_key.get_secret_value.return_value = "test-api-key"
             mock_config_class.return_value = mock_config
 
             manager = KnowledgeAgentManager(enable_caching=False, enable_compaction=False)
