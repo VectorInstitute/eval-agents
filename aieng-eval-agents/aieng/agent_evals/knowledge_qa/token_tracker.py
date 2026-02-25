@@ -51,16 +51,6 @@ class TokenUsage(BaseModel):
     context_limit: int = 1_000_000  # Default for Gemini 2.5 Flash
 
     @property
-    def uncached_prompt_tokens(self) -> int:
-        """Prompt tokens excluding cached content (for cost estimation).
-
-        Cached tokens are billed at a lower rate, so this property is useful
-        for cost tracking. Note: cached tokens still count against the context
-        window limit - use latest_prompt_tokens for context window calculations.
-        """
-        return max(0, self.latest_prompt_tokens - self.latest_cached_tokens)
-
-    @property
     def context_used_percent(self) -> float:
         """Calculate percentage of context window currently used.
 
@@ -76,22 +66,6 @@ class TokenUsage(BaseModel):
     def context_remaining_percent(self) -> float:
         """Calculate percentage of context window remaining."""
         return max(0.0, 100.0 - self.context_used_percent)
-
-    # Backwards compatibility aliases
-    @property
-    def prompt_tokens(self) -> int:
-        """Alias for total_prompt_tokens (backwards compatibility)."""
-        return self.total_prompt_tokens
-
-    @property
-    def cached_tokens(self) -> int:
-        """Alias for latest_cached_tokens (backwards compatibility)."""
-        return self.latest_cached_tokens
-
-    @property
-    def completion_tokens(self) -> int:
-        """Alias for total_completion_tokens (backwards compatibility)."""
-        return self.total_completion_tokens
 
 
 class TokenTracker:

@@ -743,36 +743,6 @@ class KnowledgeGroundedAgent:
         logger.info(f"Answering question (sync): {question[:100]}...")
         return asyncio.run(self.answer_async(question, session_id))
 
-    def format_answer(self, response: AgentResponse) -> str:
-        """Format an enhanced response for display.
-
-        Parameters
-        ----------
-        response : AgentResponse
-            The response to format.
-
-        Returns
-        -------
-        str
-            Formatted response with plan and citations.
-        """
-        parts = [response.text]
-
-        # Add plan summary
-        if response.plan.steps:
-            parts.append("\n\n**Research Plan:**")
-            for step in response.plan.steps:
-                parts.append(f"  {step.step_id}. {step.description}")
-
-        # Add web sources
-        if response.sources:
-            parts.append("\n\n**Sources:**")
-            for i, source in enumerate(response.sources, 1):
-                if source.uri:
-                    parts.append(f"[{i}] [{source.title or 'Source'}]({source.uri})")
-
-        return "\n".join(parts)
-
 
 class KnowledgeAgentManager:
     """Manages KnowledgeGroundedAgent lifecycle with lazy initialization.

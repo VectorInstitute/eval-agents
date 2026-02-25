@@ -67,22 +67,3 @@ def is_context_overflow_error(exception: BaseException) -> bool:
         error_str = str(exception).lower()
         return "token count exceeds" in error_str or ("invalid_argument" in error_str and "token" in error_str)
     return False
-
-
-def is_cache_expiration_error(exception: BaseException) -> bool:
-    """Check if an exception is a cache expiration error.
-
-    Parameters
-    ----------
-    exception : BaseException
-        The exception to check.
-
-    Returns
-    -------
-    bool
-        True if the exception is due to expired cache content.
-    """
-    if isinstance(exception, ClientError):
-        error_str = str(exception).lower()
-        return "cache" in error_str and "expired" in error_str
-    return False
