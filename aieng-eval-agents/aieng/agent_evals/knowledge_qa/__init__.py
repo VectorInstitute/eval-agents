@@ -21,14 +21,13 @@ from aieng.agent_evals.tools import (
     format_response_with_citations,
 )
 
-from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
+from .agent import KnowledgeGroundedAgent
 from .data import DeepSearchQADataset, DSQAExample
 
 
 __all__ = [
     # Agent
     "KnowledgeGroundedAgent",
-    "KnowledgeAgentManager",
     # Grounding tool
     "create_google_search_tool",
     "format_response_with_citations",
