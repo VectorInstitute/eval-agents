@@ -9,7 +9,7 @@ license = "MIT"
 dependencies = [
     "google-adk>=1.23.0",
     "google-genai>=1.52.0",
-    "gradio>=6.0.2",
+    "gradio>=6.7.0", # CVE-2026-28414/27167/28416/28415 fixed in 6.6.0–6.7.0
     "kagglehub>=0.4.1",
     "langfuse>=3.10.3",
     "openai>=2.8.1",
@@ -24,7 +24,7 @@ dependencies = [
     "sqlalchemy>=2.0.46",
     "sqlglot>=28.6.0",
     "weaviate-client>=4.18.3",
-    "pypdf",
+    "pypdf>=6.7.5", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5
     "httpx>=0.27.0",
     "tenacity>=8.2.0",
     "python-dotenv>=1.0.0",
