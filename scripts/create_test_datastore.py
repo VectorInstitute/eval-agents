@@ -10,7 +10,7 @@ Usage
     gcloud auth application-default login
 
     # Run from the repo root
-    uv run python scripts/create_test_datastore.py \\
+    uv run python -m scripts.create_test_datastore \\
         --bucket <globally-unique-bucket-name> \\
         [--project agentic-ai-evaluation-bootcamp] \\
         [--datastore-id vertex-search-integration-test]

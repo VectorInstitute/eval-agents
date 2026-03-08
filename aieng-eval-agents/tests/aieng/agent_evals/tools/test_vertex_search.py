@@ -423,21 +423,15 @@ class TestCreateVertexSearchTool:
         """Test that a FunctionTool is returned when datastore_id is set."""
         mock_config = MagicMock()
         mock_config.vertex_datastore_id = SAMPLE_DATASTORE_ID
-        mock_config.default_worker_model = "gemini-2.5-flash"
-        mock_config.default_temperature = 1.0
-        mock_config.google_cloud_location = "us-central1"
 
         result = create_vertex_search_tool(config=mock_config)
 
         assert isinstance(result, FunctionTool)
 
-    def test_inner_function_named_vertex_search(self):
+    def test_tool_func_named_vertex_search(self):
         """Test that the wrapped function is named 'vertex_search' for ADK discovery."""
         mock_config = MagicMock()
         mock_config.vertex_datastore_id = SAMPLE_DATASTORE_ID
-        mock_config.default_worker_model = "gemini-2.5-flash"
-        mock_config.default_temperature = 1.0
-        mock_config.google_cloud_location = "us-central1"
 
         result = create_vertex_search_tool(config=mock_config)
 
@@ -445,7 +439,7 @@ class TestCreateVertexSearchTool:
 
     @pytest.mark.asyncio
     async def test_tool_calls_vertex_search_async(self):
-        """Test that invoking the tool delegates to _vertex_search_async."""
+        """Test that the tool delegates to _vertex_search_async with config values."""
         mock_config = MagicMock()
         mock_config.vertex_datastore_id = SAMPLE_DATASTORE_ID
         mock_config.default_worker_model = "gemini-2.5-flash"
@@ -455,10 +449,13 @@ class TestCreateVertexSearchTool:
         tool = create_vertex_search_tool(config=mock_config)
 
         expected = {"status": "success", "summary": "Answer.", "sources": [], "source_count": 0}
-        with patch(
-            "aieng.agent_evals.tools.vertex_search._vertex_search_async",
-            new=AsyncMock(return_value=expected),
-        ) as mock_async:
+        with (
+            patch("aieng.agent_evals.tools.vertex_search.Configs", return_value=mock_config),
+            patch(
+                "aieng.agent_evals.tools.vertex_search._vertex_search_async",
+                new=AsyncMock(return_value=expected),
+            ) as mock_async,
+        ):
             result = await tool.func("leave policy?")
 
         mock_async.assert_called_once_with(
@@ -549,7 +546,7 @@ class TestVertexSearchIntegration:
     ``aieng-eval-agents/tests/fixtures/vertex_test_data.jsonl`` (synthetic
     Northstar Analytics content). Provision the store once before running:
 
-        uv run python scripts/create_test_datastore.py --bucket <your-bucket>
+        uv run python -m scripts.create_test_datastore --bucket <your-bucket>
 
     Then set in .env:
         VERTEX_AI_DATASTORE_ID="projects/agentic-ai-evaluation-bootcamp/locations/global/..."

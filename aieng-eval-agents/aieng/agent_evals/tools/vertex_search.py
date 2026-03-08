@@ -141,7 +141,7 @@ async def _vertex_search_async(
         }
 
     except Exception as e:
-        logger.error(f"Vertex AI Search failed: {e}")
+        logger.exception("Vertex AI Search failed: %s", e)
         return {
             "status": "error",
             "error": str(e),
@@ -155,7 +155,10 @@ async def _vertex_search_async(
 async def vertex_search(query: str, model: str | None = None) -> dict[str, Any]:
     """Search the custom knowledge base and return grounded results with citations.
 
-    Queries a Vertex AI Search data store configured via ``VERTEX_AI_DATASTORE_ID``.
+    Use this tool to find information from internal documents and knowledge bases.
+    Results are grounded directly from retrieved document content — the summary
+    is more reliable than web search snippets and no separate fetch step is needed.
+
     Authentication uses Application Default Credentials (ADC) — no API key is
     required. On GCE/Coder workspaces the attached service account is used
     automatically.
@@ -244,38 +247,6 @@ def create_vertex_search_tool(config: Configs | None = None) -> FunctionTool:
         raise ValueError(
             "VERTEX_AI_DATASTORE_ID must be set to use create_vertex_search_tool. "
             "Set it in your .env file or as an environment variable."
-        )
-
-    model = config.default_worker_model
-    temperature = config.default_temperature
-    datastore_id = config.vertex_datastore_id
-    location = config.google_cloud_location
-
-    async def vertex_search(query: str) -> dict[str, Any]:
-        """Search the custom knowledge base and return grounded results with citations.
-
-        Use this tool to find information from internal documents and knowledge bases.
-        Results are grounded directly from retrieved document content — the summary
-        is more reliable than web search snippets and no separate fetch step is needed.
-
-        Parameters
-        ----------
-        query : str
-            The search query. Be specific and include key terms.
-
-        Returns
-        -------
-        dict
-            Search results with the following keys:
-
-            - **status** (str): ``"success"`` or ``"error"``
-            - **summary** (str): Grounded answer from the knowledge base
-            - **sources** (list[dict]): Each with ``'title'`` and ``'uri'``
-            - **source_count** (int): Number of source documents retrieved
-            - **error** (str): Error message (error case only)
-        """
-        return await _vertex_search_async(
-            query, model=model, datastore_id=datastore_id, location=location, temperature=temperature
         )
 
     return FunctionTool(func=vertex_search)
