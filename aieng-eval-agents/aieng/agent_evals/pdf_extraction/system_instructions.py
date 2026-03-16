@@ -27,15 +27,23 @@ CONCURRENT_RESOLUTION, JOINT_RESOLUTION, JOINT_MEMORIAL, CONCURRENT_MEMORIAL.
 - **sponsors**: A list of sponsors of the measure. Sponsors can be individual legislators \
 (e.g. "Representative Smith") or committees (e.g. "STATE AFFAIRS COMMITTEE"). \
 Extract all sponsors mentioned in the document.
-- **sections_affected**: A list of objects, each with a **raw_section** field containing the \
-section reference as it appears in the document (e.g. "Section 67-827A, Idaho Code").
+- **sections_affected**: A list of objects, each with:
+  - **raw_section**: The section reference as it appears in the document \
+(e.g. "Section 67-827A, Idaho Code").
+  - **action**: The legislative action code for the section. Must be one of: \
+REPEAL, DEAUTH, AMEND, REDESIG, CODIFY, ADD. \
+Use these mappings: "amended" or "is hereby amended" or "revised" → AMEND, \
+"addition of a NEW SECTION" or "to create" or "is created" → ADD, \
+"is hereby repealed" → REPEAL, "deauthorized" → DEAUTH, \
+"redesignated" or "renumbered" → REDESIG, "repealed and codified" → CODIFY. \
+If the action cannot be determined, set to null.
 
 ## Output Format
 
 Your final response MUST be a valid JSON object with exactly these keys:
 
 {{"jurisdiction_code": "...", "session": "...", "chamber_code": "...", "measure_type_code": "...", "measure_number": "...", \
-"title": "...", "summary": "...", "sponsors": ["..."], "sections_affected": [{{"raw_section": "..."}}]}}
+"title": "...", "summary": "...", "sponsors": ["..."], "sections_affected": [{{"raw_section": "...", "action": "AMEND"}}]}}
 
 Do not wrap the JSON in markdown code fences. Return only the JSON object.
 
