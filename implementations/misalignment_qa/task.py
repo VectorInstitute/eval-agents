@@ -20,13 +20,14 @@ class MisalignmentTask:
     - runs the configured ADK agent on `item["input"]`
     - returns the final assistant output text as a string
 
-    Multi-turn “partway through conversation” is handled upstream by prompt-embedding
-    (the agent itself still executes a single “next user message” call).
+    Multi-turn contexts are seeded into the ADK session as prior chat history.
+    The task-specific turns come from the dataset item metadata, and optional
+    shared example turns are supplied per variant when the task is created.
     """
 
-    def __init__(self, *, agent: Any, max_output_chars: int) -> None:
+    def __init__(self, *, agent: Any, shared_turns: list[dict[str, Any]] | None = None) -> None:
         self._agent = agent
-        self._max_output_chars = max_output_chars
+        self._shared_turns = shared_turns or []
         # Keep a dedicated session service so we can seed per-item history.
         self._session_service = InMemorySessionService()
         self._runner = Runner(
@@ -42,13 +43,16 @@ class MisalignmentTask:
         # item can be a local dict-like item or a Langfuse experiment item object.
         raw_input = item.get("input") if isinstance(item, dict) else item.input
 
-        # If the dataset contains a structured chat payload, prefer it.
+        # If the dataset contains task-local chat turns, combine them with any
+        # shared example turns configured for this variant.
         metadata: Any = item.get("metadata", {}) if isinstance(item, dict) else getattr(item, "metadata", {})  # noqa: ANN401
-        agent_turns: list[dict[str, Any]] | None = None
+        task_turns: list[dict[str, Any]] | None = None
         if isinstance(metadata, dict):
-            turns_raw = metadata.get("agent_turns")
+            turns_raw = metadata.get("task_turns")
             if isinstance(turns_raw, list):
-                agent_turns = [t for t in turns_raw if isinstance(t, dict)]
+                task_turns = [t for t in turns_raw if isinstance(t, dict)]
+
+        agent_turns = [*self._shared_turns, *(task_turns or [])]
 
         if raw_input is None and not agent_turns:
             logger.warning("Task received item without input: %r", item)
@@ -56,68 +60,10 @@ class MisalignmentTask:
 
         user_id = getpass.getuser()
 
-        final_text: str | None = None
-
         if agent_turns:
-            # Use structured turns to seed a true multi-turn chat history in the ADK session.
-            session = await self._session_service.create_session(
-                app_name=getattr(self._agent, "name", "misalignment_qa"),
-                user_id=user_id,
-                state={},
-            )
-
-            # All but the last turn are treated as prior history.
-            history_turns = agent_turns[:-1]
-            latest_turn = agent_turns[-1]
-
-            for t in history_turns:
-                role = (t.get("role") or "user").lower()
-                # Map assistant transcript turns to the ADK/model author role.
-                author_role = "model" if role == "assistant" else "user"
-                content_text = str(t.get("content", ""))
-                if not content_text:
-                    continue
-
-                await self._session_service.append_event(
-                    session=session,
-                    event=Event(
-                        author=author_role,
-                        content=types.Content(
-                            role=author_role,
-                            parts=[types.Part(text=content_text)],
-                        ),
-                    ),
-                )
-
-            # The latest user message becomes the new_message for this invocation.
-            latest_content = str(latest_turn.get("content", ""))
-            if not latest_content:
-                logger.warning("Latest turn for agent_turns has empty content: %r", latest_turn)
-                return None
-
-            new_message = types.Content(
-                role="user",
-                parts=[types.Part(text=latest_content)],
-            )
-
-            async for event in self._runner.run_async(
-                session_id=session.id,
-                user_id=user_id,
-                new_message=new_message,
-            ):
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_text = "".join(part.text or "" for part in event.content.parts if part.text)
+            final_text = await self._run_with_seeded_history(user_id=user_id, agent_turns=agent_turns)
         else:
-            # Fallback: single-turn input flattened into a user message using the original item input.
-            message = types.Content(role="user", parts=[types.Part(text=str(raw_input))])
-
-            async for event in self._runner.run_async(
-                session_id=str(uuid.uuid4()),
-                user_id=user_id,
-                new_message=message,
-            ):
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_text = "".join(part.text or "" for part in event.content.parts if part.text)
+            final_text = await self._run_single_turn(user_id=user_id, raw_input=str(raw_input))
 
         if final_text is None:
             # Keep this deterministic-ish so evaluators see a string.
@@ -126,13 +72,72 @@ class MisalignmentTask:
             logger.warning("No final response produced (task_id=%s)", task_id)
             return ""
 
-        final_text = final_text.strip()
+        return final_text.strip()
 
-        # Keep judge prompts under token limits.
-        # The Langfuse LLM-judge evaluator includes `input + expected_output + output`,
-        # so large outputs can leave no room for JSON generation.
-        if len(final_text) > self._max_output_chars:
-            final_text = final_text[: self._max_output_chars] + "\n...[truncated for evaluator]"
+    async def _run_with_seeded_history(self, *, user_id: str, agent_turns: list[dict[str, Any]]) -> str | None:
+        """Run one turn after seeding shared/task transcript history into the ADK session."""
+        session = await self._session_service.create_session(
+            app_name=getattr(self._agent, "name", "misalignment_qa"),
+            user_id=user_id,
+            state={},
+        )
 
+        history_turns = agent_turns[:-1]
+        latest_turn = agent_turns[-1]
+
+        for turn in history_turns:
+            role = (turn.get("role") or "user").lower()
+            author_role = "model" if role == "assistant" else "user"
+            content_text = str(turn.get("content", ""))
+            if not content_text:
+                continue
+
+            await self._session_service.append_event(
+                session=session,
+                event=Event(
+                    author=author_role,
+                    content=types.Content(
+                        role=author_role,
+                        parts=[types.Part(text=content_text)],
+                    ),
+                ),
+            )
+
+        latest_content = str(latest_turn.get("content", ""))
+        if not latest_content:
+            logger.warning("Latest turn for agent_turns has empty content: %r", latest_turn)
+            return None
+
+        new_message = types.Content(role="user", parts=[types.Part(text=latest_content)])
+        return await self._collect_final_text(
+            session_id=session.id,
+            user_id=user_id,
+            new_message=new_message,
+        )
+
+    async def _run_single_turn(self, *, user_id: str, raw_input: str) -> str | None:
+        """Run a simple one-turn task without any seeded chat history."""
+        message = types.Content(role="user", parts=[types.Part(text=raw_input)])
+        return await self._collect_final_text(
+            session_id=str(uuid.uuid4()),
+            user_id=user_id,
+            new_message=message,
+        )
+
+    async def _collect_final_text(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        new_message: types.Content,
+    ) -> str | None:
+        final_text: str | None = None
+        async for event in self._runner.run_async(
+            session_id=session_id,
+            user_id=user_id,
+            new_message=new_message,
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                final_text = "".join(part.text or "" for part in event.content.parts if part.text)
         return final_text
 

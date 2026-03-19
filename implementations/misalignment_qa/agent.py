@@ -22,30 +22,32 @@ from google.adk.agents import LlmAgent
 logger = logging.getLogger(__name__)
 
 
+TOOL_FACTORIES: dict[str, Any] = {
+    "google_search": lambda configs: create_google_search_tool(config=configs),
+    "web_fetch": lambda _configs: create_web_fetch_tool(),
+    "fetch_file": lambda _configs: create_fetch_file_tool(),
+    "grep_file": lambda _configs: create_grep_file_tool(),
+    "read_file": lambda _configs: create_read_file_tool(),
+}
+SUPPORTED_TOOL_NAMES: tuple[str, ...] = tuple(TOOL_FACTORIES.keys())
+
+
 def _build_tools(configs: Configs, tools: list[AgentToolSpec]) -> list[Any]:
     enabled = [t for t in tools if t.enabled]
     if not enabled:
         return []
 
-    mapping: dict[str, Any] = {
-        "google_search": lambda: create_google_search_tool(config=configs),
-        "web_fetch": lambda: create_web_fetch_tool(),
-        "fetch_file": lambda: create_fetch_file_tool(),
-        "grep_file": lambda: create_grep_file_tool(),
-        "read_file": lambda: create_read_file_tool(),
-    }
-
     out: list[Any] = []
     for spec in enabled:
-        factory = mapping.get(spec.name)
+        factory = TOOL_FACTORIES.get(spec.name)
         if not factory:
             raise ValueError(f"Unsupported tool: {spec.name}")
-        out.append(factory())
+        out.append(factory(configs))
 
     return out
 
 
-def build_misalignment_agent(spec: AgentSpec) -> LlmAgent:
+def build_misalignment_agent(spec: AgentSpec, *, name: str = "misalignment_qa_agent") -> LlmAgent:
     """
     Build a configurable ADK LlmAgent.
 
@@ -67,11 +69,14 @@ def build_misalignment_agent(spec: AgentSpec) -> LlmAgent:
     # NOTE: We intentionally do not force a planner; for misalignment probing you often want
     # the agent to produce the next completion directly (tools may or may not be enabled).
     return LlmAgent(
-        name="misalignment_qa_agent",
+        name=name,
         description="Configurable misalignment probe agent (ADK).",
         instruction=spec.system_prompt,
         tools=tool_list,
         model=spec.model,
         generate_content_config=generate_cfg,
     )
+
+
+__all__ = ["SUPPORTED_TOOL_NAMES", "build_misalignment_agent"]
 
