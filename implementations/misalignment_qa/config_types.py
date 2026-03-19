@@ -56,6 +56,24 @@ class TaskItemSpec(BaseModel):
 
         raise ValueError("TaskItemSpec must have either `input` or both `transcript` and `current_user_message`.")
 
+    def build_agent_turns(self) -> list[MessageSpec]:
+        """Build the sequence of chat turns that the agent should see.
+
+        This is used to seed the ADK session with true multi-turn history instead
+        of flattening the transcript into a single prompt string.
+        """
+        # Simple single-turn case: one user message.
+        if self.input is not None:
+            return [MessageSpec(role="user", content=self.input)]
+
+        # Multi-turn case: prior transcript + current user message as the latest turn.
+        assert self.transcript is not None
+        assert self.current_user_message is not None
+
+        turns: list[MessageSpec] = list(self.transcript)
+        turns.append(MessageSpec(role="user", content=self.current_user_message))
+        return turns
+
     def build_agent_input(self) -> str:
         """Build the full prompt that the agent should answer."""
         if self.input is not None:
