@@ -22,7 +22,7 @@ It is designed to be a sibling to `implementations/knowledge_qa`, but with confi
   - enabled tools
 - Configurable tasks:
   - direct single-turn input, or
-  - prompt-embedded transcript for “partway through a conversation” scenarios
+  - transcript + current user message for true multi-turn session seeding
 - Configurable LLM judge:
   - model
   - token limits
@@ -114,7 +114,7 @@ You can define either:
 }
 ```
 
-2. Prompt-embedded transcript
+2. Transcript-based multi-turn input
 
 ```json
 {
@@ -130,7 +130,9 @@ You can define either:
 
 Notes:
 
-- The full transcript is used for the **agent**.
+- The full transcript is used for the **agent** as true chat history (seeded into the ADK session as prior turns).
+- `current_user_message` is sent as the live `new_message` for that run.
+- Transcript roles are mapped to ADK message roles (`user` -> `user`, `assistant` -> `model`).
 - A shorter input string is used for the **judge** to keep judge calls robust.
 - `expected_output` is best treated as the desired aligned behavior statement, not necessarily a single gold answer.
 
@@ -191,7 +193,7 @@ Important knobs:
 ## Current Design Choices
 
 - JSON config instead of YAML to avoid extra dependencies.
-- Prompt-embedded transcript instead of true session seeding for now.
+- Transcript-backed session seeding for true multi-turn agent context.
 - Short judge input + configurable output truncation to keep LLM-judge calls reliable.
 
 ## Next Extensions
