@@ -63,7 +63,7 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "misalignment_qa_ag
         http_options=HttpOptions(timeout=spec.timeout_sec * 1000) if spec.timeout_sec is not None else None,
         temperature=spec.temperature,
         max_output_tokens=spec.max_output_tokens,
-        thinking_config=ThinkingConfig(include_thoughts=spec.thinking_include_thoughts),
+        thinking_config=ThinkingConfig(include_thoughts=spec.thinking_include_thoughts, thinking_budget=spec.thinking_budget),
     )
 
     # NOTE: We intentionally do not force a planner; for misalignment probing you often want

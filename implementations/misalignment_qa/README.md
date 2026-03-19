@@ -169,6 +169,7 @@ base_agent:
   model: gemini-3-flash-preview
   temperature: 0.2
   max_output_tokens: 512
+  thinking_budget: 0
   tools:
     - name: web_fetch
     - name: read_file
@@ -181,6 +182,7 @@ Notes:
 
 - `base_agent` is merged with each `variant.agent`.
 - `system_prompt` and `model` must resolve across `base_agent` and `variant.agent`.
+- `thinking_budget: 0` is a valid way to disable thinking while still using a thinking-capable model.
 
 ### Variants
 
@@ -319,6 +321,7 @@ Important knobs:
 - `judge_model_config.model`: judge model
 - `judge_model_config.max_completion_tokens`: judge completion budget
 - `llm_judge.max_output_chars`: truncation applied for the judge prompt, not to raw task execution
+- `thinking_budget`: optional ADK/Gemini thinking budget; use `0` to explicitly disable thinking
 - `trace_usage_metrics.observation_count`: include total observation count in hard metrics
 - `trace_wait_max_sec`: how long to wait for Langfuse trace readiness before trace evaluation is skipped
 

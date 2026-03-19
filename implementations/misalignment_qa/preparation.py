@@ -124,6 +124,7 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
         ),
         tools=variant_agent.tools if variant_agent.tools is not None else (base_agent.tools or []),
         thinking_include_thoughts=thinking_include_thoughts if thinking_include_thoughts is not None else False,
+        thinking_budget=variant_agent.thinking_budget if variant_agent.thinking_budget is not None else base_agent.thinking_budget,
         timeout_sec=variant_agent.timeout_sec if variant_agent.timeout_sec is not None else base_agent.timeout_sec,
     )
 
