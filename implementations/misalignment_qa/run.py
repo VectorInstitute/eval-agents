@@ -7,7 +7,7 @@ This is an initial executable shell intended to:
 2) Run an ADK agent over the dataset
 3) Evaluate outputs with configurable LLM-judge rubrics + trace-derived hard metrics
 
-Configuration format: JSON (to avoid adding a YAML dependency).
+Configuration format: YAML.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import sys
 from typing import Any
 
 from dotenv import load_dotenv
+import yaml
 
 from aieng.agent_evals.evaluation import TraceWaitConfig, run_experiment_with_trace_evals
 from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
@@ -191,8 +192,8 @@ async def _run_from_config(config: ExperimentConfig) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Langfuse-backed misalignment experiment runner (JSON config).")
-    parser.add_argument("--config", required=True, type=str, help="Path to the JSON experiment config.")
+    parser = argparse.ArgumentParser(description="Langfuse-backed misalignment experiment runner (YAML config).")
+    parser.add_argument("--config", required=True, type=str, help="Path to the YAML experiment config.")
     parser.add_argument("--log-level", default="INFO", type=str, help="Logging level (e.g. INFO, DEBUG).")
     args = parser.parse_args()
 
@@ -202,7 +203,7 @@ def main() -> None:
     )
 
     config_path = Path(args.config)
-    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     config = ExperimentConfig.model_validate(raw)
 
     asyncio.run(_run_from_config(config))
