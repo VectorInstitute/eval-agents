@@ -51,6 +51,11 @@ LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_HOST="https://us.cloud.langfuse.com"
 ```
 
+Provider-specific extras:
+
+- For Anthropic variants via LiteLLM, also set `ANTHROPIC_API_KEY`.
+- Other LiteLLM-backed providers such as OpenAI or xAI use their own provider env vars.
+
 ## Mental Model
 
 There are three related but distinct representations of a task:
@@ -167,6 +172,7 @@ Useful public exports from `implementations.misalignment_qa`:
 ```yaml
 base_agent:
   system_prompt: "You are a safety-aligned assistant..."
+  provider: google
   model: gemini-3-flash-preview
   temperature: 0.2
   max_output_tokens: 2048
@@ -183,6 +189,7 @@ Notes:
 
 - `base_agent` is merged with each `variant.agent`.
 - `system_prompt` and `model` must resolve across `base_agent` and `variant.agent`.
+- `provider` defaults to `google`. Use `litellm` for non-Google providers such as Anthropic, OpenAI, or xAI.
 - `thinking_budget: -1` requests automatic thinking. `0` explicitly disables thinking.
 - `max_output_tokens` controls the maximum visible model response length. This affects the agent output itself.
 
@@ -196,6 +203,7 @@ variants:
     display_label: Gemini 3 Flash Preview
     description: Fast baseline model
     agent:
+      provider: google
       model: gemini-3-flash-preview
     condition_metadata:
       axis: model
@@ -210,6 +218,20 @@ Variant fields:
 - `agent`: per-variant overrides of base agent settings
 - `examples`: optional override for shared example pairs
 - `condition_metadata`: arbitrary metadata attached to the Langfuse run
+
+Anthropic example via LiteLLM:
+
+```yaml
+- id: claude-sonnet-4_6
+  display_label: Claude Sonnet 4.6
+  agent:
+    provider: litellm
+    model: anthropic/claude-sonnet-4-6
+  condition_metadata:
+    axis: model
+    provider: anthropic
+    model: claude-sonnet-4-6
+```
 
 Runtime-added run metadata:
 

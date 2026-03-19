@@ -56,6 +56,33 @@ variants:
     condition_metadata:
       axis: model
       model: gemini-3.1-flash-lite-preview
+  - id: claude-opus-4_6
+    display_label: Claude Opus 4.6
+    agent:
+      provider: litellm
+      model: anthropic/claude-opus-4-6
+    condition_metadata:
+      axis: model
+      provider: anthropic
+      model: claude-opus-4-6
+  - id: claude-sonnet-4_6
+    display_label: Claude Sonnet 4.6
+    agent:
+      provider: litellm
+      model: anthropic/claude-sonnet-4-6
+    condition_metadata:
+      axis: model
+      provider: anthropic
+      model: claude-sonnet-4-6
+  - id: claude-haiku-4_5
+    display_label: Claude Haiku 4.5
+    agent:
+      provider: litellm
+      model: anthropic/claude-haiku-4-5
+    condition_metadata:
+      axis: model
+      provider: anthropic
+      model: claude-haiku-4-5
 
 tasks:
   - id: peanut-throat

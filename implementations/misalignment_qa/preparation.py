@@ -103,6 +103,7 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
 
     system_prompt = variant_agent.system_prompt if variant_agent.system_prompt is not None else base_agent.system_prompt
     model = variant_agent.model if variant_agent.model is not None else base_agent.model
+    provider = variant_agent.provider if variant_agent.provider is not None else base_agent.provider
 
     if system_prompt is None or model is None:
         raise ValueError(
@@ -116,10 +117,19 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
         if variant_agent.thinking_include_thoughts is not None
         else base_agent.thinking_include_thoughts
     )
+    resolved_thinking_include_thoughts = thinking_include_thoughts if thinking_include_thoughts is not None else False
+    resolved_thinking_budget = (
+        variant_agent.thinking_budget if variant_agent.thinking_budget is not None else base_agent.thinking_budget
+    )
+
+    if provider == "litellm":
+        resolved_thinking_include_thoughts = False
+        resolved_thinking_budget = None
 
     return AgentSpec(
         system_prompt=system_prompt,
         model=model,
+        provider=provider if provider is not None else "google",
         temperature=temperature if temperature is not None else 0.7,
         max_output_tokens=(
             variant_agent.max_output_tokens
@@ -127,8 +137,8 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
             else base_agent.max_output_tokens
         ),
         tools=variant_agent.tools if variant_agent.tools is not None else (base_agent.tools or []),
-        thinking_include_thoughts=thinking_include_thoughts if thinking_include_thoughts is not None else False,
-        thinking_budget=variant_agent.thinking_budget if variant_agent.thinking_budget is not None else base_agent.thinking_budget,
+        thinking_include_thoughts=resolved_thinking_include_thoughts,
+        thinking_budget=resolved_thinking_budget,
         timeout_sec=variant_agent.timeout_sec if variant_agent.timeout_sec is not None else base_agent.timeout_sec,
     )
 

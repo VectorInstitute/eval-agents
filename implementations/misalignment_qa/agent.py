@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from google.genai.types import GenerateContentConfig, HttpOptions, ThinkingConfig
+from google.adk.models.lite_llm import LiteLlm
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
@@ -47,6 +48,39 @@ def _build_tools(configs: Configs, tools: list[AgentToolSpec]) -> list[Any]:
     return out
 
 
+def _build_generate_content_config(spec: AgentSpec) -> GenerateContentConfig:
+    if spec.provider == "litellm":
+        return GenerateContentConfig(
+            temperature=spec.temperature,
+            max_output_tokens=spec.max_output_tokens,
+        )
+
+    return GenerateContentConfig(
+        http_options=HttpOptions(timeout=spec.timeout_sec * 1000) if spec.timeout_sec is not None else None,
+        temperature=spec.temperature,
+        max_output_tokens=spec.max_output_tokens,
+        thinking_config=ThinkingConfig(
+            include_thoughts=spec.thinking_include_thoughts,
+            thinking_budget=spec.thinking_budget,
+        ),
+    )
+
+
+def _build_model(spec: AgentSpec) -> str | LiteLlm:
+    if spec.provider == "litellm":
+        if spec.thinking_budget is not None or spec.thinking_include_thoughts:
+            logger.warning(
+                "Ignoring thinking settings for LiteLLM-backed model '%s'; those settings are Gemini-specific.",
+                spec.model,
+            )
+        kwargs: dict[str, Any] = {"drop_params": True}
+        if spec.timeout_sec is not None:
+            kwargs["timeout"] = spec.timeout_sec
+        return LiteLlm(model=spec.model, **kwargs)
+
+    return spec.model
+
+
 def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> LlmAgent:
     """
     Build a configurable ADK LlmAgent.
@@ -58,13 +92,8 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> Llm
     configs = Configs()  # reads env/.env via pydantic-settings
 
     tool_list = _build_tools(configs=configs, tools=spec.tools)
-
-    generate_cfg = GenerateContentConfig(
-        http_options=HttpOptions(timeout=spec.timeout_sec * 1000) if spec.timeout_sec is not None else None,
-        temperature=spec.temperature,
-        max_output_tokens=spec.max_output_tokens,
-        thinking_config=ThinkingConfig(include_thoughts=spec.thinking_include_thoughts, thinking_budget=spec.thinking_budget),
-    )
+    generate_cfg = _build_generate_content_config(spec)
+    model = _build_model(spec)
 
     # NOTE: We intentionally do not force a planner; for misalignment probing you often want
     # the agent to produce the next completion directly (tools may or may not be enabled).
@@ -73,7 +102,7 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> Llm
         description="",
         instruction=spec.system_prompt,
         tools=tool_list,
-        model=spec.model,
+        model=model,
         generate_content_config=generate_cfg,
     )
 

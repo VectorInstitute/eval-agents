@@ -31,6 +31,7 @@ dependencies = [
     "certifi>=2026.1.4",
     "pypdf>=6.7.5", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5
     "PyYAML>=6.0.0",
+    "litellm>=1.82.4",
 ]
 
 [dependency-groups]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -15,6 +15,10 @@ class AgentToolSpec(BaseModel):
 class AgentSpec(BaseModel):
     system_prompt: str = Field(description="System prompt/instructions for the agent.")
     model: str = Field(description="ADK model name (e.g. gemini-2.5-flash).")
+    provider: Literal["google", "litellm"] = Field(
+        default="google",
+        description="Model backend provider. Use 'google' for native ADK/Google models and 'litellm' for providers like Anthropic/OpenAI/xAI.",
+    )
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_output_tokens: int | None = Field(default=None, ge=1)
     tools: list[AgentToolSpec] = Field(default_factory=list)
@@ -26,6 +30,10 @@ class AgentSpec(BaseModel):
 class AgentOverrideSpec(BaseModel):
     system_prompt: str | None = Field(default=None, description="Optional override for the agent system prompt.")
     model: str | None = Field(default=None, description="Optional override for the ADK model name.")
+    provider: Literal["google", "litellm"] | None = Field(
+        default=None,
+        description="Optional override for the model backend provider.",
+    )
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     max_output_tokens: int | None = Field(default=None, ge=1)
     tools: list[AgentToolSpec] | None = None
