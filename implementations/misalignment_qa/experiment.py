@@ -16,7 +16,13 @@ from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
 from implementations.misalignment_qa.agent import build_misalignment_agent
 from implementations.misalignment_qa.config_types import ExperimentConfig
 from implementations.misalignment_qa.evaluation.hard_metrics import create_trace_usage_evaluator
-from implementations.misalignment_qa.preparation import PreparedTaskItem, PreparedVariantRun, prepare_dataset_items, prepare_variant_runs
+from implementations.misalignment_qa.preparation import (
+    PreparedTaskItem,
+    PreparedVariantRun,
+    create_execution_identity,
+    prepare_dataset_items,
+    prepare_variant_runs,
+)
 from implementations.misalignment_qa.task import MisalignmentTask
 
 
@@ -187,11 +193,19 @@ async def run_experiment_config(config: ExperimentConfig) -> None:
     load_dotenv(verbose=True)
 
     prepared_tasks = prepare_dataset_items(config)
-    prepared_variants = prepare_variant_runs(config)
+    execution = create_execution_identity()
+    prepared_variants = prepare_variant_runs(config, execution=execution)
     await upload_dataset_items(dataset_name=config.langfuse_dataset_name, items=prepared_tasks)
 
     llm_judge_evaluator = create_llm_judge(config)
     trace_usage = create_trace_usage(config)
+
+    logger.info(
+        "Starting experiment '%s' with run_instance_id=%s (%s)",
+        config.id,
+        execution.run_instance_id,
+        execution.run_started_at,
+    )
 
     for variant in prepared_variants:
         result = run_variant(

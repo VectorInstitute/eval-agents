@@ -30,6 +30,7 @@ from implementations.misalignment_qa.experiment import load_experiment_config
 DEFAULT_HOURS_BACK = 24
 DEFAULT_TRACE_PAGE_SIZE = 100
 BOOLEAN_RATE_METRICS = {"harmful", "helpful", "follows_reckless_pattern"}
+RUN_INSTANCE_METADATA_KEY = "run_instance_id"
 PRIMARY_METRIC_ORDER = [
     "harmful",
     "helpful",
@@ -82,6 +83,15 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Report Langfuse experiment metrics as a terminal table.")
     parser.add_argument("--config", help="Optional experiment YAML config. Used to infer exp_id.")
     parser.add_argument("--experiment-id", help="Explicit exp_id filter. Overrides --config.")
+    parser.add_argument(
+        "--run-instance-id",
+        help="Restrict to a single execution instance. If omitted, the latest run instance is used when available.",
+    )
+    parser.add_argument(
+        "--all-run-instances",
+        action="store_true",
+        help="Aggregate all matching historical runs instead of defaulting to the latest run instance.",
+    )
     parser.add_argument(
         "--condition-key",
         default="variant_id",
@@ -260,6 +270,44 @@ def _condition_value(trace: TraceRecord, condition_key: str) -> str:
     return str(value)
 
 
+def _filter_to_run_instance(
+    traces: list[TraceRecord],
+    *,
+    run_instance_id: str | None,
+    all_run_instances: bool,
+) -> tuple[list[TraceRecord], str | None]:
+    if all_run_instances:
+        return traces, None
+
+    if run_instance_id is not None:
+        return (
+            [trace for trace in traces if trace.metadata.get(RUN_INSTANCE_METADATA_KEY) == run_instance_id],
+            run_instance_id,
+        )
+
+    available_run_instances = {
+        str(trace.metadata[RUN_INSTANCE_METADATA_KEY])
+        for trace in traces
+        if trace.metadata.get(RUN_INSTANCE_METADATA_KEY) is not None
+    }
+    if not available_run_instances:
+        return traces, None
+
+    latest_trace = max(
+        (
+            trace
+            for trace in traces
+            if trace.metadata.get(RUN_INSTANCE_METADATA_KEY) is not None
+        ),
+        key=lambda trace: trace.timestamp,
+    )
+    latest_run_instance_id = str(latest_trace.metadata[RUN_INSTANCE_METADATA_KEY])
+    return (
+        [trace for trace in traces if trace.metadata.get(RUN_INSTANCE_METADATA_KEY) == latest_run_instance_id],
+        latest_run_instance_id,
+    )
+
+
 def aggregate_condition_summaries(
     *,
     traces: list[TraceRecord],
@@ -403,6 +451,8 @@ def build_report(
     start: datetime,
     end: datetime,
     experiment_id: str | None,
+    run_instance_id: str | None,
+    all_run_instances: bool,
     condition_key: str,
     limit: int | None,
 ) -> str:
@@ -413,9 +463,17 @@ def build_report(
         experiment_id=experiment_id,
         limit=limit,
     )
+    traces, selected_run_instance_id = _filter_to_run_instance(
+        traces,
+        run_instance_id=run_instance_id,
+        all_run_instances=all_run_instances,
+    )
     trace_ids = {trace.trace_id for trace in traces}
     if not trace_ids:
-        scope = f"exp_id={experiment_id}" if experiment_id else "provided time window"
+        if run_instance_id is not None:
+            scope = f"run_instance_id={run_instance_id}"
+        else:
+            scope = f"exp_id={experiment_id}" if experiment_id else "provided time window"
         return f"No matching traces found for {scope}."
 
     score_rows = _fetch_score_rows(client, start=start, end=end)
@@ -437,6 +495,12 @@ def build_report(
     ]
     if experiment_id:
         prelude.append(f"exp_id: {experiment_id}")
+    if selected_run_instance_id is not None:
+        prelude.append(f"run_instance_id: {selected_run_instance_id}")
+    elif all_run_instances:
+        prelude.append("run_scope: all matching run instances")
+    elif run_instance_id is None:
+        prelude.append("run_scope: all matching traces (no run_instance_id metadata found)")
 
     return "\n".join([*prelude, "", format_table(headers, rows)])
 
@@ -453,6 +517,8 @@ def main() -> None:
         start=start,
         end=end,
         experiment_id=experiment_id,
+        run_instance_id=args.run_instance_id,
+        all_run_instances=args.all_run_instances,
         condition_key=args.condition_key,
         limit=args.limit,
     )

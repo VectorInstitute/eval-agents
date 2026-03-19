@@ -211,6 +211,13 @@ Variant fields:
 - `examples`: optional override for shared example pairs
 - `condition_metadata`: arbitrary metadata attached to the Langfuse run
 
+Runtime-added run metadata:
+
+- every invocation gets a generated `run_instance_id`
+- all variants launched in the same invocation share that `run_instance_id`
+- traces also record `run_started_at` and a stable `run_family` like `<exp_id>__<variant_id>`
+- Langfuse `run_name` is unique per execution, so repeated launches no longer collapse into one logical run
+
 ### Shared Examples
 
 ```yaml
@@ -346,6 +353,8 @@ Langfuse’s built-in dashboards are useful for inspection, but they are limited
 
 That join makes it easy to aggregate by any condition key you stored in run metadata, such as `variant_id`, `model`, `condition_model`, or a custom `condition_*` axis.
 
+By default, the reporter looks back 24 hours and then uses the latest available `run_instance_id` for the selected experiment within that window. This prevents old traces from previous launches from being mixed into the current report.
+
 Example:
 
 ```bash
@@ -368,6 +377,9 @@ Useful flags:
 - `--condition-key variant_id`: default grouping
 - `--condition-key model`: group by resolved model name
 - `--condition-key condition_model`: group by your condition metadata instead of variant IDs
+- `--run-instance-id <id>`: report one specific execution instance
+- `--all-run-instances`: intentionally aggregate historical runs together
+- `--hours-back 24`: default search window when `--from` is omitted
 - `--limit 20`: only summarize the first 20 matching traces after filtering
 
 The output is a terminal table with:

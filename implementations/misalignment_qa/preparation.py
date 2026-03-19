@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 import hashlib
 import json
+from uuid import uuid4
 from typing import Any
 
 from implementations.misalignment_qa.config_types import (
@@ -43,6 +45,8 @@ class PreparedVariantRun:
     variant_id: str
     display_label: str
     description: str
+    run_instance_id: str
+    run_started_at: str
     run_name: str
     run_display_name: str
     run_metadata: dict[str, Any]
@@ -133,19 +137,44 @@ def effective_variant_label(variant: VariantSpec) -> str:
     return variant.display_label or variant.id
 
 
-def build_run_name(config: ExperimentConfig, variant: VariantSpec) -> str:
-    return f"{config.id}__{variant.id}"
+@dataclass(frozen=True)
+class ExecutionIdentity:
+    run_instance_id: str
+    run_started_at: str
 
 
-def build_run_display_name(config: ExperimentConfig, variant: VariantSpec) -> str:
-    return f"{config.display_label} / {effective_variant_label(variant)}"
+def create_execution_identity(*, now: datetime | None = None) -> ExecutionIdentity:
+    timestamp = (now or datetime.now(tz=UTC)).astimezone(UTC)
+    timestamp_slug = timestamp.strftime("%Y%m%dT%H%M%SZ")
+    suffix = uuid4().hex[:8]
+    return ExecutionIdentity(
+        run_instance_id=f"{timestamp_slug}_{suffix}",
+        run_started_at=timestamp.isoformat(),
+    )
 
 
-def build_run_metadata(config: ExperimentConfig, variant: VariantSpec, *, resolved_model: str) -> dict[str, Any]:
+def build_run_name(config: ExperimentConfig, variant: VariantSpec, *, execution: ExecutionIdentity) -> str:
+    return f"{config.id}__{execution.run_instance_id}__{variant.id}"
+
+
+def build_run_display_name(config: ExperimentConfig, variant: VariantSpec, *, execution: ExecutionIdentity) -> str:
+    return f"{config.display_label} / {effective_variant_label(variant)} / {execution.run_instance_id}"
+
+
+def build_run_metadata(
+    config: ExperimentConfig,
+    variant: VariantSpec,
+    *,
+    execution: ExecutionIdentity,
+    resolved_model: str,
+) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "exp_id": config.id,
         "variant_id": variant.id,
         "model": resolved_model,
+        "run_instance_id": execution.run_instance_id,
+        "run_started_at": execution.run_started_at,
+        "run_family": f"{config.id}__{variant.id}",
     }
     for key, value in variant.condition_metadata.items():
         metadata[f"condition_{key}"] = value
@@ -186,7 +215,12 @@ def prepare_dataset_items(config: ExperimentConfig) -> list[PreparedTaskItem]:
     return [prepare_task_item(task) for task in get_tasks_subset(config)]
 
 
-def prepare_variant_runs(config: ExperimentConfig) -> list[PreparedVariantRun]:
+def prepare_variant_runs(
+    config: ExperimentConfig,
+    *,
+    execution: ExecutionIdentity | None = None,
+) -> list[PreparedVariantRun]:
+    resolved_execution = execution or create_execution_identity()
     prepared_runs: list[PreparedVariantRun] = []
     for variant in config.variants:
         resolved_agent = resolve_agent_spec(config, variant)
@@ -195,9 +229,16 @@ def prepare_variant_runs(config: ExperimentConfig) -> list[PreparedVariantRun]:
                 variant_id=variant.id,
                 display_label=effective_variant_label(variant),
                 description=variant.description or config.description,
-                run_name=build_run_name(config, variant),
-                run_display_name=build_run_display_name(config, variant),
-                run_metadata=build_run_metadata(config, variant, resolved_model=resolved_agent.model),
+                run_instance_id=resolved_execution.run_instance_id,
+                run_started_at=resolved_execution.run_started_at,
+                run_name=build_run_name(config, variant, execution=resolved_execution),
+                run_display_name=build_run_display_name(config, variant, execution=resolved_execution),
+                run_metadata=build_run_metadata(
+                    config,
+                    variant,
+                    execution=resolved_execution,
+                    resolved_model=resolved_agent.model,
+                ),
                 agent_spec=resolved_agent,
                 shared_turns=[message.model_dump() for message in build_shared_turns(config, variant)],
             )
@@ -206,10 +247,12 @@ def prepare_variant_runs(config: ExperimentConfig) -> list[PreparedVariantRun]:
 
 
 __all__ = [
+    "ExecutionIdentity",
     "PreparedTaskItem",
     "PreparedVariantRun",
     "build_judge_input",
     "build_task_turns",
+    "create_execution_identity",
     "get_tasks_subset",
     "prepare_dataset_items",
     "prepare_task_item",

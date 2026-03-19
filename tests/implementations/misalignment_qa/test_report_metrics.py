@@ -6,7 +6,19 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
-from implementations.misalignment_qa.report_metrics import TraceRecord, aggregate_condition_summaries
+from implementations.misalignment_qa.config_types import (
+    AgentOverrideSpec,
+    EvalSpec,
+    ExperimentConfig,
+    LLMJudgeSpec,
+    VariantSpec,
+)
+from implementations.misalignment_qa.preparation import ExecutionIdentity, prepare_variant_runs
+from implementations.misalignment_qa.report_metrics import (
+    TraceRecord,
+    _filter_to_run_instance,
+    aggregate_condition_summaries,
+)
 
 
 def test_aggregate_condition_summaries_groups_trace_metrics_and_scores() -> None:
@@ -72,3 +84,64 @@ def test_aggregate_condition_summaries_groups_trace_metrics_and_scores() -> None
     assert treatment.score_metrics["harmful"].average == 1
     assert treatment.score_metrics["helpful"].average == 0
     assert treatment.score_metrics["turn_count"].average == 2
+
+
+def test_filter_to_run_instance_defaults_to_latest_run_instance() -> None:
+    traces = [
+        TraceRecord(
+            trace_id="old-1",
+            timestamp=datetime(2026, 3, 19, 15, 0, tzinfo=UTC),
+            metadata={"exp_id": "demo", "run_instance_id": "20260319T150000Z_old"},
+        ),
+        TraceRecord(
+            trace_id="new-1",
+            timestamp=datetime(2026, 3, 19, 16, 0, tzinfo=UTC),
+            metadata={"exp_id": "demo", "run_instance_id": "20260319T160000Z_new"},
+        ),
+        TraceRecord(
+            trace_id="new-2",
+            timestamp=datetime(2026, 3, 19, 16, 1, tzinfo=UTC),
+            metadata={"exp_id": "demo", "run_instance_id": "20260319T160000Z_new"},
+        ),
+    ]
+
+    filtered, selected = _filter_to_run_instance(
+        traces,
+        run_instance_id=None,
+        all_run_instances=False,
+    )
+
+    assert selected == "20260319T160000Z_new"
+    assert [trace.trace_id for trace in filtered] == ["new-1", "new-2"]
+
+
+def test_prepare_variant_runs_reuses_one_execution_identity_across_variants() -> None:
+    config = ExperimentConfig(
+        id="demo-exp",
+        display_label="Demo Experiment",
+        langfuse_dataset_name="demo-dataset",
+        description="demo",
+        base_agent=AgentOverrideSpec(system_prompt="Be helpful", model="gemini-2.5-flash"),
+        examples=[],
+        variants=[
+            VariantSpec(id="v1", agent=AgentOverrideSpec(model="gemini-2.5-flash")),
+            VariantSpec(id="v2", agent=AgentOverrideSpec(model="gemini-3-flash-preview")),
+        ],
+        tasks=[],
+        evaluation=EvalSpec(llm_judge=LLMJudgeSpec(rubric_markdown="Return JSON only.")),
+    )
+    execution = ExecutionIdentity(
+        run_instance_id="20260319T160000Z_abcd1234",
+        run_started_at="2026-03-19T16:00:00+00:00",
+    )
+
+    prepared = prepare_variant_runs(config, execution=execution)
+
+    assert [variant.run_instance_id for variant in prepared] == [
+        "20260319T160000Z_abcd1234",
+        "20260319T160000Z_abcd1234",
+    ]
+    assert prepared[0].run_name == "demo-exp__20260319T160000Z_abcd1234__v1"
+    assert prepared[1].run_name == "demo-exp__20260319T160000Z_abcd1234__v2"
+    assert prepared[0].run_metadata["run_instance_id"] == "20260319T160000Z_abcd1234"
+    assert prepared[1].run_metadata["run_started_at"] == "2026-03-19T16:00:00+00:00"
