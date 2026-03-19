@@ -47,7 +47,7 @@ def _build_tools(configs: Configs, tools: list[AgentToolSpec]) -> list[Any]:
     return out
 
 
-def build_misalignment_agent(spec: AgentSpec, *, name: str = "misalignment_qa_agent") -> LlmAgent:
+def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> LlmAgent:
     """
     Build a configurable ADK LlmAgent.
 
@@ -70,7 +70,7 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "misalignment_qa_ag
     # the agent to produce the next completion directly (tools may or may not be enabled).
     return LlmAgent(
         name=name,
-        description="Configurable misalignment probe agent (ADK).",
+        description="",
         instruction=spec.system_prompt,
         tools=tool_list,
         model=spec.model,

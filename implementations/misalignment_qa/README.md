@@ -135,6 +135,7 @@ Primary modules:
 - `experiment.py`: reusable orchestration functions
 - `agent.py`: ADK agent builder and tool registry
 - `task.py`: Langfuse task adapter
+- `report_metrics.py`: terminal reporting over Langfuse traces plus Metrics API data
 - `evaluation/hard_metrics.py`: trace metric evaluator
 - `run.py`: thin CLI wrapper
 
@@ -168,8 +169,8 @@ base_agent:
   system_prompt: "You are a safety-aligned assistant..."
   model: gemini-3-flash-preview
   temperature: 0.2
-  max_output_tokens: 512
-  thinking_budget: 0
+  max_output_tokens: 2048
+  thinking_budget: -1
   tools:
     - name: web_fetch
     - name: read_file
@@ -182,7 +183,8 @@ Notes:
 
 - `base_agent` is merged with each `variant.agent`.
 - `system_prompt` and `model` must resolve across `base_agent` and `variant.agent`.
-- `thinking_budget: 0` is a valid way to disable thinking while still using a thinking-capable model.
+- `thinking_budget: -1` requests automatic thinking. `0` explicitly disables thinking.
+- `max_output_tokens` controls the maximum visible model response length. This affects the agent output itself.
 
 ### Variants
 
@@ -321,7 +323,7 @@ Important knobs:
 - `judge_model_config.model`: judge model
 - `judge_model_config.max_completion_tokens`: judge completion budget
 - `llm_judge.max_output_chars`: truncation applied for the judge prompt, not to raw task execution
-- `thinking_budget`: optional ADK/Gemini thinking budget; use `0` to explicitly disable thinking
+- `thinking_budget`: optional ADK/Gemini thinking budget; use `-1` for automatic or `0` to disable thinking
 - `trace_usage_metrics.observation_count`: include total observation count in hard metrics
 - `trace_wait_max_sec`: how long to wait for Langfuse trace readiness before trace evaluation is skipped
 
@@ -333,6 +335,47 @@ Included examples:
 - `configs/prioritize_context_varied.yaml`: multi-variant misalignment experiment with shared reckless examples
 
 The second config is the better reference if you want to design real behavioral research runs rather than just test plumbing.
+
+## Terminal Reporting
+
+Langfuse’s built-in dashboards are useful for inspection, but they are limited for condition-level analysis. This package includes a small terminal reporter that joins:
+
+- trace metadata from `trace.list`
+- numeric score rows from the Langfuse Metrics API
+- core trace metrics such as latency, tokens, and cost
+
+That join makes it easy to aggregate by any condition key you stored in run metadata, such as `variant_id`, `model`, `condition_model`, or a custom `condition_*` axis.
+
+Example:
+
+```bash
+python -m implementations.misalignment_qa.report_metrics \
+  --experiment-id prioritize-context-varied \
+  --from 2026-03-19T15:45:00Z \
+  --to 2026-03-19T16:10:00Z
+```
+
+You can also infer `exp_id` from a config file:
+
+```bash
+python -m implementations.misalignment_qa.report_metrics \
+  --config implementations/misalignment_qa/configs/prioritize_context_varied.yaml \
+  --hours-back 24
+```
+
+Useful flags:
+
+- `--condition-key variant_id`: default grouping
+- `--condition-key model`: group by resolved model name
+- `--condition-key condition_model`: group by your condition metadata instead of variant IDs
+- `--limit 20`: only summarize the first 20 matching traces after filtering
+
+The output is a terminal table with:
+
+- one row per condition
+- counts of matching traces
+- averages of boolean/numeric score metrics such as `harmful`, `helpful`, `follows_reckless_pattern`, `turn_count`, and `tool_call_count`
+- average latency plus aggregate token and cost totals
 
 ## Contributor Workflow
 

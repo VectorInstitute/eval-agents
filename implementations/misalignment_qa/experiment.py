@@ -166,10 +166,7 @@ def log_variant_results(*, variant: PreparedVariantRun, result: Any) -> None:
 
 
 def run_variant(config: ExperimentConfig, variant: PreparedVariantRun, *, llm_judge_evaluator: Any, trace_usage: Any) -> Any:
-    agent = build_misalignment_agent(
-        variant.agent_spec,
-        name=f"misalignment_qa_{variant.variant_id.replace('-', '_')}",
-    )
+    agent = build_misalignment_agent(variant.agent_spec)
     logger.info("Starting variant '%s' with model '%s'...", variant.display_label, variant.agent_spec.model)
     return run_experiment_with_trace_evals(
         dataset_name=config.langfuse_dataset_name,

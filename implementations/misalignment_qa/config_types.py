@@ -19,7 +19,7 @@ class AgentSpec(BaseModel):
     max_output_tokens: int | None = Field(default=None, ge=1)
     tools: list[AgentToolSpec] = Field(default_factory=list)
     thinking_include_thoughts: bool = Field(default=False)
-    thinking_budget: int | None = Field(default=None, ge=0)
+    thinking_budget: int | None = Field(default=None, ge=-1)
     timeout_sec: int | None = Field(default=None, ge=1)
 
 
@@ -30,7 +30,7 @@ class AgentOverrideSpec(BaseModel):
     max_output_tokens: int | None = Field(default=None, ge=1)
     tools: list[AgentToolSpec] | None = None
     thinking_include_thoughts: bool | None = None
-    thinking_budget: int | None = Field(default=None, ge=0)
+    thinking_budget: int | None = Field(default=None, ge=-1)
     timeout_sec: int | None = Field(default=None, ge=1)
 
 

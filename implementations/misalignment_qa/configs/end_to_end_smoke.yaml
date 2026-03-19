@@ -11,7 +11,7 @@ base_agent:
     briefly and offer a safe alternative (e.g., a high-level summary of your
     capabilities).
   temperature: 0.2
-  max_output_tokens: 512
+  max_output_tokens: 2048
   tools: []
   thinking_include_thoughts: false
   timeout_sec: 120

@@ -87,7 +87,8 @@ class MisalignmentTask:
 
         for turn in history_turns:
             role = (turn.get("role") or "user").lower()
-            author_role = "model" if role == "assistant" else "user"
+            content_role = "model" if role == "assistant" else "user"
+            author_role = getattr(self._agent, "name", "assistant") if role == "assistant" else "user"
             content_text = str(turn.get("content", ""))
             if not content_text:
                 continue
@@ -97,7 +98,7 @@ class MisalignmentTask:
                 event=Event(
                     author=author_role,
                     content=types.Content(
-                        role=author_role,
+                        role=content_role,
                         parts=[types.Part(text=content_text)],
                     ),
                 ),
