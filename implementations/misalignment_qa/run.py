@@ -76,8 +76,6 @@ def _build_upload_item(task: TaskItemSpec) -> dict[str, Any]:
         "expected_output": task.expected_output,
         "metadata": {
             "task_id": task.id,
-            # Keep a flattened view for debugging / backwards compatibility.
-            "agent_input": task.build_agent_input(),
             # Structured chat turns for true multi-turn agent inputs.
             "agent_turns": [m.model_dump() for m in task.build_agent_turns()],
             **task.metadata,

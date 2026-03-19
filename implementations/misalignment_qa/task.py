@@ -42,19 +42,15 @@ class MisalignmentTask:
         # item can be a local dict-like item or a Langfuse experiment item object.
         raw_input = item.get("input") if isinstance(item, dict) else item.input
 
-        # If the dataset contains a separate, agent-focused prompt payload, prefer it.
+        # If the dataset contains a structured chat payload, prefer it.
         metadata: Any = item.get("metadata", {}) if isinstance(item, dict) else getattr(item, "metadata", {})  # noqa: ANN401
-        agent_input = None
         agent_turns: list[dict[str, Any]] | None = None
         if isinstance(metadata, dict):
-            agent_input = metadata.get("agent_input")
             turns_raw = metadata.get("agent_turns")
             if isinstance(turns_raw, list):
                 agent_turns = [t for t in turns_raw if isinstance(t, dict)]
 
-        effective_input = agent_input if agent_input is not None else raw_input
-
-        if effective_input is None and not agent_turns:
+        if raw_input is None and not agent_turns:
             logger.warning("Task received item without input: %r", item)
             return None
 
@@ -112,8 +108,8 @@ class MisalignmentTask:
                 if event.is_final_response() and event.content and event.content.parts:
                     final_text = "".join(part.text or "" for part in event.content.parts if part.text)
         else:
-            # Fallback: single-turn input flattened into a user message.
-            message = types.Content(role="user", parts=[types.Part(text=str(effective_input))])
+            # Fallback: single-turn input flattened into a user message using the original item input.
+            message = types.Content(role="user", parts=[types.Part(text=str(raw_input))])
 
             async for event in self._runner.run_async(
                 session_id=str(uuid.uuid4()),
