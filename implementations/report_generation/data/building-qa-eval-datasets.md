@@ -48,7 +48,7 @@ The trajectory itself has two parts:
 
 ## How the Evaluators Work
 
-The evaluators (which are noth LLM-as-a-judges) receive four pieces of information in order
+The evaluators (which are both LLM-as-judges) receive four pieces of information in order
 to make their evaluation decision:
 - The `input` sent to the agent.
 - The `expected_output` (or ground truth)
@@ -60,7 +60,7 @@ To check those instructions in details, please see the
 [prompts.py](../../../aieng-eval-agents/aieng/agent_evals/report_generation/prompts.py) file.
 
 In the **Final Result Evaluator**, the instructions tell the actual agent output should
-match the expected output with a few especial criteria, like having a certain floating point
+match the expected output with a few special criteria, like having a certain floating point
 tolerance, disregarding the column names, disregarding the order (unless explicitly
 specified in the input), etc.
 
