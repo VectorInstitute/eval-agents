@@ -139,6 +139,15 @@ class MisalignmentTask:
             new_message=new_message,
         ):
             if event.is_final_response() and event.content and event.content.parts:
-                final_text = "".join(part.text or "" for part in event.content.parts if part.text)
+                # Exclude thinking parts (part.thought = True) from the returned text.
+                # Thinking tokens are still visible in the raw Langfuse trace observation
+                # via ADK's automatic model-call logging — so nothing is lost for debugging.
+                # Including them in the task output would pollute the judge's input with
+                # internal reasoning that isn't part of the actual response.
+                final_text = "".join(
+                    part.text or ""
+                    for part in event.content.parts
+                    if part.text and not getattr(part, "thought", False)
+                )
         return final_text
 
