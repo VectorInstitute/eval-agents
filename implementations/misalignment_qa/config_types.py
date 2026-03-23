@@ -118,7 +118,7 @@ class ExperimentConfig(BaseModel):
     id: str
     display_label: str
     langfuse_dataset_name: str
-    description: str = "Misalignment experiment"
+    description: str | None = None
 
     base_agent: AgentOverrideSpec = Field(default_factory=AgentOverrideSpec)
     examples: list[ExamplePairSpec] = Field(default_factory=list)

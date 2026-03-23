@@ -22,7 +22,6 @@ class PreparedTaskItem:
     task_id: str
     task_fingerprint: str
     upload_input: str
-    judge_input: str
     expected_output: str
     task_turns: list[dict[str, Any]]
     metadata: dict[str, Any]
@@ -98,48 +97,32 @@ def build_shared_turns(config: ExperimentConfig, variant: VariantSpec) -> list[M
 
 
 def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentSpec:
-    base_agent = config.base_agent
-    variant_agent = variant.agent
+    # Variant fields override base_agent fields; None fields are excluded so they don't clobber the base.
+    merged = {
+        **config.base_agent.model_dump(exclude_none=True),
+        **variant.agent.model_dump(exclude_none=True),
+    }
 
-    system_prompt = variant_agent.system_prompt if variant_agent.system_prompt is not None else base_agent.system_prompt
-    model = variant_agent.model if variant_agent.model is not None else base_agent.model
-    provider = variant_agent.provider if variant_agent.provider is not None else base_agent.provider
-
-    if system_prompt is None or model is None:
+    if not merged.get("system_prompt") or not merged.get("model"):
         raise ValueError(
             f"Variant '{variant.id}' does not resolve to a complete agent config; "
             "make sure system_prompt and model are set across base_agent + variant.agent."
         )
 
-    temperature = variant_agent.temperature if variant_agent.temperature is not None else base_agent.temperature
-    thinking_include_thoughts = (
-        variant_agent.thinking_include_thoughts
-        if variant_agent.thinking_include_thoughts is not None
-        else base_agent.thinking_include_thoughts
-    )
-    resolved_thinking_include_thoughts = thinking_include_thoughts if thinking_include_thoughts is not None else False
-    resolved_thinking_budget = (
-        variant_agent.thinking_budget if variant_agent.thinking_budget is not None else base_agent.thinking_budget
-    )
-
-    if provider == "litellm":
-        resolved_thinking_include_thoughts = False
-        resolved_thinking_budget = None
+    if merged.get("provider") == "litellm":
+        merged["thinking_include_thoughts"] = False
+        merged["thinking_budget"] = None
 
     return AgentSpec(
-        system_prompt=system_prompt,
-        model=model,
-        provider=provider if provider is not None else "google",
-        temperature=temperature if temperature is not None else 0.7,
-        max_output_tokens=(
-            variant_agent.max_output_tokens
-            if variant_agent.max_output_tokens is not None
-            else base_agent.max_output_tokens
-        ),
-        tools=variant_agent.tools if variant_agent.tools is not None else (base_agent.tools or []),
-        thinking_include_thoughts=resolved_thinking_include_thoughts,
-        thinking_budget=resolved_thinking_budget,
-        timeout_sec=variant_agent.timeout_sec if variant_agent.timeout_sec is not None else base_agent.timeout_sec,
+        system_prompt=merged["system_prompt"],
+        model=merged["model"],
+        provider=merged.get("provider", "google"),
+        temperature=merged.get("temperature", 0.7),
+        max_output_tokens=merged.get("max_output_tokens"),
+        tools=merged.get("tools", []),
+        thinking_include_thoughts=merged.get("thinking_include_thoughts", False),
+        thinking_budget=merged.get("thinking_budget"),
+        timeout_sec=merged.get("timeout_sec"),
     )
 
 
@@ -214,7 +197,6 @@ def prepare_task_item(task: TaskItemSpec) -> PreparedTaskItem:
         task_id=task.id,
         task_fingerprint=task_fingerprint,
         upload_input=build_dataset_input(task, task_fingerprint=task_fingerprint),
-        judge_input=build_judge_input(task),
         expected_output=task.expected_output,
         task_turns=[message.model_dump() for message in build_task_turns(task)],
         metadata=dict(task.metadata),
