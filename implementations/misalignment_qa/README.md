@@ -140,7 +140,8 @@ Primary modules:
 - `experiment.py`: reusable orchestration functions
 - `agent.py`: ADK agent builder and tool registry
 - `task.py`: Langfuse task adapter
-- `report_metrics.py`: terminal reporting over Langfuse traces plus Metrics API data
+- `report_metrics.ipynb`: linear notebook for exploring and filtering experiment results
+- `results_notebook.py`: notebook backend for dataset/run discovery and aggregation
 - `evaluation/hard_metrics.py`: trace metric evaluator
 - `run.py`: thin CLI wrapper
 
@@ -365,51 +366,27 @@ Included examples:
 
 The second config is the better reference if you want to design real behavioral research runs rather than just test plumbing.
 
-## Terminal Reporting
+## Notebook Reporting
 
-Langfuse’s built-in dashboards are useful for inspection, but they are limited for condition-level analysis. This package includes a small terminal reporter that joins:
+Langfuse’s built-in dashboards are useful for inspection, but they are limited for condition-level analysis. The preferred analysis interface is now `report_metrics.ipynb`, a small linear notebook for pulling one experiment slice into pandas and reviewing the most interesting traces.
+
+That notebook joins:
 
 - trace metadata from `trace.list`
+- dataset and dataset-run metadata from the Langfuse Dataset API
 - numeric score rows from the Langfuse Metrics API
 - core trace metrics such as latency, tokens, and cost
 
-That join makes it easy to aggregate by any condition key you stored in run metadata, such as `variant_id`, `model`, `condition_model`, or a custom `condition_*` axis.
+That join makes it easy to aggregate by any condition key you stored in run metadata, such as `variant_id`, `model`, `condition_model`, or a custom `condition_*` axis, without manually guessing the right lookback window.
 
-By default, the reporter looks back 24 hours and then uses the latest available `run_instance_id` for the selected experiment within that window. This prevents old traces from previous launches from being mixed into the current report.
+Recommended workflow:
 
-Example:
+1. Open `implementations/misalignment_qa/report_metrics.ipynb`.
+2. Edit the top-level constants for `DATASET_NAME`, `EXECUTION_ID`, and the sorting or filtering knobs.
+3. Run the notebook top-to-bottom.
+4. Inspect the joined trace table and the final "most harmful traces" section.
 
-```bash
-python -m implementations.misalignment_qa.report_metrics \
-  --experiment-id prioritize-context-varied \
-  --from 2026-03-19T15:45:00Z \
-  --to 2026-03-19T16:10:00Z
-```
-
-You can also infer `exp_id` from a config file:
-
-```bash
-python -m implementations.misalignment_qa.report_metrics \
-  --config implementations/misalignment_qa/configs/prioritize_context_varied.yaml \
-  --hours-back 24
-```
-
-Useful flags:
-
-- `--condition-key variant_id`: default grouping
-- `--condition-key model`: group by resolved model name
-- `--condition-key condition_model`: group by your condition metadata instead of variant IDs
-- `--run-instance-id <id>`: report one specific execution instance
-- `--all-run-instances`: intentionally aggregate historical runs together
-- `--hours-back 24`: default search window when `--from` is omitted
-- `--limit 20`: only summarize the first 20 matching traces after filtering
-
-The output is a terminal table with:
-
-- one row per condition
-- counts of matching traces
-- averages of boolean/numeric score metrics such as `harmful`, `helpful`, `follows_reckless_pattern`, `turn_count`, and `tool_call_count`
-- average latency plus aggregate token and cost totals
+The notebook still anchors its time window to the selected dataset run timestamps instead of defaulting to a fixed 24-hour lookback, but the interface is deliberately minimal: a few cells, one joined trace dataframe, and a fixed final view of the traces you care about most.
 
 ## Contributor Workflow
 
