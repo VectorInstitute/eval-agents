@@ -41,6 +41,7 @@ class DbManager:
         self._configs: Configs | None = configs
         self._aml_db: ReadOnlySqlDatabase | None = None
         self._report_generation_db: ReadOnlySqlDatabase | None = None
+        self._chart_generation_db: ReadOnlySqlDatabase | None = None
 
     @property
     def configs(self) -> Configs:
@@ -126,6 +127,36 @@ class DbManager:
 
         return self._report_generation_db
 
+    # chart generation database connection method
+    def chart_generation_db(self, agent_name: str = "ChartGenerationAgent") -> ReadOnlySqlDatabase:
+        """Get or create the Chart Generation database connection.
+
+        Parameters
+        ----------
+        agent_name : str, optional
+            Name of the agent using this connection,
+            by default ``"ChartGenerationAgent"``.
+
+        Returns
+        -------
+        ReadOnlySqlDatabase
+            The Chart Generation database connection instance.
+
+        Raises
+        ------
+        ValueError
+            If Chart Generation database configuration is missing.
+        """
+        if self._chart_generation_db is None:
+            if self.configs.chart_generation_db is None:
+                raise ValueError("Chart Generation database configuration is missing.")
+
+            self._chart_generation_db = ReadOnlySqlDatabase(
+                connection_uri=self.configs.chart_generation_db.build_uri(),
+                agent_name=agent_name,
+            )
+        return self._chart_generation_db
+    
     def close(self) -> None:
         """Dispose of all database connections."""
         if self._aml_db is not None:
@@ -135,3 +166,7 @@ class DbManager:
         if self._report_generation_db is not None:
             self._report_generation_db.close()
             self._report_generation_db = None
+        
+        if self._chart_generation_db is not None:
+            self._chart_generation_db.close()
+            self._chart_generation_db = None

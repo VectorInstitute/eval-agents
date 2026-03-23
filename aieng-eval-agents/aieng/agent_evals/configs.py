@@ -87,6 +87,12 @@ class Configs(BaseSettings):
         description="Database configuration for the the Report Generation Agent.",
     )
 
+    # === Chart Generation ===
+    chart_generation_db: DatabaseConfig | None = Field(
+        default=None,
+        description="Database configuration for the Chart Generation Agent.",
+    )
+
     # === Core LLM Settings ===
     openai_base_url: str = Field(
         default="https://generativelanguage.googleapis.com/v1beta/openai/",
