@@ -204,17 +204,27 @@ def _fetch_trace_metrics_df(client: Langfuse, *, start: datetime, end: datetime)
     )
     if not rows:
         return pd.DataFrame(columns=["trace_id", "avg_latency_ms", "total_cost_usd", "total_tokens"])
-    return pd.DataFrame(
+
+    def _to_float(value: Any) -> float | None:
+        try:
+            return float(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    df = pd.DataFrame(
         [
             {
                 "trace_id": str(r["id"]),
-                "avg_latency_ms": r.get("avg_latency"),
-                "total_cost_usd": r.get("sum_totalCost"),
-                "total_tokens": r.get("sum_totalTokens"),
+                "avg_latency_ms": _to_float(r.get("avg_latency")),
+                "total_cost_usd": _to_float(r.get("sum_totalCost")),
+                "total_tokens": _to_float(r.get("sum_totalTokens")),
             }
             for r in rows
         ]
     )
+    for col in ("avg_latency_ms", "total_cost_usd", "total_tokens"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
 
 
 # ---------------------------------------------------------------------------
