@@ -235,7 +235,7 @@ async def final_result_evaluator(
 
     client = Client()
     response = client.models.generate_content(
-        model=client_manager.configs.default_worker_model,
+        model=client_manager.configs.default_evaluator_model,
         contents=evaluator_input,
         config=GenerateContentConfig(
             system_instruction=RESULT_EVALUATOR_INSTRUCTIONS + additional_instructions,
@@ -305,7 +305,7 @@ async def trajectory_evaluator(
 
     client = Client()
     response = client.models.generate_content(
-        model=client_manager.configs.default_worker_model,
+        model=client_manager.configs.default_evaluator_model,
         contents=evaluator_input,
         config=GenerateContentConfig(
             system_instruction=TRAJECTORY_EVALUATOR_INSTRUCTIONS + additional_instructions,
