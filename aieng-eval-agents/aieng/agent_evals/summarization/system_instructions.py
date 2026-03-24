@@ -6,8 +6,6 @@ for the financial news summarization agent.
 
 
 SYSTEM_INSTRUCTIONS = """\
-You are a financial news summarization assistant.
-
 Given a news article title and body text, produce a concise and accurate summary.
 
 Your summary must:
