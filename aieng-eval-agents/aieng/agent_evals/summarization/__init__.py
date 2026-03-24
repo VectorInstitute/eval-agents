@@ -1,40 +1,21 @@
-"""Knowledge-grounded QA agent using Google ADK with Google Search.
+"""Financial news summarization agent using Google ADK.
 
-This package provides tools for building and evaluating knowledge-grounded
-question answering agents using Google ADK with explicit Google Search tool calls.
+This package provides a single-pass summarization agent that accepts a news
+article title and body and returns a concise summary using a Gemini model.
 
 Example
 -------
->>> from aieng.agent_evals.summarization import (
-...     KnowledgeGroundedAgent,
-...     DeepSearchQADataset,
-... )
->>> agent = KnowledgeGroundedAgent()
->>> response = agent.answer("What is the current population of Tokyo?")
+>>> from aieng.agent_evals.summarization import SummarizationAgent
+>>> agent = SummarizationAgent()
+>>> response = agent.summarize(title="Apple reports record profits", body="Apple Inc. reported...")
 >>> print(response.text)
 """
 
-from aieng.agent_evals.tools import (
-    GroundedResponse,
-    GroundingChunk,
-    create_google_search_tool,
-    format_response_with_citations,
-)
-
-from .agent import KnowledgeAgentManager, KnowledgeGroundedAgent
-from .data import DeepSearchQADataset, DSQAExample
+from .agent import SummarizationAgent, SummarizationAgentManager, SummarizationResponse
 
 
 __all__ = [
-    # Agent
-    "KnowledgeGroundedAgent",
-    "KnowledgeAgentManager",
-    # Grounding tool
-    "create_google_search_tool",
-    "format_response_with_citations",
-    "GroundedResponse",
-    "GroundingChunk",
-    # Evaluation
-    "DeepSearchQADataset",
-    "DSQAExample",
+    "SummarizationAgent",
+    "SummarizationAgentManager",
+    "SummarizationResponse",
 ]
