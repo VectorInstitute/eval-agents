@@ -3,6 +3,7 @@
 import json
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.legislative_content_extraction import LegislativeContentExtractionAgent
@@ -11,6 +12,7 @@ from langfuse.experiment import ExperimentItem
 logger = logging.getLogger(__name__)
 
 EXTRACTION_PROMPT = "Extract legislative metadata from this document."
+DEFAULT_FILES_DIR = "/home/coder/eval-agents/implementations/legislative_content_extraction/files"
 
 
 class LegislativeExtractionTask:
@@ -33,7 +35,8 @@ class LegislativeExtractionTask:
         agent: LegislativeContentExtractionAgent | None = None,
         files_dir: str | None = None,
     ) -> None:
-        self._agent = agent or LegislativeContentExtractionAgent(files_dir=files_dir)
+        self._files_dir = Path(files_dir or DEFAULT_FILES_DIR).resolve()
+        self._agent = agent or LegislativeContentExtractionAgent(files_dir=str(self._files_dir))
 
     async def __call__(self, *, item: ExperimentItem, **kwargs: Any) -> dict[str, Any] | None:
         """Run extraction on one dataset item and return a parsed dict.
@@ -41,20 +44,20 @@ class LegislativeExtractionTask:
         Parameters
         ----------
         item : ExperimentItem
-            Langfuse dataset item with ``input`` containing ``pdf_path``,
-            optional ``html_page_link``, and optional ``prompt``.
+            Langfuse dataset item with ``input`` containing ``pdf_file_name``, optional ``html_page_link``, and optional ``prompt``.
 
         Returns
         -------
         dict[str, Any] | None
             Parsed extracted fields, or ``None`` if extraction failed.
         """
-        FILES_DIR = "/home/coder/eval-agents/implementations/legislative_content_extraction/files"
         item_input = item["input"] if isinstance(item, Mapping) else item.input
-        pdf_file_name = item_input["pdf_file_name"]
-        pdf_path = f"{FILES_DIR}/{item_input["record_id"]}/{pdf_file_name}"
+        record_id = item_input["record_id"]
         html_page_link = item_input.get("html_page_link", "")
         prompt = item_input.get("prompt", EXTRACTION_PROMPT)
+
+        pdf_file_name = item_input["pdf_file_name"]
+        pdf_path = str(self._files_dir / record_id / pdf_file_name)
 
         if not pdf_path:
             logger.warning("No pdf_path in item input, skipping.")
