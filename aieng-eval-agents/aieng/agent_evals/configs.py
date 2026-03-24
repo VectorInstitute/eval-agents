@@ -160,6 +160,21 @@ class Configs(BaseSettings):
     web_search_base_url: str | None = Field(default=None, description="Base URL for web search service.")
     web_search_api_key: SecretStr | None = Field(default=None, description="API key for web search service.")
 
+    # === Vertex AI Search (custom knowledge base) ===
+    google_cloud_location: str = Field(
+        default="us-central1",
+        description="GCP region for Vertex AI model calls. Must match a region that supports Gemini.",
+    )
+    vertex_datastore_id: str | None = Field(
+        default=None,
+        validation_alias="VERTEX_AI_DATASTORE_ID",
+        description=(
+            "Full Vertex AI Search data store resource name. "
+            "Format: projects/{project}/locations/global/collections/default_collection/dataStores/{id}. "
+            "Authentication uses Application Default Credentials (ADC) — no API key required."
+        ),
+    )
+
     # === Report Generation ===
     # Defaults are set in the implementations/report_generation/env_vars.py file
     report_generation_output_path: str | None = Field(
