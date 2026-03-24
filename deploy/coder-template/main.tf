@@ -278,10 +278,11 @@ resource "google_compute_disk" "pd" {
 }
 
 resource "google_compute_instance" "dev" {
-  zone         = var.zone
-  count        = data.coder_workspace.me.start_count
-  name         = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
-  machine_type = var.machine_type
+  zone                      = var.zone
+  count                     = data.coder_workspace.me.start_count
+  name                      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+  machine_type              = var.machine_type
+  allow_stopping_for_update = true
   network_interface {
     network = "default"
     access_config {
