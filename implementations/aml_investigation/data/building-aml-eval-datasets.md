@@ -465,7 +465,7 @@ This is optional, but it can be useful for:
 
 If you add it, pair it with trace evaluation so you can measure whether it actually improves difficult cases instead of just increasing tool churn.
 
-An relatively easy way to add a code interpreter is to use the `aieng-agents` package:
+A relatively easy way to add a code interpreter is to use the `aieng-agents` package:
 
 ```bash
 pip install aieng-agents
