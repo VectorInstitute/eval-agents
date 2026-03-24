@@ -4,7 +4,7 @@
     "input": {
       "record_id": "ID_H0004",
       "pdf_file_name": "ID_H0004.pdf",
-      "html_page_link": "",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2025/legislation/H0004/",
       "prompt": "Extract legislative metadata from this bill."
     },
     "expected_output": {
@@ -32,10 +32,6 @@
           "action": "ADD"
         }
       ]
-    },
-    "metadata": {
-      "id": "ID_H0004",
-      "jurisdiction_code": "ID"
     }
   },
   {
@@ -43,7 +39,7 @@
     "input": {
       "record_id": "ID_H0504",
       "pdf_file_name": "ID_H0504.pdf",
-      "html_page_link": "",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/H0504/",
       "prompt": "Extract legislative metadata from this bill."
     },
     "expected_output": {
@@ -83,10 +79,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "ID_H0504",
-      "jurisdiction_code": "ID"
     }
   },
   {
@@ -94,7 +86,7 @@
     "input": {
       "record_id": "ID_HJM010",
       "pdf_file_name": "HJM010.pdf",
-      "html_page_link": "",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/HJM010/",
       "prompt": "Extract legislative metadata from this bill."
     },
     "expected_output": {
@@ -109,10 +101,6 @@
         "Agricultural Affairs Committee"
       ],
       "sections_affected": []
-    },
-    "metadata": {
-      "id": "ID_HJM010",
-      "jurisdiction_code": "ID"
     }
   },
   {
@@ -120,7 +108,7 @@
     "input": {
       "record_id": "ID_H0383",
       "pdf_file_name": "ID_H0383.pdf",
-      "html_page_link": "",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2025/legislation/H0383/",
       "prompt": "Extract legislative metadata from this bill."
     },
     "expected_output": {
@@ -172,10 +160,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "ID_H0383",
-      "jurisdiction_code": "ID"
     }
   },
   {
@@ -183,7 +167,7 @@
     "input": {
       "record_id": "ID_SJR103",
       "pdf_file_name": "ID_SJR103.pdf",
-      "html_page_link": "",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/SJR103/",
       "prompt": "Extract legislative metadata from this bill."
     },
     "expected_output": {
@@ -203,10 +187,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "ID_SJR103",
-      "jurisdiction_code": "ID"
     }
   },
   {
@@ -214,7 +194,7 @@
     "input": {
       "record_id": "ID_S1331",
       "pdf_file_name": "ID_S1331.pdf",
-      "html_page_link": "",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/S1331/",
       "prompt": "Extract legislative metadata from this bill."
     },
     "expected_output": {
@@ -229,10 +209,6 @@
         "FINANCE COMMITTEE"
       ],
       "sections_affected": []
-    },
-    "metadata": {
-      "id": "ID_S1331",
-      "jurisdiction_code": "ID"
     }
   },
   {
@@ -264,10 +240,6 @@
           "action": "REPEAL AND RECREATE"
         }
       ]
-    },
-    "metadata": {
-      "id": "WI_SB1083",
-      "jurisdiction_code": "WI"
     }
   },
   {
@@ -323,10 +295,6 @@
           "action": "RENUMBER"
         }
       ]
-    },
-    "metadata": {
-      "id": "WI_SB1080",
-      "jurisdiction_code": "WI"
     }
   },
   {
@@ -358,10 +326,6 @@
           "action": "CREATE"
         }
       ]
-    },
-    "metadata": {
-      "id": "WI_AB1058",
-      "jurisdiction_code": "WI"
     }
   },
   {
@@ -401,10 +365,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "WI_AB1090",
-      "jurisdiction_code": "WI"
     }
   },
   {
@@ -504,10 +464,6 @@
           "action": "CREATE"
         }
       ]
-    },
-    "metadata": {
-      "id": "WI_SB1096",
-      "jurisdiction_code": "WI"
     }
   },
   {
@@ -531,10 +487,6 @@
         "Jon Koznick\""
       ],
       "sections_affected": []
-    },
-    "metadata": {
-      "id": "MN_HF_3749",
-      "jurisdiction_code": "MN"
     }
   },
   {
@@ -578,10 +530,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "MN_HF_63",
-      "jurisdiction_code": "MN"
     }
   },
   {
@@ -613,10 +561,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "MN_SF_615",
-      "jurisdiction_code": "MN"
     }
   },
   {
@@ -646,10 +590,6 @@
           "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
         }
       ]
-    },
-    "metadata": {
-      "id": "MN_SF_441",
-      "jurisdiction_code": "MN"
     }
   },
   {
@@ -670,10 +610,6 @@
       "summary": "Establishes the membership and meeting schedule (times and locations) for the standing committees of the Minnesota Senate for the 94th legislative session.",
       "sponsors": [],
       "sections_affected": []
-    },
-    "metadata": {
-      "id": "MN_SR0010",
-      "jurisdiction_code": "MN"
     }
   },
   {
@@ -746,10 +682,6 @@
           "action": "ADD"
         }
       ]
-    },
-    "metadata": {
-      "id": "DE_HB315",
-      "jurisdiction_code": "DE"
     }
   },
   {
@@ -782,10 +714,6 @@
           "action": "ADD"
         }
       ]
-    },
-    "metadata": {
-      "id": "DE_HB317",
-      "jurisdiction_code": "DE"
     }
   },
   {
@@ -949,10 +877,6 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "DE_HB325",
-      "jurisdiction_code": "DE"
     }
   },
   {
@@ -987,10 +911,6 @@
           "action": "ADD"
         }
       ]
-    },
-    "metadata": {
-      "id": "DE_HB145",
-      "jurisdiction_code": "DE"
     }
   },
   {
@@ -1045,17 +965,13 @@
           "action": "ADD"
         }
       ]
-    },
-    "metadata": {
-      "id": "DE_HB211",
-      "jurisdiction_code": "DE"
     }
   },
   {
     "id": "MI_HB4004",
     "input": {
       "record_id": "MI_HB4004",
-      "pdf_file_name": "2025-HIB-4004",
+      "pdf_file_name": "2025-HIB-4004.pdf",
       "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-HB-4004",
       "prompt": "Extract legislative metadata from this bill."
     },
@@ -1076,17 +992,13 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "MI_HB4004",
-      "jurisdiction_code": "MI"
     }
   },
   {
     "id": "MI_HB4001",
     "input": {
       "record_id": "MI_HB4001",
-      "pdf_file_name": "2025-HIB-4001",
+      "pdf_file_name": "2025-HIB-4001.pdf",
       "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-HB-4001",
       "prompt": "Extract legislative metadata from this bill."
     },
@@ -1154,17 +1066,13 @@
           "action": "REPEAL"
         }
       ]
-    },
-    "metadata": {
-      "id": "MI_HB4001",
-      "jurisdiction_code": "MI"
     }
   },
   {
     "id": "MI_HB4007",
     "input": {
       "record_id": "MI_HB4007",
-      "pdf_file_name": "2025-HIB-4007",
+      "pdf_file_name": "2025-HIB-4007.pdf",
       "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-HB-4007",
       "prompt": "Extract legislative metadata from this bill."
     },
@@ -1201,17 +1109,13 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "MI_HB4007",
-      "jurisdiction_code": "MI"
     }
   },
   {
     "id": "MI_SB0001",
     "input": {
       "record_id": "MI_SB0001",
-      "pdf_file_name": "2025-SIB-0001",
+      "pdf_file_name": "2025-SIB-0001.pdf",
       "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-SB-0001",
       "prompt": "Extract legislative metadata from this bill."
     },
@@ -1233,17 +1137,13 @@
           "action": "AMEND"
         }
       ]
-    },
-    "metadata": {
-      "id": "MI_SB0001",
-      "jurisdiction_code": "MI"
     }
   },
   {
     "id": "MI_SB0002",
     "input": {
       "record_id": "MI_SB0002",
-      "pdf_file_name": "2025-SIB-0002",
+      "pdf_file_name": "2025-SIB-0002.pdf",
       "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-SB-0002",
       "prompt": "Extract legislative metadata from this bill."
     },
@@ -1277,10 +1177,6 @@
           "action": "ADD"
         }
       ]
-    },
-    "metadata": {
-      "id": "MI_SB0002",
-      "jurisdiction_code": "MI"
     }
   }
 ]

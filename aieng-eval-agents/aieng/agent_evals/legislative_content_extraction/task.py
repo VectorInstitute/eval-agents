@@ -49,9 +49,10 @@ class LegislativeExtractionTask:
         dict[str, Any] | None
             Parsed extracted fields, or ``None`` if extraction failed.
         """
+        FILES_DIR = "/home/coder/eval-agents/implementations/legislative_content_extraction/files"
         item_input = item["input"] if isinstance(item, Mapping) else item.input
-
-        pdf_path = item_input.get("pdf_path", "")
+        pdf_file_name = item_input["pdf_file_name"]
+        pdf_path = f"{FILES_DIR}/{item_input["record_id"]}/{pdf_file_name}"
         html_page_link = item_input.get("html_page_link", "")
         prompt = item_input.get("prompt", EXTRACTION_PROMPT)
 

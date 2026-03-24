@@ -34,6 +34,33 @@ uv run implementations/legislative_content_extraction/data/langfuse_upload.py \
     --no-transform
 ```
 
+### Jurisdiction-Specific Datasets
+
+The raw dataset contains 26 records across 5 jurisdictions:
+
+| Jurisdiction | Code | Records |
+|--------------|------|---------|
+| Delaware     | DE   | 5       |
+| Idaho        | ID   | 6       |
+| Michigan     | MI   | 5       |
+| Minnesota    | MN   | 5       |
+| Wisconsin    | WI   | 5       |
+
+Use the `--jurisdiction` flag to filter to a single jurisdiction. This also appends the jurisdiction code to the Langfuse dataset name (e.g. `legislative-content-extraction-ID`).
+
+```bash
+# Transform + upload only Idaho records
+uv run implementations/legislative_content_extraction/data/langfuse_upload.py \
+    --jurisdiction ID
+
+# Transform only Wisconsin records, no upload
+uv run implementations/legislative_content_extraction/data/langfuse_upload.py \
+    --jurisdiction WI --no-upload
+
+# Transform + upload all jurisdictions (default)
+uv run implementations/legislative_content_extraction/data/langfuse_upload.py
+```
+
 ### CLI Options
 
 | Option | Default | Description |
@@ -41,8 +68,7 @@ uv run implementations/legislative_content_extraction/data/langfuse_upload.py \
 | `--input` | `implementations/legislative_content_extraction/legislative_content_extraction_dataset.json` | Raw dataset path |
 | `--output` | `implementations/legislative_content_extraction/data/legislative_eval_dataset.json` | Output eval dataset path |
 | `--dataset-name` | `legislative-content-extraction` | Langfuse dataset name |
-| `--transform/--no-transform` | `--transform` | Whether to transform the raw dataset |
-| `--upload/--no-upload` | `--upload` | Whether to upload to Langfuse |
+| `--jurisdiction` | None | Filter to a single jurisdiction code (e.g. `ID`, `WI`, `MN`, `DE`, `MI`) |
 
 ### Transform Logic
 

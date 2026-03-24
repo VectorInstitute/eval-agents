@@ -11,6 +11,10 @@ Usage:
     # Upload only (skip transform, use existing eval dataset)
     uv run implementations/legislative_content_extraction/data/langfuse_upload.py \
         --no-transform
+
+    # Upload only Idaho records
+    uv run implementations/legislative_content_extraction/data/langfuse_upload.py \
+        --jurisdiction ID
 """
 
 import asyncio
@@ -38,7 +42,7 @@ DEFAULT_OUTPUT = (
     "implementations/legislative_content_extraction/"
     "data/legislative_eval_dataset.json"
 )
-DEFAULT_DATASET_NAME = "legislative-content-extraction"
+DEFAULT_DATASET_NAME = "legislative-docs"
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +166,31 @@ def transform_record(raw: LegislativeContentExtractionDataset) -> LegislativeCon
     )
 
 
-def transform_dataset(input_path: Path, output_path: Path) -> None:
-    """Read raw dataset, transform all records, write Langfuse-format JSON."""
+def transform_dataset(
+    input_path: Path, output_path: Path, jurisdiction: str | None = None
+) -> None:
+    """Read raw dataset, transform records, write Langfuse-format JSON.
+
+    Parameters
+    ----------
+    input_path : Path
+        Raw dataset JSON.
+    output_path : Path
+        Output eval dataset JSON.
+    jurisdiction : str, optional
+        If set, only include records matching this jurisdiction_code (e.g. "ID", "WI").
+    """
     logger.info("Reading raw dataset from '%s'", input_path)
     with input_path.open("r", encoding="utf-8") as f:
         raw_json = json.load(f)
 
     raw_records = [LegislativeContentExtractionDataset.model_validate(r) for r in raw_json]
-    logger.info("Transforming %d records", len(raw_records))
+
+    if jurisdiction:
+        raw_records = [r for r in raw_records if r.jurisdiction_code.upper() == jurisdiction.upper()]
+        logger.info("Filtered to %d records for jurisdiction '%s'", len(raw_records), jurisdiction)
+    else:
+        logger.info("Transforming all %d records", len(raw_records))
 
     langfuse_records = [transform_record(r) for r in raw_records]
 
@@ -206,6 +227,12 @@ def transform_dataset(input_path: Path, output_path: Path) -> None:
     help="Langfuse dataset name for upload.",
 )
 @click.option(
+    "--jurisdiction",
+    default=None,
+    help="Filter to a single jurisdiction code (e.g. ID, WI, MN, DE, MI). "
+    "Appended to --dataset-name as '<name>-<jurisdiction>'.",
+)
+@click.option(
     "--transform/--no-transform",
     default=True,
     help="Whether to transform the raw dataset before uploading.",
@@ -219,12 +246,16 @@ def cli(
     input_path: Path,
     output_path: Path,
     dataset_name: str,
+    jurisdiction: str | None,
     transform: bool,
     upload: bool,
 ) -> None:
     """Transform and/or upload legislative dataset to Langfuse."""
+    if jurisdiction:
+        dataset_name = f"{dataset_name}-{jurisdiction.upper()}"
+
     if transform:
-        transform_dataset(input_path, output_path)
+        transform_dataset(input_path, output_path, jurisdiction=jurisdiction)
     else:
         logger.info("Skipping transform (--no-transform).")
 
