@@ -60,7 +60,7 @@ jobs:
           uv run pytest -m "not integration_test" --cov aieng/agent_evals --cov-report=xml tests
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: VectorInstitute/eval-agents
