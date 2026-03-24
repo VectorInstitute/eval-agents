@@ -18,6 +18,7 @@ from google.adk.agents.callback_context import CallbackContext
 
 from .env_vars import get_charts_output_path
 
+
 load_dotenv(verbose=True)
 logger = logging.getLogger(__name__)
 

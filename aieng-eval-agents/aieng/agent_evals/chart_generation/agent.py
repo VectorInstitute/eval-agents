@@ -4,12 +4,18 @@ import logging
 from pathlib import Path
 
 from aieng.agent_evals.async_client_manager import AsyncClientManager
+
 # from aieng.agent_evals.chart_generation.chart_writer import ChartFileWriter
 from aieng.agent_evals.db_manager import DbManager
 from aieng.agent_evals.langfuse import init_tracing
-from aieng.agent_evals.report_generation.agent import EventParser, EventType, ParsedEvent  # reuse from report generation agent
+from aieng.agent_evals.report_generation.agent import (  # reuse from report generation agent
+    EventParser,
+    EventType,
+    ParsedEvent,
+)
 from google.adk.agents import Agent
 from google.adk.agents.base_agent import AfterAgentCallback
+
 
 logger = logging.getLogger(__name__)
 

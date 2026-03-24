@@ -190,9 +190,9 @@ class Configs(BaseSettings):
 
     # === Chart Generation ===
     chart_generation_output_path: str | None = Field(
-    default=None,
-    description="Path to the directory where the chart generation agent saves PNG files.",
-)
+        default=None,
+        description="Path to the directory where the chart generation agent saves PNG files.",
+    )
 
     # Validators for the SecretStr fields
     @field_validator("langfuse_secret_key")

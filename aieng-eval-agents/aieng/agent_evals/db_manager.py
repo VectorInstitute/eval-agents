@@ -156,7 +156,7 @@ class DbManager:
                 agent_name=agent_name,
             )
         return self._chart_generation_db
-    
+
     def close(self) -> None:
         """Dispose of all database connections."""
         if self._aml_db is not None:
@@ -166,7 +166,7 @@ class DbManager:
         if self._report_generation_db is not None:
             self._report_generation_db.close()
             self._report_generation_db = None
-        
+
         if self._chart_generation_db is not None:
             self._chart_generation_db.close()
             self._chart_generation_db = None
