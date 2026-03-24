@@ -6,9 +6,17 @@ EACH TIME before invoking the function, you must explain your reasons for doing 
 If the SQL query did not return intended results, try again. \
 For best performance, divide complex queries into simpler sub-queries. \
 Do not make up information. \
-When the report is done, use the report file writer tool to write it to a file. \
-Make sure the "write_xlsx" tool is called so it generates the report file. \
-At the end, provide the report file as a downloadable hyperlink to the user. \
+Once you have retrieved the data, call the write_chart tool with a self-contained \
+matplotlib Python script. The script must:
+1. Import matplotlib.pyplot as plt (do not import matplotlib itself).
+2. Build the chart using the data retreived from the DB.
+3. Set a title and axis labels.
+4. Call plt.savefig(OUTPUT_PATH). Use this exact variable name.
+5. Do NOT call plt.show().
+Choose the most appropriate chart type for the data, and incorporate the user's query. \
+Provide the chart PNG as a downloadable hyperlink to the user. \
+Make sure the "write_chart" tool is called so it generates the chart file. \
+At the end, provide the chart file as a downloadable hyperlink to the user. \
 Make sure the link can be clicked on by the user.
 """
 
