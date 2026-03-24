@@ -1,6 +1,6 @@
-# Agentic AI Bootcamp Deployment
+# Agentic AI Evaluation Bootcamp Deployment
 
-The Agentic AI Bootcamp is leveraging the Coder platform (https://coder.com) to provide a cloud development environment for bootcamp participants. These deployment scripts use Terraform for a simple, turnkey deployment of a Coder entrypoint hosted on Google Cloud Platform (GCP).
+The Agentic AI Evaluation Bootcamp is leveraging the Coder platform (https://coder.com) to provide a cloud development environment for bootcamp participants. These deployment scripts use Terraform for a simple, turnkey deployment of a Coder entrypoint hosted on Google Cloud Platform (GCP).
 
 Once Coder is deployed, participants will be able to log in using their Github account and create personal workspaces. Each workspace will be hosted in a new GCP virtual machine. The deployment of these workspace VMs will be managed by Coder, and the deployment scripts for these workspaces is provided in the [/coder_template](https://github.com/VectorInstitute/agent-bootcamp/tree/deploy/deploy/coder_template) subfolder.
 
