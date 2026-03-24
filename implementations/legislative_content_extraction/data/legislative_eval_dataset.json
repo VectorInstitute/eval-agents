@@ -32,6 +32,10 @@
           "action": "ADD"
         }
       ]
+    },
+    "metadata": {
+      "id": "ID_H0004",
+      "jurisdiction_code": "ID"
     }
   },
   {
@@ -79,6 +83,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "ID_H0504",
+      "jurisdiction_code": "ID"
     }
   },
   {
@@ -101,6 +109,10 @@
         "Agricultural Affairs Committee"
       ],
       "sections_affected": []
+    },
+    "metadata": {
+      "id": "ID_HJM010",
+      "jurisdiction_code": "ID"
     }
   },
   {
@@ -160,6 +172,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "ID_H0383",
+      "jurisdiction_code": "ID"
     }
   },
   {
@@ -187,6 +203,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "ID_SJR103",
+      "jurisdiction_code": "ID"
     }
   },
   {
@@ -209,6 +229,10 @@
         "FINANCE COMMITTEE"
       ],
       "sections_affected": []
+    },
+    "metadata": {
+      "id": "ID_S1331",
+      "jurisdiction_code": "ID"
     }
   },
   {
@@ -240,6 +264,10 @@
           "action": "REPEAL AND RECREATE"
         }
       ]
+    },
+    "metadata": {
+      "id": "WI_SB1083",
+      "jurisdiction_code": "WI"
     }
   },
   {
@@ -295,6 +323,10 @@
           "action": "RENUMBER"
         }
       ]
+    },
+    "metadata": {
+      "id": "WI_SB1080",
+      "jurisdiction_code": "WI"
     }
   },
   {
@@ -326,6 +358,10 @@
           "action": "CREATE"
         }
       ]
+    },
+    "metadata": {
+      "id": "WI_AB1058",
+      "jurisdiction_code": "WI"
     }
   },
   {
@@ -365,6 +401,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "WI_AB1090",
+      "jurisdiction_code": "WI"
     }
   },
   {
@@ -464,6 +504,10 @@
           "action": "CREATE"
         }
       ]
+    },
+    "metadata": {
+      "id": "WI_SB1096",
+      "jurisdiction_code": "WI"
     }
   },
   {
@@ -487,6 +531,10 @@
         "Jon Koznick\""
       ],
       "sections_affected": []
+    },
+    "metadata": {
+      "id": "MN_HF_3749",
+      "jurisdiction_code": "MN"
     }
   },
   {
@@ -530,6 +578,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "MN_HF_63",
+      "jurisdiction_code": "MN"
     }
   },
   {
@@ -561,6 +613,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "MN_SF_615",
+      "jurisdiction_code": "MN"
     }
   },
   {
@@ -590,6 +646,10 @@
           "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
         }
       ]
+    },
+    "metadata": {
+      "id": "MN_SF_441",
+      "jurisdiction_code": "MN"
     }
   },
   {
@@ -610,6 +670,10 @@
       "summary": "Establishes the membership and meeting schedule (times and locations) for the standing committees of the Minnesota Senate for the 94th legislative session.",
       "sponsors": [],
       "sections_affected": []
+    },
+    "metadata": {
+      "id": "MN_SR0010",
+      "jurisdiction_code": "MN"
     }
   },
   {
@@ -682,6 +746,10 @@
           "action": "ADD"
         }
       ]
+    },
+    "metadata": {
+      "id": "DE_HB315",
+      "jurisdiction_code": "DE"
     }
   },
   {
@@ -714,6 +782,10 @@
           "action": "ADD"
         }
       ]
+    },
+    "metadata": {
+      "id": "DE_HB317",
+      "jurisdiction_code": "DE"
     }
   },
   {
@@ -877,6 +949,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "DE_HB325",
+      "jurisdiction_code": "DE"
     }
   },
   {
@@ -911,6 +987,10 @@
           "action": "ADD"
         }
       ]
+    },
+    "metadata": {
+      "id": "DE_HB145",
+      "jurisdiction_code": "DE"
     }
   },
   {
@@ -965,6 +1045,10 @@
           "action": "ADD"
         }
       ]
+    },
+    "metadata": {
+      "id": "DE_HB211",
+      "jurisdiction_code": "DE"
     }
   },
   {
@@ -992,6 +1076,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "MI_HB4004",
+      "jurisdiction_code": "MI"
     }
   },
   {
@@ -1066,6 +1154,10 @@
           "action": "REPEAL"
         }
       ]
+    },
+    "metadata": {
+      "id": "MI_HB4001",
+      "jurisdiction_code": "MI"
     }
   },
   {
@@ -1109,6 +1201,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "MI_HB4007",
+      "jurisdiction_code": "MI"
     }
   },
   {
@@ -1137,6 +1233,10 @@
           "action": "AMEND"
         }
       ]
+    },
+    "metadata": {
+      "id": "MI_SB0001",
+      "jurisdiction_code": "MI"
     }
   },
   {
@@ -1177,6 +1277,10 @@
           "action": "ADD"
         }
       ]
+    },
+    "metadata": {
+      "id": "MI_SB0002",
+      "jurisdiction_code": "MI"
     }
   }
 ]
