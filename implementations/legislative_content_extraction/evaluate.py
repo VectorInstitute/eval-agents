@@ -36,8 +36,28 @@ DEFAULT_FILES_DIR = "implementations/legislative_content_extraction/files"
     type=int,
     help="Maximum concurrent agent runs (default: 5).",
 )
-def cli(dataset_name: str, files_dir: str, max_concurrency: int):
-    asyncio.run(evaluate(dataset_name, files_dir=files_dir, max_concurrency=max_concurrency))
+@click.option(
+    "--llm-judge-timeout",
+    default=120,
+    type=int,
+    help="Timeout in seconds for LLM judge evaluations (default: 120).",
+)
+@click.option(
+    "--llm-judge-retries",
+    default=3,
+    type=int,
+    help="Number of retry attempts for LLM judge evaluations (default: 3).",
+)
+def cli(dataset_name: str, files_dir: str, max_concurrency: int, llm_judge_timeout: int, llm_judge_retries: int):
+    asyncio.run(
+        evaluate(
+            dataset_name,
+            files_dir=files_dir,
+            max_concurrency=max_concurrency,
+            llm_judge_timeout=llm_judge_timeout,
+            llm_judge_retries=llm_judge_retries,
+        )
+    )
 
 
 if __name__ == "__main__":
