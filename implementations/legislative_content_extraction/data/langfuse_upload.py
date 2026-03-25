@@ -122,12 +122,19 @@ class LangfuseExpectedOutput(BaseModel):
     sections_affected: list[CleanedSectionAffected]
 
 
+class LangfuseMetadata(BaseModel):
+    """Metadata payload for a Langfuse dataset item."""
+
+    should_use_html: bool
+
+
 class LegislativeContentLangfuseDataset(BaseModel):
     """A single Langfuse-format dataset item for legislative content extraction."""
 
     id: str
     input: LangfuseInput
     expected_output: LangfuseExpectedOutput
+    metadata: LangfuseMetadata
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +144,8 @@ class LegislativeContentLangfuseDataset(BaseModel):
 
 def transform_record(raw: LegislativeContentExtractionDataset) -> LegislativeContentLangfuseDataset:
     """Transform a single raw dataset record to Langfuse format."""
+    should_use_html = bool(raw.html_page_link and raw.html_page_link.strip())
+
     return LegislativeContentLangfuseDataset(
         id=raw.record_id,
         input=LangfuseInput(
@@ -162,6 +171,9 @@ def transform_record(raw: LegislativeContentExtractionDataset) -> LegislativeCon
                 )
                 for s in raw.sections_affected
             ],
+        ),
+        metadata=LangfuseMetadata(
+            should_use_html=should_use_html,
         ),
     )
 

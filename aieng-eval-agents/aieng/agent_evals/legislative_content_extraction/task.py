@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.legislative_content_extraction import LegislativeContentExtractionAgent
+from langfuse import propagate_attributes
 from langfuse.experiment import ExperimentItem
 
 logger = logging.getLogger(__name__)
@@ -64,11 +65,12 @@ class LegislativeExtractionTask:
             return None
 
         try:
-            response = await self._agent.answer_async(
-                pdf_path=pdf_path,
-                prompt=prompt,
-                html_page_link=html_page_link,
-            )
+            with propagate_attributes(trace_name=record_id):
+                response = await self._agent.answer_async(
+                    pdf_path=pdf_path,
+                    prompt=prompt,
+                    html_page_link=html_page_link,
+                )
         except Exception as exc:
             logger.error("Agent failed for pdf_path=%s: %s", pdf_path, exc)
             return None
@@ -77,7 +79,12 @@ class LegislativeExtractionTask:
         if not raw_text:
             logger.warning("Empty response for pdf_path=%s", pdf_path)
             return None
+        if raw_text.startswith('```json'):
+            raw_text = raw_text[len('```json'):]
+        if raw_text.endswith('```'):
+            raw_text = raw_text[:-len('```')]
 
+        raw_text = raw_text.strip()
         try:
             return json.loads(raw_text)
         except json.JSONDecodeError:

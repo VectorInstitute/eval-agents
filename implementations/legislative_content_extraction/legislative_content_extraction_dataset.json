@@ -36,7 +36,8 @@
         "code_section": 2362,
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_H0504",
@@ -96,7 +97,8 @@
         "code_section": "7452",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_HJM010",
@@ -113,7 +115,8 @@
     "sponsors": [
       "Agricultural Affairs Committee"
     ],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "ID_H0383",
@@ -194,7 +197,8 @@
         "code_section": "1002",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_SJR103",
@@ -219,7 +223,8 @@
         "code_section": "8",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_S1331",
@@ -236,7 +241,8 @@
     "sponsors": [
       "FINANCE COMMITTEE"
     ],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "WI_SB1083",
@@ -268,7 +274,8 @@
         "code_section": "101.123(1)(h)",
         "action": "REPEAL AND RECREATE"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_SB1080",
@@ -342,7 +349,8 @@
         "code_section": "66.1014(2)(d)2.",
         "action": "RENUMBER"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_AB1058",
@@ -374,7 +382,8 @@
         "code_section": "704.085(1)(c)",
         "action": "CREATE"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_AB1090",
@@ -420,7 +429,8 @@
         "code_section": "71.10(4)(i)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_SB1096",
@@ -568,13 +578,14 @@
         "code_section": "40.516",
         "action": "CREATE"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_HF_3749",
     "pdf_file_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/versions/0/pdf/",
     "pdf_file_name": "HF_3749.pdf",
-    "html_page_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/versions/latest/",
+    "html_page_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/",
     "jurisdiction_code": "MN",
     "session_code": "MN_2025_2026_R1",
     "chamber_code": "HOUSE",
@@ -583,10 +594,11 @@
     "title": "A bill for an act relating to transportation; enacting various transportation-related policies; establishing bridge inspection standards; modifying active transportation education funding; modifying mandated reporting expiration dates; removing scenic byway designations; establishing truck parking improvement program.",
     "summary": "Amends Minnesota bridge inspection law to align with National Bridge Inspection Standards (NBIS) and National Tunnel Inspection Standards (NTIS), adds definitions for BSIPM and NTIS, moves bridge strength standards to a new section, establishes tunnel inspection requirements, modifies reporting expiration dates for various transportation reports, adjusts active transportation safety curriculum funding under the active transportation program, establishes a new truck parking improvement program funded from the trunk highway or general fund, and repeals four scenic byway designations from Minnesota Statutes section 161.14.",
     "sponsors": [
-      "Found at https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/\n\n[\"Bjorn Olson",
-      "Jon Koznick\""
+      "Bjorn Olson",
+      "Jon Koznick"
     ],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "MN_HF_63",
@@ -637,7 +649,8 @@
         "code_subdivision": "1",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_SF_615",
@@ -667,7 +680,8 @@
         "code_subdivision": "34",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_SF_441",
@@ -694,7 +708,8 @@
         "action": "ADD",
         "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_SR0010",
@@ -709,7 +724,8 @@
     "title": "A Senate resolution relating to standing committees; setting the schedule of standing committee meetings.",
     "summary": "Establishes the membership and meeting schedule (times and locations) for the standing committees of the Minnesota Senate for the 94th legislative session.",
     "sponsors": [],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB315",
@@ -776,7 +792,8 @@
         "raw_section": "Subchapter IV, Chapter 25, Title 6 - § 2545. Surcharge fees; prohibitions.",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB317",
@@ -803,7 +820,8 @@
         "raw_section": "Chapter 20, Title 15 - § 2050B. Automatic Voter Registration Eligibility Verification and Audit",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB325",
@@ -961,7 +979,8 @@
         "raw_section": "Title 29 - § 5220. Pharmacist services reimbursement.",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB145",
@@ -990,7 +1009,8 @@
         "raw_section": "Chapter 23, Title 11 - § 2313. Private right of action for reverse-keyword and reverse-location court orders and requests.",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB211",
@@ -1039,7 +1059,8 @@
         "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8780A. Innovating Delaware Tax Credit.",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_HB4004",
@@ -1061,7 +1082,8 @@
         "raw_section": "MCL 432.25 (Section 25)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_HB4001",
@@ -1072,7 +1094,7 @@
     "session_code": "MI_2025_2026_R1",
     "chamber_code": "HOUSE",
     "measure_type_code": "BILL",
-    "measure_number": "HB4001",
+    "measure_number": "4001",
     "title": "A bill to amend 2014 PA 138, entitled \"Workforce opportunity wage act,\" by amending sections 4 and 4b (MCL 408.414 and 408.414b); and to repeal acts and parts of acts.",
     "summary": "Raises Michigan's minimum hourly wage schedule to $12.00 beginning February 21, 2025, then $12.50 on January 1, 2026, $13.00 on January 1, 2027, $14.00 on January 1, 2028, and $15.00 on January 1, 2029; delays CPI-based annual adjustments until 2030; lowers the unemployment threshold that blocks annual increases from 8.5% to 7.5%; changes the under-20 training wage from a flat $4.25 to 75% of the general minimum wage for the first 90 days of employment; and repeals the Improved Workforce Opportunity Wage Act, 2018 PA 337, MCL 408.931 to 408.945.",
     "sponsors": [
@@ -1130,7 +1152,8 @@
         "raw_section": "2018 PA 337, MCL 408.931 to 408.945",
         "action": "REPEAL"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_HB4007",
@@ -1141,7 +1164,7 @@
     "session_code": "MI_2025_2026_R1",
     "chamber_code": "HOUSE",
     "measure_type_code": "BILL",
-    "measure_number": "HB4007",
+    "measure_number": "4007",
     "title": "A bill to amend 2008 PA 295, entitled \"Clean and renewable energy and energy waste reduction act,\" by amending section 3 (MCL 460.1003), as amended by 2023 PA 235.",
     "summary": "Amends the definition of clean energy system to include a reciprocating internal combustion engine placed in service before the effective date of the amendatory act adding the provision when used to facilitate retirement of coal-fired generation in Michigan's Upper Peninsula, with the provision expiring after the end of the Midcontinent Independent System Operator planning year ending in 2050.",
     "sponsors": [
@@ -1168,7 +1191,8 @@
         "raw_section": "MCL 460.1003 (Section 3)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_SB0001",
@@ -1179,7 +1203,7 @@
     "session_code": "MI_2025_2026_R1",
     "chamber_code": "SENATE",
     "measure_type_code": "BILL",
-    "measure_number": "2",
+    "measure_number": "1",
     "title": "A bill to amend 1976 PA 442, entitled \"Freedom of information act,\" by amending section 2 (MCL 15.232), as amended by 2018 PA 68.",
     "summary": "Amends the definitions section of Michigan's Freedom of Information Act to add definitions for cybersecurity assessment, cybersecurity incident, cybersecurity plan, cybersecurity vulnerability, field name, FOIA coordinator, and legislator; expands the definition of \"public body\" to include officers, legislators, employees, agencies, committees, and other bodies in the legislative branch while excluding the legislative service bureau, senate fiscal agency, and house fiscal agency; clarifies executive and judicial exclusions; updates the definition of \"public record\" to exclude certain personal notes of members of a public body; modernizes the definition of \"writing\" to include cloud storage and quantum networks and computing systems; and makes the bill effective only if Senate Bill No. 2 is enacted.",
     "sponsors": [
@@ -1191,7 +1215,8 @@
         "raw_section": "MCL 15.232 (Section 2)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_SB0002",
@@ -1226,6 +1251,7 @@
         "raw_section": "Section 14a",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   }
 ]
