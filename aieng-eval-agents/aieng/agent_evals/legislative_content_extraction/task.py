@@ -77,7 +77,12 @@ class LegislativeExtractionTask:
         if not raw_text:
             logger.warning("Empty response for pdf_path=%s", pdf_path)
             return None
+        if raw_text.startswith('```json'):
+            raw_text = raw_text[len('```json'):]
+        if raw_text.endswith('```'):
+            raw_text = raw_text[:-len('```')]
 
+        raw_text = raw_text.strip()
         try:
             return json.loads(raw_text)
         except json.JSONDecodeError:

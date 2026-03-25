@@ -91,14 +91,28 @@ def item_level_deterministic_grader(
     predicted_sponsors = normalize_sponsors(get_field(output, "sponsors"))
     expected_sponsors = normalize_sponsors(get_field(expected_output, "sponsors"))
     sponsors_tp = len(predicted_sponsors & expected_sponsors)
-    sponsors_precision = sponsors_tp / len(predicted_sponsors) if predicted_sponsors else 0.0
-    sponsors_recall = sponsors_tp / len(expected_sponsors) if expected_sponsors else 0.0
+    if not expected_sponsors and not predicted_sponsors:
+        sponsors_precision = 1.0
+        sponsors_recall = 1.0
+    elif not expected_sponsors:
+        sponsors_precision = 0.0
+        sponsors_recall = 1.0
+    else:
+        sponsors_precision = sponsors_tp / len(predicted_sponsors) if predicted_sponsors else 0.0
+        sponsors_recall = sponsors_tp / len(expected_sponsors)
 
     predicted_sections = normalize_sections(get_field(output, "sections_affected"))
     expected_sections = normalize_sections(get_field(expected_output, "sections_affected"))
     sections_tp = len(predicted_sections & expected_sections)
-    sections_precision = sections_tp / len(predicted_sections) if predicted_sections else 0.0
-    sections_recall = sections_tp / len(expected_sections) if expected_sections else 0.0
+    if not expected_sections and not predicted_sections:
+        sections_precision = 1.0
+        sections_recall = 1.0
+    elif not expected_sections:
+        sections_precision = 0.0
+        sections_recall = 1.0
+    else:
+        sections_precision = sections_tp / len(predicted_sections) if predicted_sections else 0.0
+        sections_recall = sections_tp / len(expected_sections)
 
     return [
         Evaluation(

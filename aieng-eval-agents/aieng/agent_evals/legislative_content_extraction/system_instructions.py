@@ -35,7 +35,7 @@ standardized session code. The session code must be one of the following values:
 - **chamber_code**: The chamber that introduced the measure. Must be one of: HOUSE, SENATE.
 - **measure_type_code**: The type of legislative measure. Must be one of: BILL, \
 CONCURRENT_RESOLUTION, JOINT_RESOLUTION, JOINT_MEMORIAL, CONCURRENT_MEMORIAL.
-- **measure_number**: The measure number (e.g. "H0004", "S1234").
+- **measure_number**: The measure number (e.g. "H0004", "S1234"), but only capture the integer portion so that it's a valid integer.
 - **title**: The official title or short description of the measure.
 - **summary**: A concise summary of what the measure does, including key provisions.
 - **sponsors**: A list of sponsors of the measure. Sponsors can be individual legislators \
