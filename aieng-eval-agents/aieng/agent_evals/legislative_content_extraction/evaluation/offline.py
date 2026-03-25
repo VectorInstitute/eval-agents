@@ -108,7 +108,7 @@ async def evaluate(
         max_concurrency=max_concurrency,
     )
 
-    logger.info("Evaluation complete. %d items processed.", len(result.item_results))
+    logger.info("Evaluation complete. %d items processed.", len(result.experiment.item_results))
 
     try:
         await AsyncClientManager.get_instance().close()
