@@ -585,7 +585,7 @@
     "record_id": "MN_HF_3749",
     "pdf_file_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/versions/0/pdf/",
     "pdf_file_name": "HF_3749.pdf",
-    "html_page_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/versions/latest/",
+    "html_page_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/",
     "jurisdiction_code": "MN",
     "session_code": "MN_2025_2026_R1",
     "chamber_code": "HOUSE",
@@ -594,8 +594,8 @@
     "title": "A bill for an act relating to transportation; enacting various transportation-related policies; establishing bridge inspection standards; modifying active transportation education funding; modifying mandated reporting expiration dates; removing scenic byway designations; establishing truck parking improvement program.",
     "summary": "Amends Minnesota bridge inspection law to align with National Bridge Inspection Standards (NBIS) and National Tunnel Inspection Standards (NTIS), adds definitions for BSIPM and NTIS, moves bridge strength standards to a new section, establishes tunnel inspection requirements, modifies reporting expiration dates for various transportation reports, adjusts active transportation safety curriculum funding under the active transportation program, establishes a new truck parking improvement program funded from the trunk highway or general fund, and repeals four scenic byway designations from Minnesota Statutes section 161.14.",
     "sponsors": [
-      "Found at https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/\n\n[\"Bjorn Olson",
-      "Jon Koznick\""
+      "Bjorn Olson",
+      "Jon Koznick"
     ],
     "sections_affected": [],
     "should_use_html": false
