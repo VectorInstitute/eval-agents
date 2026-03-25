@@ -48,7 +48,27 @@ DEFAULT_FILES_DIR = "implementations/legislative_content_extraction/files"
     type=int,
     help="Number of retry attempts for LLM judge evaluations (default: 3).",
 )
-def cli(dataset_name: str, files_dir: str, max_concurrency: int, llm_judge_timeout: int, llm_judge_retries: int):
+@click.option(
+    "--run-name",
+    default=None,
+    type=str,
+    help="Optional run name for the experiment in Langfuse.",
+)
+@click.option(
+    "--description",
+    default=None,
+    type=str,
+    help="Optional description for the experiment run.",
+)
+def cli(
+    dataset_name: str,
+    files_dir: str,
+    max_concurrency: int,
+    llm_judge_timeout: int,
+    llm_judge_retries: int,
+    run_name: str | None,
+    description: str | None,
+):
     asyncio.run(
         evaluate(
             dataset_name,
@@ -56,6 +76,8 @@ def cli(dataset_name: str, files_dir: str, max_concurrency: int, llm_judge_timeo
             max_concurrency=max_concurrency,
             llm_judge_timeout=llm_judge_timeout,
             llm_judge_retries=llm_judge_retries,
+            run_name=run_name,
+            description=description,
         )
     )
 

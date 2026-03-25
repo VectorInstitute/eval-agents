@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.legislative_content_extraction import LegislativeContentExtractionAgent
+from langfuse import propagate_attributes
 from langfuse.experiment import ExperimentItem
 
 logger = logging.getLogger(__name__)
@@ -64,11 +65,12 @@ class LegislativeExtractionTask:
             return None
 
         try:
-            response = await self._agent.answer_async(
-                pdf_path=pdf_path,
-                prompt=prompt,
-                html_page_link=html_page_link,
-            )
+            with propagate_attributes(trace_name=record_id):
+                response = await self._agent.answer_async(
+                    pdf_path=pdf_path,
+                    prompt=prompt,
+                    html_page_link=html_page_link,
+                )
         except Exception as exc:
             logger.error("Agent failed for pdf_path=%s: %s", pdf_path, exc)
             return None

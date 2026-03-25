@@ -74,6 +74,8 @@ async def evaluate(
     max_concurrency: int = 5,
     llm_judge_timeout: int = 120,
     llm_judge_retries: int = 3,
+    run_name: str | None = None,
+    description: str | None = None,
 ) -> None:
     """Evaluate the legislative extraction agent against a Langfuse dataset.
 
@@ -89,6 +91,10 @@ async def evaluate(
         Timeout in seconds for LLM judge calls, by default 120.
     llm_judge_retries : int, optional
         Number of retry attempts for LLM judge calls, by default 3.
+    run_name : str | None, optional
+        Optional run name for the experiment in Langfuse.
+    description : str | None, optional
+        Optional description for the experiment run.
     """
     task = LegislativeExtractionTask(files_dir=files_dir)
 
@@ -105,6 +111,8 @@ async def evaluate(
         evaluators=[item_level_deterministic_grader, summary_judge],
         trace_evaluators=[trace_deterministic_grader],
         run_evaluators=[run_level_grader],
+        run_name=run_name,
+        description=description,
         max_concurrency=max_concurrency,
     )
 
