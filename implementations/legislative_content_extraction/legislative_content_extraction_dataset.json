@@ -1072,7 +1072,7 @@
     "session_code": "MI_2025_2026_R1",
     "chamber_code": "HOUSE",
     "measure_type_code": "BILL",
-    "measure_number": "HB4001",
+    "measure_number": "4001",
     "title": "A bill to amend 2014 PA 138, entitled \"Workforce opportunity wage act,\" by amending sections 4 and 4b (MCL 408.414 and 408.414b); and to repeal acts and parts of acts.",
     "summary": "Raises Michigan's minimum hourly wage schedule to $12.00 beginning February 21, 2025, then $12.50 on January 1, 2026, $13.00 on January 1, 2027, $14.00 on January 1, 2028, and $15.00 on January 1, 2029; delays CPI-based annual adjustments until 2030; lowers the unemployment threshold that blocks annual increases from 8.5% to 7.5%; changes the under-20 training wage from a flat $4.25 to 75% of the general minimum wage for the first 90 days of employment; and repeals the Improved Workforce Opportunity Wage Act, 2018 PA 337, MCL 408.931 to 408.945.",
     "sponsors": [
@@ -1141,7 +1141,7 @@
     "session_code": "MI_2025_2026_R1",
     "chamber_code": "HOUSE",
     "measure_type_code": "BILL",
-    "measure_number": "HB4007",
+    "measure_number": "4007",
     "title": "A bill to amend 2008 PA 295, entitled \"Clean and renewable energy and energy waste reduction act,\" by amending section 3 (MCL 460.1003), as amended by 2023 PA 235.",
     "summary": "Amends the definition of clean energy system to include a reciprocating internal combustion engine placed in service before the effective date of the amendatory act adding the provision when used to facilitate retirement of coal-fired generation in Michigan's Upper Peninsula, with the provision expiring after the end of the Midcontinent Independent System Operator planning year ending in 2050.",
     "sponsors": [
@@ -1179,7 +1179,7 @@
     "session_code": "MI_2025_2026_R1",
     "chamber_code": "SENATE",
     "measure_type_code": "BILL",
-    "measure_number": "2",
+    "measure_number": "1",
     "title": "A bill to amend 1976 PA 442, entitled \"Freedom of information act,\" by amending section 2 (MCL 15.232), as amended by 2018 PA 68.",
     "summary": "Amends the definitions section of Michigan's Freedom of Information Act to add definitions for cybersecurity assessment, cybersecurity incident, cybersecurity plan, cybersecurity vulnerability, field name, FOIA coordinator, and legislator; expands the definition of \"public body\" to include officers, legislators, employees, agencies, committees, and other bodies in the legislative branch while excluding the legislative service bureau, senate fiscal agency, and house fiscal agency; clarifies executive and judicial exclusions; updates the definition of \"public record\" to exclude certain personal notes of members of a public body; modernizes the definition of \"writing\" to include cloud storage and quantum networks and computing systems; and makes the bill effective only if Senate Bill No. 2 is enacted.",
     "sponsors": [

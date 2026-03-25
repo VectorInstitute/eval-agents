@@ -9,7 +9,7 @@ from aieng.agent_evals.evaluation import run_experiment
 from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from aieng.agent_evals.evaluation.types import Evaluation
-from aieng.agent_evals.legislative_content_extraction.graders import item_level_deterministic_grader
+from aieng.agent_evals.legislative_content_extraction.graders import item_level_deterministic_grader, run_level_grader
 from aieng.agent_evals.legislative_content_extraction.task import LegislativeExtractionTask
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,7 @@ async def evaluate(
         name="Evaluate Legislative Content Extraction Agent",
         task=task,
         evaluators=[item_level_deterministic_grader, summary_judge],
+        run_evaluators=[run_level_grader],
         max_concurrency=max_concurrency,
     )
 
