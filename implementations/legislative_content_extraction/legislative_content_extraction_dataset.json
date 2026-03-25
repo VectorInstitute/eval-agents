@@ -36,7 +36,8 @@
         "code_section": 2362,
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_H0504",
@@ -96,7 +97,8 @@
         "code_section": "7452",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_HJM010",
@@ -113,7 +115,8 @@
     "sponsors": [
       "Agricultural Affairs Committee"
     ],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "ID_H0383",
@@ -194,7 +197,8 @@
         "code_section": "1002",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_SJR103",
@@ -219,7 +223,8 @@
         "code_section": "8",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "ID_S1331",
@@ -236,7 +241,8 @@
     "sponsors": [
       "FINANCE COMMITTEE"
     ],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "WI_SB1083",
@@ -268,7 +274,8 @@
         "code_section": "101.123(1)(h)",
         "action": "REPEAL AND RECREATE"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_SB1080",
@@ -342,7 +349,8 @@
         "code_section": "66.1014(2)(d)2.",
         "action": "RENUMBER"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_AB1058",
@@ -374,7 +382,8 @@
         "code_section": "704.085(1)(c)",
         "action": "CREATE"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_AB1090",
@@ -420,7 +429,8 @@
         "code_section": "71.10(4)(i)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "WI_SB1096",
@@ -568,7 +578,8 @@
         "code_section": "40.516",
         "action": "CREATE"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_HF_3749",
@@ -586,7 +597,8 @@
       "Found at https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/\n\n[\"Bjorn Olson",
       "Jon Koznick\""
     ],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "MN_HF_63",
@@ -637,7 +649,8 @@
         "code_subdivision": "1",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_SF_615",
@@ -667,7 +680,8 @@
         "code_subdivision": "34",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_SF_441",
@@ -694,7 +708,8 @@
         "action": "ADD",
         "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MN_SR0010",
@@ -709,7 +724,8 @@
     "title": "A Senate resolution relating to standing committees; setting the schedule of standing committee meetings.",
     "summary": "Establishes the membership and meeting schedule (times and locations) for the standing committees of the Minnesota Senate for the 94th legislative session.",
     "sponsors": [],
-    "sections_affected": []
+    "sections_affected": [],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB315",
@@ -776,7 +792,8 @@
         "raw_section": "Subchapter IV, Chapter 25, Title 6 - § 2545. Surcharge fees; prohibitions.",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB317",
@@ -803,7 +820,8 @@
         "raw_section": "Chapter 20, Title 15 - § 2050B. Automatic Voter Registration Eligibility Verification and Audit",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB325",
@@ -961,7 +979,8 @@
         "raw_section": "Title 29 - § 5220. Pharmacist services reimbursement.",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB145",
@@ -990,7 +1009,8 @@
         "raw_section": "Chapter 23, Title 11 - § 2313. Private right of action for reverse-keyword and reverse-location court orders and requests.",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "DE_HB211",
@@ -1039,7 +1059,8 @@
         "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8780A. Innovating Delaware Tax Credit.",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_HB4004",
@@ -1061,7 +1082,8 @@
         "raw_section": "MCL 432.25 (Section 25)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_HB4001",
@@ -1130,7 +1152,8 @@
         "raw_section": "2018 PA 337, MCL 408.931 to 408.945",
         "action": "REPEAL"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_HB4007",
@@ -1168,7 +1191,8 @@
         "raw_section": "MCL 460.1003 (Section 3)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_SB0001",
@@ -1191,7 +1215,8 @@
         "raw_section": "MCL 15.232 (Section 2)",
         "action": "AMEND"
       }
-    ]
+    ],
+    "should_use_html": false
   },
   {
     "record_id": "MI_SB0002",
@@ -1226,6 +1251,7 @@
         "raw_section": "Section 14a",
         "action": "ADD"
       }
-    ]
+    ],
+    "should_use_html": false
   }
 ]
