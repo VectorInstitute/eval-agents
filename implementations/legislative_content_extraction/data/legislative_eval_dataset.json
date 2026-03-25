@@ -1,0 +1,1182 @@
+[
+  {
+    "id": "ID_H0004",
+    "input": {
+      "record_id": "ID_H0004",
+      "pdf_file_name": "ID_H0004.pdf",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2025/legislation/H0004/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "ID",
+      "session_code": "ID_2025_2025_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "4",
+      "title": "RELATING TO INFORMATION TECHNOLOGY SERVICES AND CYBERSECURITY",
+      "summary": "House Bill No. 4 (Idaho, 2025) updates Idaho law to strengthen statewide cybersecurity governance by expanding the powers and duties of the Office of Information Technology Services (OITS). It requires OITS to ensure state agencies implement and maintain cybersecurity best practices, coordinate and direct agencies on information security needs, conduct penetration testing and vulnerability scanning to identify and mitigate risks, and ensure mandatory cybersecurity education and training for state employees, along with maintaining a statewide cybersecurity best-practices repository. The bill also mandates the use of multifactor identification (defined as using two or more credential types such as knowledge-, possession-, or inherence-based credentials) for access to state IT devices and services—covering systems like email, cloud storage, web applications, networks, databases, and servers—and extends the same multifactor requirement to the legislative and judicial branches and elected constitutional officers (and their staffs) via a new code section. The act includes an emergency clause and takes effect July 1, 2025.",
+      "sponsors": [
+        "State Affairs Committee"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 67-827A, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 67-831, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 67-2362, Idaho Code",
+          "action": "ADD"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ID_H0504",
+    "input": {
+      "record_id": "ID_H0504",
+      "pdf_file_name": "ID_H0504.pdf",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/H0504/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "ID",
+      "session_code": "ID_2026_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "504",
+      "title": "Idaho Lottery Bulk Purchase Prohibition Act",
+      "summary": "Idaho House Bill No. 504 — introduced by the State Affairs Committee — amends the Idaho State Lottery statutes to prohibit \"bulk purchase transactions,\" defined as any purchase of lottery tickets exceeding $5,000 within a 24-hour period by any person or persons \"acting in concert,\" whether in a single or multiple transactions and at one or multiple locations. The bill grants the Idaho State Lottery the authority to deny prize payments on tickets tied to such transactions, investigate suspicious purchase patterns using evidence such as video surveillance and transaction data, and penalize any licensed retailer who knowingly facilitates a bulk purchase — up to and including termination of their contract. The bill also makes several technical corrections and section redesignations to existing lottery statutes, and takes effect on July 1, 2026.",
+      "sponsors": [
+        "State Affairs Committee"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 67-7404, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Chapter 74, Title 67, Idaho Code (New Section 67-7449)",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 67-7449, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 67-7450, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 67-7451, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 67-7452, Idaho Code",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ID_HJM010",
+    "input": {
+      "record_id": "ID_HJM010",
+      "pdf_file_name": "HJM010.pdf",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/HJM010/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "ID",
+      "session_code": "ID_2026_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "JOINT_MEMORIAL",
+      "measure_number": "10",
+      "title": "To the President of the United States, the Senate and the House of Representatives of the United States in Congress Assembled, the Congressional Delegation Representing the State of\n  Idaho in the Congress of the United States, the Secretary of the United States Department of Agriculture, and the Secretary of the United States Department of Health and Human Services.",
+      "summary": "House Joint Memorial No. 10 (2026) is a non-binding resolution from the Idaho Legislature urging the federal government to ban six FDA-approved artificial sweeteners — aspartame, acesulfame potassium, advantame,      \n  neotame, saccharin, and sucralose — from all federally administered school meal programs, including the National School Lunch Program and School Breakfast Program. The memorial cites insufficient long-term research on\n   artificial sweeteners' effects on children's development and metabolism, and advocates for the use of real sugar as a natural alternative. It also highlights Idaho's economic interest as the nation's second-largest  \n  sugar beet producer, with the industry contributing over $1 billion annually to the state economy. Sponsored by the House Agricultural Affairs Committee.",
+      "sponsors": [
+        "Agricultural Affairs Committee"
+      ],
+      "sections_affected": []
+    }
+  },
+  {
+    "id": "ID_H0383",
+    "input": {
+      "record_id": "ID_H0383",
+      "pdf_file_name": "ID_H0383.pdf",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2025/legislation/H0383/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "ID",
+      "session_code": "ID_2025_2025_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "383",
+      "title": "An Act Relating to Education — amending Sections 33-1802, 33-1804, 33-1805, 33-1806, 33-1807, 33-1809, 33-1811, and 33-1002, Idaho Code, and adding new Section 33-1809A, to revise provisions regarding literacy        \n  definitions, the Idaho Comprehensive Literacy Plan, student reading instruction and intervention, reading and literacy assessment, the literacy intervention program, accountability and continuous improvement, \n  additional literacy intervention and school literacy plans, dyslexia, and summative reading assessments; and declaring an emergency.",
+      "summary": "Idaho House Bill 383 (2025) is an emergency education reform bill that overhauls the state's K-3 literacy framework to align with the science of reading. It bans three-cueing instructional methods, introduces new     \n  definitions (including \"science of reading\" and \"independent literacy expert\"), and transitions from a single statewide reading assessment to a system where LEAs choose from 3+ state-vetted summative assessments. The\n  bill creates a new intervention process where underperforming elementary schools are paired with independent literacy experts for 3-year improvement plans, strengthens dyslexia screening and educator training         \n  requirements, and revises literacy funding to weight student reading growth and economically disadvantaged students. Effective July 1, 2025.",
+      "sponsors": [
+        "EDUCATION COMMITTEE"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 33-1802, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 33-1804, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 33-1805, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 33-1806, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 33-1807, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 33-1809, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Chapter 18, Title 33, Idaho Code (New Section 33-1809A)",
+          "action": "NEW"
+        },
+        {
+          "raw_section": "Section 33-1811, Idaho Code",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 33-1002, Idaho Code",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ID_SJR103",
+    "input": {
+      "record_id": "ID_SJR103",
+      "pdf_file_name": "ID_SJR103.pdf",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/SJR103/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "ID",
+      "session_code": "ID_2026_2026_R2",
+      "chamber_code": "SENATE",
+      "measure_type_code": "JOINT_RESOLUTION",
+      "measure_number": "103",
+      "title": "A Joint Resolution proposing an amendment to Section 8, Article IX of the Constitution of the State of Idaho, relating to state trust lands; stating the question to be submitted to the electorate;       \n  directing the Legislative Council to prepare the statements required by law; and directing the Secretary of State to publish the amendment and arguments as required by law.",
+      "summary": "Senate Joint Resolution No. 103 (2026) proposes a constitutional amendment to Article IX, Section 8 of the Idaho Constitution regarding state trust lands. It creates a new category of public lands — those granted to\n  or acquired from the federal government (excluding original statehood land grants) — to be held in a separate, permanent \"public lands trust.\" These lands could never be sold and could only be exchanged with\n  two-thirds legislative approval. The State Board of Land Commissioners would manage them using best management practices that balance multiple uses, avoid permanent impairment, and promote public recreation, scenic\n  values, watershed quality, and wildlife habitat. Revenue from these lands would go into a new Public Lands Trust Fund, appropriated first for land operations and then to compensate counties, improve public access, and\n   support public education facilities. The amendment would be placed on the ballot at the next general election. Sponsored by the Senate State Affairs Committee.",
+      "sponsors": [
+        "STATE AFFAIRS COMMITTEE"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 8, Article IX, Constitution of the State of Idaho",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "ID_S1331",
+    "input": {
+      "record_id": "ID_S1331",
+      "pdf_file_name": "ID_S1331.pdf",
+      "html_page_link": "https://legislature.idaho.gov/sessioninfo/2026/legislation/S1331/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "ID",
+      "session_code": "ID_2026_2026_R2",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "1331",
+      "title": "An Act relating to appropriations; reducing the appropriation for fiscal year 2026; reducing the number of authorized full-time equivalent positions for fiscal year 2026; transferring moneys from the    \n  Public School Income Fund to the General Fund for fiscal year 2026; and declaring an emergency.",
+      "summary": "Senate Bill 1331 (2026) is an emergency appropriations reduction bill that cuts $192,656,100 across virtually every branch and agency of Idaho state government for fiscal year 2026 (July 1, 2025 - June 30, 2026).\n  Sponsored by the Senate Finance Committee, the bill reduces previously enacted FY2026 appropriations from the Laws of 2025 across 31 major budget areas including public schools ($22.4M), universities and colleges\n  ($19.5M+), Health and Welfare/Medicaid ($75M+), Corrections ($7.2M+), State Police ($2.4M+), Environmental Quality ($1.5M), and dozens of other agencies. It also reduces approximately 97 FTE positions across 25+\n  programs and transfers $22,366,500 from the Public School Income Fund to the General Fund. The cuts span personnel costs ($48.6M), operating expenditures ($20.5M), capital outlay ($1.9M), and trustee/benefit payments\n  ($121.6M). Effective immediately upon passage.",
+      "sponsors": [
+        "FINANCE COMMITTEE"
+      ],
+      "sections_affected": []
+    }
+  },
+  {
+    "id": "WI_SB1083",
+    "input": {
+      "record_id": "WI_SB1083",
+      "pdf_file_name": "WI_SB1083.pdf",
+      "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/sb1083",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "WI",
+      "session_code": "WI_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "1083",
+      "title": "Applying the indoor smoking ban to electronic delivery devices and marijuana.",
+      "summary": "This bill revises the definition of \"smoking\" under Wisconsin's general prohibition against smoking in indoor locations. It expands the definition to include inhaling, exhaling, burning, or carrying any lighted or heated product containing or derived from nicotine, tobacco, cannabis, hemp, or any other natural or synthetic substance intended for inhalation. It also adds \"electronic delivery devices\" (such as e-cigarettes, e-cigars, e-pipes, vape pens, and e-hookahs) to the definition of smoking, regardless of whether the substance contains nicotine. FDA-authorized drugs and devices are excluded from the definition",
+      "sponsors": [
+        "GOVERNMENT OPERATIONS"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 101.123 (1) (ah), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 101.123 (1) (h), Wisconsin Statutes",
+          "action": "REPEAL AND RECREATE"
+        }
+      ]
+    }
+  },
+  {
+    "id": "WI_SB1080",
+    "input": {
+      "record_id": "WI_SB1080",
+      "pdf_file_name": "WI_SB1080.pdf",
+      "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/sb1080",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "WI",
+      "session_code": "WI_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "1080",
+      "title": "Local regulation of the short-term rental of residential dwellings",
+      "summary": "Current law limits a political subdivision's authority to regulate the short-term rental of residences. Under current law, a political subdivision may not prohibit the rental of a residence for seven consecutive days or longer and, in general, may not limit the rental of certain residential properties to fewer than 180 days in a year. This bill eliminates these limitations on a political subdivision's authority, giving local governments full control to regulate short-term residential rentals.",
+      "sponsors": [
+        "Committee on Insurance, Housing, Rural Issues and Forestry"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 66.1014 (title), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 66.1014 (1) (intro.) and (a), Wisconsin Statutes",
+          "action": "CONSOLIDATE, RENUMBER AND AMEND"
+        },
+        {
+          "raw_section": "Section 66.1014 (1) (b), Wisconsin Statutes",
+          "action": "REPEAL"
+        },
+        {
+          "raw_section": "Section 66.1014 (2) (a), Wisconsin Statutes",
+          "action": "REPEAL"
+        },
+        {
+          "raw_section": "Section 66.1014 (2) (b), Wisconsin Statutes",
+          "action": "REPEAL"
+        },
+        {
+          "raw_section": "Section 66.1014 (2) (c), Wisconsin Statutes",
+          "action": "REPEAL"
+        },
+        {
+          "raw_section": "Section 66.1014 (2) (d) 1., Wisconsin Statutes",
+          "action": "REPEAL"
+        },
+        {
+          "raw_section": "Section 66.1014 (2) (d) 2., Wisconsin Statutes",
+          "action": "RENUMBER"
+        }
+      ]
+    }
+  },
+  {
+    "id": "WI_AB1058",
+    "input": {
+      "record_id": "WI_AB1058",
+      "pdf_file_name": "WI_AB1058.pdf",
+      "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/ab1058",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "WI",
+      "session_code": "WI_2025_2026_R1",
+      "chamber_code": "ASSEMBLY",
+      "measure_type_code": "BILL",
+      "measure_number": "1058",
+      "title": "Access to prospective tenants' credit scores and consumer credit reports.",
+      "summary": "Under current law, a landlord may require a prospective tenant to pay up to $25 to obtain a consumer credit report, with prior notice and a copy provided to the tenant. This bill prohibits landlords from requiring prospective tenants to allow access to their credit score or consumer credit report. Landlords must inform prospective tenants of their right to decline, and if declined, must offer an alternative screening method to assess the tenant's ability to pay future rent",
+      "sponsors": [
+        "Committee on Financial Institutions"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 704.085 (1) (a), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 704.085 (1) (c), Wisconsin Statutes",
+          "action": "CREATE"
+        }
+      ]
+    }
+  },
+  {
+    "id": "WI_AB1090",
+    "input": {
+      "record_id": "WI_AB1090",
+      "pdf_file_name": "WI_AB1090.pdf",
+      "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/ab1090",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "WI",
+      "session_code": "WI_2025_2026_R1",
+      "chamber_code": "ASSEMBLY",
+      "measure_type_code": "BILL",
+      "measure_number": "1090",
+      "title": "Relating to the statewide policy regarding homelessness, an income tax credit for property taxes paid by senior citizens, and making an appropriation",
+      "summary": "This bill creates a refundable income tax credit for senior citizens (age 65+) equal to the amount by which their current year property taxes on their principal dwelling exceed the prior year's property taxes. If the credit exceeds the claimant's tax liability, the difference is paid by check. The bill also amends the statewide homelessness policy to require specific strategies for preventing and ending homelessness among older adults. Claimants of this credit may not simultaneously claim the school property tax credit, veterans and surviving spouses property tax credit, farmland preservation credit, or homestead credit.",
+      "sponsors": [
+        "Committee on Ways and Means"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 16.03 (2) (a), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 20.835 (2) (fm), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 71.07 (8d), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 71.10 (4) (i), Wisconsin Statutes",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "WI_SB1096",
+    "input": {
+      "record_id": "WI_SB1096",
+      "pdf_file_name": "WI_SB1096.pdf",
+      "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/sb1096",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "WI",
+      "session_code": "WI_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "1096",
+      "title": "An Act to renumber and amend 40.515 (3); to amend 20.515 (1) (tm), 40.03 (6) (k), 40.04 (12), 40.51 (1) and 40.515 (1); to create 20.515 (1) (g), 20.515 (1) (gm), 20.515 (1) (h), 20.515 (1) (i), 40.03   \n  (6) (km), 40.03 (6) (kp), 40.04 (13), 40.04 (14), 40.515 (1m), 40.515 (3) (b), 40.515 (3) (c) and 40.516 of the statutes; relating to: allowing private individuals, families, and private employers to elect health care\n   coverage through plans offered by the Group Insurance Board, granting rule-making authority, and making an appropriation.",
+      "summary": "Wisconsin Senate Bill 1096 (2025-2026 Legislature) opens the state's Group Insurance Board (GIB) health care coverage plans — currently available only to state employees and public sector employers — to private\n  individuals, families, and private employers (including nonprofits and unions). Under the bill, any Wisconsin resident not otherwise eligible for GIB coverage may enroll in any state employee health care plan,\n  including high-deductible plans with health savings accounts, provided they pay the full cost of premiums (no state subsidy) and sign a one-year coverage agreement. Private employers located in Wisconsin may similarly\n   elect GIB coverage for their in-state employees under a two-year agreement, also at full premium cost. Early termination triggers a one-year lockout from re-enrollment. The bill creates new appropriation accounts to\n  keep private individual and private employer funds separate from public employee funds, requires the Department of Employee Trust Funds to establish administration rules, and appropriates $100,000 with 1.0 FTE\n  position to develop a fiscal estimate. Implementation is required by January 1, 2027. Introduced by Senators Roys and Larson, cosponsored by Representatives Brown, Clancy, and Kirsch.",
+      "sponsors": [
+        "Senator Roys",
+        "Senator Larson",
+        "Representative Brown",
+        "Representative Clancy",
+        "Representative Kirsch"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 20.515 (1) (g), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 20.515 (1) (gm), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 20.515 (1) (h), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 20.515 (1) (i), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 20.515 (1) (tm), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 40.03 (6) (k), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 40.03 (6) (km), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.03 (6) (kp), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.04 (12), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 40.04 (13), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.04 (14), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.51 (1), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 40.515 (1), Wisconsin Statutes",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 40.515 (1m), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.515 (3), Wisconsin Statutes",
+          "action": "RENUMBER AND AMEND"
+        },
+        {
+          "raw_section": "Section 40.515 (3) (b), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.515 (3) (c), Wisconsin Statutes",
+          "action": "CREATE"
+        },
+        {
+          "raw_section": "Section 40.516, Wisconsin Statutes",
+          "action": "CREATE"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MN_HF_3749",
+    "input": {
+      "record_id": "MN_HF_3749",
+      "pdf_file_name": "HF_3749.pdf",
+      "html_page_link": "https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/versions/latest/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MN",
+      "session_code": "MN_2025_2026_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "HOUSE_FILE",
+      "measure_number": "3749",
+      "title": "A bill for an act relating to transportation; enacting various transportation-related policies; establishing bridge inspection standards; modifying active transportation education funding; modifying mandated reporting expiration dates; removing scenic byway designations; establishing truck parking improvement program.",
+      "summary": "Amends Minnesota bridge inspection law to align with National Bridge Inspection Standards (NBIS) and National Tunnel Inspection Standards (NTIS), adds definitions for BSIPM and NTIS, moves bridge strength standards to a new section, establishes tunnel inspection requirements, modifies reporting expiration dates for various transportation reports, adjusts active transportation safety curriculum funding under the active transportation program, establishes a new truck parking improvement program funded from the trunk highway or general fund, and repeals four scenic byway designations from Minnesota Statutes section 161.14.",
+      "sponsors": [
+        "Found at https://www.revisor.mn.gov/bills/94/2026/0/HF/3749/\n\n[\"Bjorn Olson",
+        "Jon Koznick\""
+      ],
+      "sections_affected": []
+    }
+  },
+  {
+    "id": "MN_HF_63",
+    "input": {
+      "record_id": "MN_HF_63",
+      "pdf_file_name": "HF_63.pdf",
+      "html_page_link": "https://www.revisor.mn.gov/bills/94/2025/0/HF/63/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MN",
+      "session_code": "MN_2025_2026_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "63",
+      "title": "A bill for an act relating to education; modifying school board membership requirements; expanding school board membership to include student members.",
+      "summary": "This bill amends Minnesota Statutes to add student members to school boards of independent school districts. Starting in the 2025-2026 school year, elected school board members must establish a process to select two students (enrolled in grades 9-12 and residents of the district) to serve on the school board. Student members serve two-year terms, may serve no more than two terms, and have full voting rights on any matter before the board. The bill applies to general independent districts, Independent School District No. 166, and Special School District No. 1 (Minneapolis).",
+      "sponsors": [
+        "Sencer-Mura",
+        "Youakim",
+        "Stephenson",
+        "Hemmingsen-Jaeger",
+        "Curran"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Minnesota Statutes 2024, section 123B.09",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Minnesota Statutes 2024, section 128.01",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Minnesota Statutes 2024, section 128D.05",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Minnesota Statutes 2024, section 128D.055, subdivision 1",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MN_SF_615",
+    "input": {
+      "record_id": "MN_SF_615",
+      "pdf_file_name": "SF_615.pdf",
+      "html_page_link": "https://www.revisor.mn.gov/bills/94/2025/0/SF/615/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MN",
+      "session_code": "MN_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "615",
+      "title": "A bill for an act relating to taxation; property; modifying the market value exclusion for veterans with a disability by increasing exclusion amount for totally and permanently disabled veterans; amending Minnesota Statutes 2024, section 273.13, subdivision 34.",
+      "summary": "his bill amends Minnesota Statutes 2024, section 273.13, subdivision 34, to increase the property market value exclusion for veterans with a service-connected disability. For a disability rating of 70 percent or more, the exclusion increases from $150,000 to $200,000. For a total (100 percent) and permanent disability, the exclusion increases from $300,000 to $400,000. The changes are effective beginning with assessment year 2026.",
+      "sponsors": [
+        "Draheim",
+        "Lang",
+        "Howe",
+        "Anderson",
+        "Port"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Minnesota Statutes 2024, section 273.13, subdivision 34",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MN_SF_441",
+    "input": {
+      "record_id": "MN_SF_441",
+      "pdf_file_name": "SF_441.pdf",
+      "html_page_link": "https://www.revisor.mn.gov/bills/94/2025/0/SF/441/",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MN",
+      "session_code": "MN_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "441",
+      "title": "A bill for an act relating to taxation; income; providing a temporary credit for the purchase and installation of solar energy systems.",
+      "summary": "This bill establishes a temporary, refundable income tax credit for taxpayers who receive retail electric service from a municipal utility or cooperative electric association and who purchase and place in service a solar energy system in Minnesota. The credit equals a declining percentage of purchase and installation costs: 15% for systems placed in service in 2025, 13% in 2026, and 11% from 2027 through 2028. Maximum credits are $2,500 for homestead installations and $15,000 per business property. The credit is refundable, pass-through eligible for partnerships and S corporations, and expires January 1, 2029. Effective for taxable years beginning after December 31, 2024.",
+      "sponsors": [
+        "Coleman",
+        "Dibble"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Section 1. TEMPORARY SOLAR ENERGY SYSTEM CREDIT (new uncodified section)",
+          "action": "ADD",
+          "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
+        }
+      ]
+    }
+  },
+  {
+    "id": "MN_SR0010",
+    "input": {
+      "record_id": "MN_SR0010",
+      "pdf_file_name": "MN_SR0010.pdf",
+      "html_page_link": "https://www.senate.mn/resolutions/display_resolution.html?ls=94&bill_type=SR&bill_number=0010&ss_number=0&ss_year=2025",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MN",
+      "session_code": "MN_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "SENATE_RESOLUTION",
+      "measure_number": "10",
+      "title": "A Senate resolution relating to standing committees; setting the schedule of standing committee meetings.",
+      "summary": "Establishes the membership and meeting schedule (times and locations) for the standing committees of the Minnesota Senate for the 94th legislative session.",
+      "sponsors": [],
+      "sections_affected": []
+    }
+  },
+  {
+    "id": "DE_HB315",
+    "input": {
+      "record_id": "DE_HB315",
+      "pdf_file_name": "HB315.pdf",
+      "html_page_link": "https://legis.delaware.gov/BillDetail/142907",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "DE",
+      "session_code": "DE_2025_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "315",
+      "title": "AN ACT TO AMEND TITLE 6 OF THE DELAWARE CODE RELATING TO CREDIT CARD FEES.",
+      "summary": "This Act prohibits payment card networks from establishing or charging transaction fees on tips on credit card transactions. Violations are punishable by a penalty of $1,000 per electronic transaction and the wrongful fees must be refunded.",
+      "sponsors": [
+        "K. Williams",
+        "Brown",
+        "Hocker",
+        "Berry",
+        "Bush",
+        "Dukes",
+        "Gorman",
+        "Gray",
+        "Griffith",
+        "Harris",
+        "Hensley",
+        "Minor-Brown",
+        "Ortega",
+        "Osienski",
+        "Romer",
+        "Ross Levin",
+        "Michael Smith",
+        "Snyder-Hall",
+        "Spiegelman",
+        "Vanderwende",
+        "Cooke",
+        "Carson",
+        "Chukwuocha",
+        "Heffernan",
+        "Jones Giltner",
+        "K. Johnson",
+        "Cruce",
+        "Hansen",
+        "Hoffner",
+        "Huxtable",
+        "Lockman",
+        "Paradee",
+        "Pinkney",
+        "Poore",
+        "Seigfried",
+        "Sokola",
+        "Townsend",
+        "Walsh"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Subchapter IV, Chapter 25, Title 6 - § 2541. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter IV, Chapter 25, Title 6 - § 2543. Penalty.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter IV, Chapter 25, Title 6 - § 2545. Surcharge fees; prohibitions.",
+          "action": "ADD"
+        }
+      ]
+    }
+  },
+  {
+    "id": "DE_HB317",
+    "input": {
+      "record_id": "DE_HB317",
+      "pdf_file_name": "HB317.pdf",
+      "html_page_link": "https://legis.delaware.gov/BillDetail?LegislationId=142943",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "DE",
+      "session_code": "DE_2025_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "317",
+      "title": "AN ACT TO AMEND TITLE 15 OF THE DELAWARE CODE RELATING TO AUTOMATIC VOTER REGISTRATION VERIFICATION AND ONGOING ELIGIBILITY REVIEW.",
+      "summary": "This Act requires the Department of Elections, in coordination with the Division of Motor Vehicles and any other state agency that administers automatic voter registration, to conduct a comprehensive audit of all voter registrations created through Delaware's automatic voter registration system since 2021 to ensure that individuals meet eligibility requirements including citizenship, residency, and age. The Act also requires mandatory eligibility verification for all future automatic voter registrations on an ongoing basis and establishes reporting requirements to ensure transparency and accountability.",
+      "sponsors": [
+        "Shupe",
+        "Buckson",
+        "Hilovsky",
+        "Morris",
+        "Yearick",
+        "Richardson"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Chapter 20, Title 15 - § 2050B. Automatic Voter Registration Eligibility Verification and Audit",
+          "action": "ADD"
+        }
+      ]
+    }
+  },
+  {
+    "id": "DE_HB325",
+    "input": {
+      "record_id": "DE_HB325",
+      "pdf_file_name": "HB325.pdf",
+      "html_page_link": "https://legis.delaware.gov/BillDetail?LegislationId=142941",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "DE",
+      "session_code": "DE_2025_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "325",
+      "title": "AN ACT TO AMEND THE DELAWARE CODE RELATING TO PHYSICIAN ASSOCIATES AND PHYSICIAN ASSISTANTS.",
+      "summary": "his Act changes the title of \"physician assistant\" to \"physician associate\" in Title 24, as well as changes the references from physician assistant to physician associate throughout the Delaware Code. It does not change any rights or privileges of those who have been or continue to hold themselves out to be a \"physician assistant.\" It also provides that a licensed physician associate with more than 6,000 post-graduate clinical practice hours who intends to practice without a collaborative agreement must apply to the Regulatory Council for Physician Associates for independent practice authority.",
+      "sponsors": [
+        "Berry",
+        "Poore",
+        "Minor-Brown",
+        "Morrison",
+        "Neal"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1770. The Regulatory Council for Physician Associates.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1770A. Physician associates; definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1771. Physician's role in collaborating with a physician associate.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1772. Prohibited acts by a physician associate.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1773. Regulation of physician associates.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1773A. Participation in disaster or emergency care.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774. Temporary licensing of physician associates.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774A. Fees set by Board.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774B. Prohibited acts; penalties; enforcement.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774C. Procedure or action not prescribed.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774D. Inactive license; return to clinical practice.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774E. Participation in charitable and voluntary care.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Subchapter VI, Chapter 17, Title 24 - § 1774F. Physician associates; applicability of name change.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Title 6 - § 2501M. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 14 - § 302. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 14 - § 305. Board composition.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 802D. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 2504. Presumption of capacity; overcoming presumption.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 3002G. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 3003L. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 4902A. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 5001. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 9302. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 9817. Mobile-integrated healthcare and community paramedicine programs.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 16 - § 9903. Duties and authority of the Commission.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 18 - § 3370J. Pharmacist services reimbursement.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 18 - § 3571CC. Pharmacist services reimbursement.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 20 - § 3132. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 21 - § 101. Words and phrases.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 21 - § 2134. Special license plates for persons with disabilities.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 21 - § 2603. Definitions.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 22 - § 1319. Termination of services to a dwelling unit.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 26 - § 117. Termination of service or sale to a dwelling unit.",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Title 29 - § 5220. Pharmacist services reimbursement.",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "DE_HB145",
+    "input": {
+      "record_id": "DE_HB145",
+      "pdf_file_name": "HB145.pdf",
+      "html_page_link": "https://legis.delaware.gov/BillDetail?LegislationId=142426",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "DE",
+      "session_code": "DE_2025_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "145",
+      "title": "AN ACT TO AMEND TITLE 11 OF THE DELAWARE CODE RELATING TOcREVERSE LOCATION AND REVERSE KEYWORD SEARCHES AND COURT ORDERS.",
+      "summary": "his Act prohibits law enforcement and courts from requesting, issuing, or enforcing reverse-location court orders, reverse-keyword court orders, reverse-location requests, and reverse-keyword requests. It also creates a private right of action for an individual whose personal information was obtained in violation of this Act and requires the suppression of evidence derived from an unlawful reverse-location or reverse-keyword search.",
+      "sponsors": [
+        "Wilson-Anton",
+        "Pinkney",
+        "Burns",
+        "Morrison"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Chapter 23, Title 11 - § 2312. Reverse-location and reverse-keyword searches prohibited.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Chapter 23, Title 11 - § 2313. Private right of action for reverse-keyword and reverse-location court orders and requests.",
+          "action": "ADD"
+        }
+      ]
+    }
+  },
+  {
+    "id": "DE_HB211",
+    "input": {
+      "record_id": "DE_HB211",
+      "pdf_file_name": "HB211.pdf",
+      "html_page_link": "https://legis.delaware.gov/BillDetail?LegislationId=142476",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "DE",
+      "session_code": "DE_2025_2026_R2",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "211",
+      "title": "AN ACT TO AMEND TITLE 29 OF THE DELAWARE CODE RELATING TO THE INNOVATING DELAWARE ACT.",
+      "summary": "This Act creates a tax credit for which accelerators may apply to incentivize the creation of industry and innovative businesses in Delaware. This tax credit may not reduce the recipient's tax burden by more than 50% and the program will be administered by the Division of Revenue.",
+      "sponsors": [
+        "Bush",
+        "Brown",
+        "Mantzavinos",
+        "Bolden",
+        "Hoffner",
+        "Poore",
+        "Walsh",
+        "Wilson"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8775A. Short title.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8776A. Definitions.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8777A. Projects available for tax credit.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8778A. Application.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8779A. Application and approval.",
+          "action": "ADD"
+        },
+        {
+          "raw_section": "Subchapter VIII-A, Chapter 87A, Title 29 - § 8780A. Innovating Delaware Tax Credit.",
+          "action": "ADD"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MI_HB4004",
+    "input": {
+      "record_id": "MI_HB4004",
+      "pdf_file_name": "2025-HIB-4004.pdf",
+      "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-HB-4004",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MI",
+      "session_code": "MI_2025_2026_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "HB4004",
+      "title": "A bill to amend 1972 PA 239, entitled \"McCauley-Traxler-Law-Bowman-McNeely lottery act,\" by amending section 25 (MCL 432.25), as amended by 1998 PA 465.",
+      "summary": "Amends Michigan lottery prize payment provisions by revising assignment and payment language, updating notice procedures to the attorney general for court approval of voluntary assignments of future prize payments, clarifying administrative fee authority, making confidentiality protections for winners of prizes greater than $10,000 dependent on written consent, extending nondisclosure protection to certain joint-enterprise game prizewinners unless they consent in writing, and retaining restrictions tied to IRS or court determinations affecting the tax treatment of voluntary prize assignments.",
+      "sponsors": [
+        "Outman"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "MCL 432.25 (Section 25)",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MI_HB4001",
+    "input": {
+      "record_id": "MI_HB4001",
+      "pdf_file_name": "2025-HIB-4001.pdf",
+      "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-HB-4001",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MI",
+      "session_code": "MI_2025_2026_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "HB4001",
+      "title": "A bill to amend 2014 PA 138, entitled \"Workforce opportunity wage act,\" by amending sections 4 and 4b (MCL 408.414 and 408.414b); and to repeal acts and parts of acts.",
+      "summary": "Raises Michigan's minimum hourly wage schedule to $12.00 beginning February 21, 2025, then $12.50 on January 1, 2026, $13.00 on January 1, 2027, $14.00 on January 1, 2028, and $15.00 on January 1, 2029; delays CPI-based annual adjustments until 2030; lowers the unemployment threshold that blocks annual increases from 8.5% to 7.5%; changes the under-20 training wage from a flat $4.25 to 75% of the general minimum wage for the first 90 days of employment; and repeals the Improved Workforce Opportunity Wage Act, 2018 PA 337, MCL 408.931 to 408.945.",
+      "sponsors": [
+        "Roth",
+        "DeBoyer",
+        "Aragona",
+        "Markkanen",
+        "BeGole",
+        "Prestin",
+        "Wozniak",
+        "Wendzel",
+        "Schmaltz",
+        "DeBoer",
+        "DeSana",
+        "Cavitt",
+        "Beson",
+        "Harris",
+        "Steele",
+        "St. Germaine",
+        "Bollin",
+        "Martin",
+        "Meerman",
+        "Woolford",
+        "Bruck",
+        "Kunse",
+        "Fox",
+        "Kelly",
+        "Hoadley",
+        "Alexander",
+        "Lightner",
+        "Slagh",
+        "Rigas",
+        "Frisbie",
+        "Schuette",
+        "Fairbairn",
+        "Borton",
+        "Maddock",
+        "Jenkins-Arno",
+        "Bierlein",
+        "Mueller",
+        "Wortz",
+        "VanderWall",
+        "Greene"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "MCL 408.414 (Section 4)",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "MCL 408.414b (Section 4b)",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "2018 PA 337, MCL 408.931 to 408.945",
+          "action": "REPEAL"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MI_HB4007",
+    "input": {
+      "record_id": "MI_HB4007",
+      "pdf_file_name": "2025-HIB-4007.pdf",
+      "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-HB-4007",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MI",
+      "session_code": "MI_2025_2026_R1",
+      "chamber_code": "HOUSE",
+      "measure_type_code": "BILL",
+      "measure_number": "HB4007",
+      "title": "A bill to amend 2008 PA 295, entitled \"Clean and renewable energy and energy waste reduction act,\" by amending section 3 (MCL 460.1003), as amended by 2023 PA 235.",
+      "summary": "Amends the definition of clean energy system to include a reciprocating internal combustion engine placed in service before the effective date of the amendatory act adding the provision when used to facilitate retirement of coal-fired generation in Michigan's Upper Peninsula, with the provision expiring after the end of the Midcontinent Independent System Operator planning year ending in 2050.",
+      "sponsors": [
+        "Bohnak",
+        "Prestin",
+        "Markkanen",
+        "Cavitt",
+        "Maddock",
+        "DeSana",
+        "Paquette",
+        "Rigas",
+        "Johnsen",
+        "Alexander",
+        "Beson",
+        "Borton",
+        "Greene",
+        "Outman",
+        "Fairbairn",
+        "Roth",
+        "Neyer"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "MCL 460.1003 (Section 3)",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MI_SB0001",
+    "input": {
+      "record_id": "MI_SB0001",
+      "pdf_file_name": "2025-SIB-0001.pdf",
+      "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-SB-0001",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MI",
+      "session_code": "MI_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "2",
+      "title": "A bill to amend 1976 PA 442, entitled \"Freedom of information act,\" by amending section 2 (MCL 15.232), as amended by 2018 PA 68.",
+      "summary": "Amends the definitions section of Michigan's Freedom of Information Act to add definitions for cybersecurity assessment, cybersecurity incident, cybersecurity plan, cybersecurity vulnerability, field name, FOIA coordinator, and legislator; expands the definition of \"public body\" to include officers, legislators, employees, agencies, committees, and other bodies in the legislative branch while excluding the legislative service bureau, senate fiscal agency, and house fiscal agency; clarifies executive and judicial exclusions; updates the definition of \"public record\" to exclude certain personal notes of members of a public body; modernizes the definition of \"writing\" to include cloud storage and quantum networks and computing systems; and makes the bill effective only if Senate Bill No. 2 is enacted.",
+      "sponsors": [
+        "sponsors\": [\n    \"Senator McBroom",
+        "Senator Moss\""
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "MCL 15.232 (Section 2)",
+          "action": "AMEND"
+        }
+      ]
+    }
+  },
+  {
+    "id": "MI_SB0002",
+    "input": {
+      "record_id": "MI_SB0002",
+      "pdf_file_name": "2025-SIB-0002.pdf",
+      "html_page_link": "https://www.legislature.mi.gov/Bills/Bill?ObjectName=2025-SB-0002",
+      "prompt": "Extract legislative metadata from this bill."
+    },
+    "expected_output": {
+      "jurisdiction_code": "MI",
+      "session_code": "MI_2025_2026_R1",
+      "chamber_code": "SENATE",
+      "measure_type_code": "BILL",
+      "measure_number": "2",
+      "title": "A bill to amend 1976 PA 442, entitled \"Freedom of information act,\" by amending sections 6, 10, and 13 (MCL 15.236, 15.240, and 15.243), section 6 as amended by 1996 PA 553, section 10 as amended by 2014 PA 563, and section 13 as amended by 2023 PA 64, and by adding section 14a.",
+      "summary": "Amends Michigan's Freedom of Information Act to establish FOIA coordinator designations for the house and senate, create legislative appeal procedures for denials, revise judicial review and remedies, expand exemptions applicable to executive-office and legislative records, preserve access to legislative salary records, and add section 14a stating that FOIA's application to state legislative public bodies does not limit constitutional legislative privileges and immunities. The bill takes effect on January 1 of the first odd-numbered year beginning at least 6 months after enactment and only if Senate Bill No. 1 is enacted.",
+      "sponsors": [
+        "MCBROOM",
+        "MOSS"
+      ],
+      "sections_affected": [
+        {
+          "raw_section": "MCL 15.236 (Section 6)",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "MCL 15.240 (Section 10)",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "MCL 15.243 (Section 13)",
+          "action": "AMEND"
+        },
+        {
+          "raw_section": "Section 14a",
+          "action": "ADD"
+        }
+      ]
+    }
+  }
+]
