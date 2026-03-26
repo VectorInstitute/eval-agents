@@ -166,9 +166,9 @@ class ReadOnlySqlDatabase:
 
             return is_safe
         except Exception as e:
-            logger.error("SQL Parsing Error: %s", e)
+            logger.exception("SQL Parsing Error: %s", e)
             # If we can't parse it, we don't run it.
-            return False
+            raise e
 
     def get_schema_info(self, table_names: Optional[list[str]] = None) -> str:
         """Return schema for specific tables/views or all if None.
@@ -296,6 +296,7 @@ class ReadOnlySqlDatabase:
                 return "\n".join(output)
 
         except Exception as e:
+            logger.exception("Error executing query: %s", e)
             error_msg = str(e)
             return f"Query Error: {error_msg}"
 
