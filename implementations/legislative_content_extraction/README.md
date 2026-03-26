@@ -74,7 +74,7 @@ The raw dataset (`legislative_content_extraction_dataset.json`) contains 26 reco
 | `session_code` | string | Standardized session identifier |
 | `chamber_code` | string | `HOUSE` or `SENATE` |
 | `measure_type_code` | string | `BILL`, `JOINT_RESOLUTION`, `JOINT_MEMORIAL`, etc. |
-| `measure_number` | string | Integer portion of the measure number |
+| `measure_number` | integer | Integer portion of the measure number |
 | `title` | string | Official title |
 | `summary` | string | Concise summary of the measure |
 | `sponsors` | list[string] | Sponsors (legislators or committees) |
@@ -172,7 +172,7 @@ The system prompt (`system_instructions.py`) instructs the agent to:
 1. Read the PDF using `read_pdf`
 2. Determine the jurisdiction from document content
 3. Extract all required metadata fields
-4. Always fetch the HTML page for supplementary data
-5. Return a valid JSON object (validated with `validate_json` tool)
+4. Always fetch the HTML page using `fetch_html_page` for supplementary data
+5. Return a valid JSON object, validated with `validate_json` (at most 2 calls)
 
 Includes Gemini-specific constraints to ensure raw JSON output without markdown fences or conversational text.
