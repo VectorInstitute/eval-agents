@@ -12,7 +12,7 @@ content, and returns structured legislative metadata as a JSON object.
 ## Architecture
 
 ```
-User Input (pdf_path, prompt, html_page_link?)
+User Input (pdf_path, prompt, html_page_link)
     │
     ▼
 ┌──────────────────────────────────────────┐
@@ -22,8 +22,9 @@ User Input (pdf_path, prompt, html_page_link?)
 │  1. Receives input                       │
 │  2. Calls read_pdf             ◄── pypdf │
 │  3. Analyzes text                        │
-│  4. Calls fetch_html_page (if needed)    │
-│  5. Returns JSON                         │
+│  4. Calls fetch_html_page                │
+│  5. Validates JSON with validate_json    │
+│  6. Returns JSON                         │
 └──────────────────────────────────────────┘
     │
     ▼
@@ -40,13 +41,14 @@ The agent extracts the following metadata from legislative PDFs:
 | `session_code` | `string` | Standardized session code (e.g. `"ID_2025_2025_R1"`, `"WI_2025_2026_R1"`) |
 | `chamber_code` | `string` | `HOUSE` or `SENATE` |
 | `measure_type_code` | `string` | `BILL`, `CONCURRENT_RESOLUTION`, `JOINT_RESOLUTION`, `JOINT_MEMORIAL`, or `CONCURRENT_MEMORIAL` |
-| `measure_number` | `string` | Measure number (e.g. `"H0004"`, `"S1234"`) |
+| `measure_number` | `integer` | Integer portion of the measure number (e.g. `4`, `1234`) |
 | `title` | `string` | Official title or short description |
 | `summary` | `string` | Concise summary of what the measure does |
 | `sponsors` | `list[string]` | List of sponsors (legislators or committees) |
-| `sections_affected` | `list[object]` | List of objects with `raw_section` (e.g. `"Section 67-827A, Idaho Code"`) |
+| `is_adopted_into_law` | `boolean` | Whether the measure was signed/enacted into law |
+| `sections_affected` | `list[object]` | List of objects with `raw_section` and `action` (e.g. `AMEND`, `ADD`, `REPEAL`) |
 
-Fields that cannot be determined from the PDF content are set to `null`.
+Fields that cannot be determined from the PDF and HTML content are set to `null`.
 
 ## Package Structure
 
@@ -120,14 +122,15 @@ agent = LegislativeContentExtractionAgent(after_agent_callback=calculate_and_sen
   "session_code": "ID_2025_2025_R1",
   "chamber_code": "HOUSE",
   "measure_type_code": "BILL",
-  "measure_number": "H0004",
+  "measure_number": 4,
   "title": "AN ACT RELATING TO INFORMATION TECHNOLOGY SERVICES AND CYBERSECURITY",
   "summary": "This bill amends Idaho Code sections 67-827A and 67-831 and adds a new section 67-2362 to enhance cybersecurity practices across state government...",
   "sponsors": ["STATE AFFAIRS COMMITTEE"],
+  "is_adopted_into_law": false,
   "sections_affected": [
-    {"raw_section": "Section 67-827A, Idaho Code"},
-    {"raw_section": "Section 67-831, Idaho Code"},
-    {"raw_section": "Section 67-2362, Idaho Code"}
+    {"raw_section": "Section 67-827A, Idaho Code", "action": "AMEND"},
+    {"raw_section": "Section 67-831, Idaho Code", "action": "AMEND"},
+    {"raw_section": "Section 67-2362, Idaho Code", "action": "ADD"}
   ]
 }
 ```
@@ -144,7 +147,7 @@ Reads a local PDF file and extracts text content page by page using `pypdf`.
 
 ### `fetch_html_page`
 
-Fetches an HTML page and extracts its text content. Used when the PDF does not contain enough information for a required field (e.g. sponsors) and an HTML page link was provided.
+Fetches an HTML page and extracts its text content. Always called to retrieve supplementary data from the legislative web page.
 
 - **Input**: `url` (URL of the legislative HTML page)
 - **Output**: `{status, content, url}` on success; `{status, error}` on failure
