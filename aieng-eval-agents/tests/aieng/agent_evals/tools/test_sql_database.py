@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+import sqlglot
 from aieng.agent_evals.tools import ReadOnlySqlDatabase, ReadOnlySqlPolicy, sql_database
 from sqlalchemy import create_engine
 
@@ -154,13 +155,11 @@ def test_is_safe_readonly_query_blocks_forbidden_nodes_even_if_root_is_allowed(s
     assert db._is_safe_readonly_query("DELETE FROM customers") is False
 
 
-def test_is_safe_readonly_query_returns_false_on_parse_errors(
-    sqlite_db_uri: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Return False (fail closed) if parsing raises."""
-    db = ReadOnlySqlDatabase(connection_uri=sqlite_db_uri)
-    monkeypatch.setattr("aieng.agent_evals.tools.sql_database.sqlglot.parse", lambda _query: 1 / 0)
-    assert db._is_safe_readonly_query("SELECT 1") is False
+def test_is_safe_readonly_query_returns_exception_on_parse_errors(sqlite_db_uri: str) -> None:
+    """Return exception if parsing raises an exception."""
+    with pytest.raises(sqlglot.errors.ParseError):
+        db = ReadOnlySqlDatabase(connection_uri=sqlite_db_uri)
+        assert db._is_safe_readonly_query("SERECT 1") is False
 
 
 def test_get_schema_info_includes_tables_and_views(default_db: ReadOnlySqlDatabase) -> None:
