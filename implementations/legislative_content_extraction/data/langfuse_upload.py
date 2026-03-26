@@ -23,7 +23,7 @@ import logging
 from pathlib import Path
 
 import click
-from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
+from aieng.agent_evals.legislative_content_extraction.langfuse_upsert import upload_dataset_to_langfuse
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
@@ -77,6 +77,7 @@ class LegislativeContentExtractionDataset(BaseModel):
     title: str
     summary: str
     sponsors: list[str]
+    is_adopted_into_law: bool = False
     sections_affected: list[RawSectionAffected] = Field(default_factory=list)
 
 
@@ -119,13 +120,8 @@ class LangfuseExpectedOutput(BaseModel):
     title: str
     summary: str
     sponsors: list[str]
+    is_adopted_into_law: bool
     sections_affected: list[CleanedSectionAffected]
-
-
-class LangfuseMetadata(BaseModel):
-    """Metadata payload for a Langfuse dataset item."""
-
-    should_use_html: bool
 
 
 class LegislativeContentLangfuseDataset(BaseModel):
@@ -134,7 +130,6 @@ class LegislativeContentLangfuseDataset(BaseModel):
     id: str
     input: LangfuseInput
     expected_output: LangfuseExpectedOutput
-    metadata: LangfuseMetadata
 
 
 # ---------------------------------------------------------------------------
@@ -144,8 +139,6 @@ class LegislativeContentLangfuseDataset(BaseModel):
 
 def transform_record(raw: LegislativeContentExtractionDataset) -> LegislativeContentLangfuseDataset:
     """Transform a single raw dataset record to Langfuse format."""
-    should_use_html = bool(raw.html_page_link and raw.html_page_link.strip())
-
     return LegislativeContentLangfuseDataset(
         id=raw.record_id,
         input=LangfuseInput(
@@ -163,6 +156,7 @@ def transform_record(raw: LegislativeContentExtractionDataset) -> LegislativeCon
             title=raw.title,
             summary=raw.summary,
             sponsors=raw.sponsors,
+            is_adopted_into_law=raw.is_adopted_into_law,
             sections_affected=[
                 CleanedSectionAffected(
                     raw_section=s.raw_section,
@@ -171,9 +165,6 @@ def transform_record(raw: LegislativeContentExtractionDataset) -> LegislativeCon
                 )
                 for s in raw.sections_affected
             ],
-        ),
-        metadata=LangfuseMetadata(
-            should_use_html=should_use_html,
         ),
     )
 

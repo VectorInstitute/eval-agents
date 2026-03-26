@@ -65,6 +65,7 @@ def item_level_deterministic_grader(
         Per-item metrics: ``jurisdiction_code_correct``,
         ``session_code_correct``, ``chamber_code_correct``,
         ``measure_type_correct``, ``measure_number_correct``,
+        ``is_adopted_into_law_correct``,
         ``sponsors_precision``, ``sponsors_recall``,
         ``sections_precision``, ``sections_recall``.
     """
@@ -86,6 +87,20 @@ def item_level_deterministic_grader(
     measure_number_correct = normalize_str(get_field(output, "measure_number")) == normalize_str(
         get_field(expected_output, "measure_number")
     )
+
+    # --- Boolean field: is_adopted_into_law ---
+    predicted_adopted = get_field(output, "is_adopted_into_law")
+    expected_adopted = get_field(expected_output, "is_adopted_into_law")
+    # If expected is missing/None, treat as automatic pass
+    if expected_adopted is None:
+        adopted_correct = True
+    else:
+        # Coerce to bool for comparison (handles string "true"/"false" from JSON)
+        if isinstance(predicted_adopted, str):
+            predicted_adopted = predicted_adopted.strip().lower() == "true"
+        if isinstance(expected_adopted, str):
+            expected_adopted = expected_adopted.strip().lower() == "true"
+        adopted_correct = bool(predicted_adopted) == bool(expected_adopted)
 
     # --- List fields: set-based precision / recall ---
     predicted_sponsors = normalize_sponsors(get_field(output, "sponsors"))
@@ -153,6 +168,14 @@ def item_level_deterministic_grader(
             metadata={
                 "expected": get_field(expected_output, "measure_number"),
                 "actual": get_field(output, "measure_number"),
+            },
+        ),
+        Evaluation(
+            name="is_adopted_into_law_correct",
+            value=1.0 if adopted_correct else 0.0,
+            metadata={
+                "expected": expected_adopted,
+                "actual": predicted_adopted,
             },
         ),
         Evaluation(

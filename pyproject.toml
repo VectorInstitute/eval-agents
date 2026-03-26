@@ -25,11 +25,11 @@ dependencies = [
     "openpyxl>=3.1.5",
     "authlib>=1.6.7", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7
     "filelock>=3.20.3",
-    "pyasn1>=0.6.2",
+    "pyasn1>=0.6.3", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
     "virtualenv>=20.36.1",
     "tenacity>=9.1.2",
     "certifi>=2026.1.4",
-    "pypdf>=6.7.5", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5
+    "pypdf>=6.9.1", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1
 ]
 
 [dependency-groups]
