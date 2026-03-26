@@ -33,7 +33,7 @@ from aieng.agent_evals.knowledge_qa.retry import (
 )
 from aieng.agent_evals.knowledge_qa.token_tracker import TokenTracker
 from .system_instructions import PDF_SYSTEM_INSTRUCTIONS                                                                                              
-from .tools import create_fetch_html_page_tool, create_read_pdf_tool
+from .tools import create_fetch_html_page_tool, create_read_pdf_tool, create_validate_json_tool
 from aieng.agent_evals.tools import GroundingChunk
 from google.adk.agents import Agent
 from google.adk.agents.base_agent import AfterAgentCallback
@@ -127,6 +127,7 @@ class LegislativeContentExtractionAgent:
 
         self._read_pdf_tool = create_read_pdf_tool()
         self._fetch_html_page_tool = create_fetch_html_page_tool(cache_dir=files_dir)
+        self._validate_json_tool = create_validate_json_tool()
 
         thinking_config = None
         if thinking_budget > 0 and self._supports_thinking(self.model):
@@ -136,7 +137,7 @@ class LegislativeContentExtractionAgent:
             name="legislative_content_extraction",
             model=self.model,
             instruction=PDF_SYSTEM_INSTRUCTIONS,
-            tools=[self._read_pdf_tool, self._fetch_html_page_tool],
+            tools=[self._read_pdf_tool, self._fetch_html_page_tool, self._validate_json_tool],
             generate_content_config=types.GenerateContentConfig(
                 temperature=self.temperature,
                 thinking_config=thinking_config,
