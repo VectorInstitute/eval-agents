@@ -37,7 +37,7 @@
         "action": "ADD"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "ID_H0504",
@@ -98,7 +98,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": true
   },
   {
     "record_id": "ID_HJM010",
@@ -116,7 +116,7 @@
       "Agricultural Affairs Committee"
     ],
     "sections_affected": [],
-    "should_use_html": false
+    "is_adopted_into_law": true
   },
   {
     "record_id": "ID_H0383",
@@ -198,7 +198,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "ID_SJR103",
@@ -224,7 +224,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "ID_S1331",
@@ -242,7 +242,7 @@
       "FINANCE COMMITTEE"
     ],
     "sections_affected": [],
-    "should_use_html": false
+    "is_adopted_into_law": true
   },
   {
     "record_id": "WI_SB1083",
@@ -286,7 +286,7 @@
         "action": "REPEAL AND RECREATE"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "WI_SB1080",
@@ -371,7 +371,7 @@
         "action": "RENUMBER"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "WI_AB1058",
@@ -414,7 +414,7 @@
         "action": "CREATE"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "WI_AB1090",
@@ -467,7 +467,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "WI_SB1096",
@@ -616,7 +616,7 @@
         "action": "CREATE"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MN_HF_3749",
@@ -635,7 +635,7 @@
       "Jon Koznick"
     ],
     "sections_affected": [],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MN_HF_63",
@@ -687,7 +687,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MN_SF_615",
@@ -718,7 +718,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MN_SF_441",
@@ -746,7 +746,7 @@
         "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MN_SR0010",
@@ -762,7 +762,7 @@
     "summary": "Establishes the membership and meeting schedule (times and locations) for the standing committees of the Minnesota Senate for the 94th legislative session.",
     "sponsors": [],
     "sections_affected": [],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "DE_HB315",
@@ -830,7 +830,7 @@
         "action": "ADD"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "DE_HB317",
@@ -858,7 +858,7 @@
         "action": "ADD"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "DE_HB325",
@@ -1017,7 +1017,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "DE_HB145",
@@ -1047,7 +1047,7 @@
         "action": "ADD"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "DE_HB211",
@@ -1097,7 +1097,7 @@
         "action": "ADD"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MI_HB4004",
@@ -1120,7 +1120,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MI_HB4001",
@@ -1190,7 +1190,7 @@
         "action": "REPEAL"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MI_HB4007",
@@ -1229,7 +1229,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MI_SB0001",
@@ -1253,7 +1253,7 @@
         "action": "AMEND"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   },
   {
     "record_id": "MI_SB0002",
@@ -1289,6 +1289,6 @@
         "action": "ADD"
       }
     ],
-    "should_use_html": false
+    "is_adopted_into_law": false
   }
 ]

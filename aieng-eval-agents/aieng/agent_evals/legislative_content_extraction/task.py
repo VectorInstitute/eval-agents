@@ -76,6 +76,7 @@ class LegislativeExtractionTask:
             return None
 
         raw_text = (response.text or "").strip()
+        logger.info(f"RAW TEXT: {raw_text}")
         if not raw_text:
             logger.warning("Empty response for pdf_path=%s", pdf_path)
             return None
