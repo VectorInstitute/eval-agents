@@ -57,7 +57,9 @@ jobs:
           # Skipping one nbconvert vulnerability that has no fix version
           # Skipping one orjson vulnerability that has no fix version
           # Skipping one protobuf vulnerability that has no fix version
+          # Skipping one pygments vulnerability that has no fix version
           ignore-vulns: |
             GHSA-xm59-rqc7-hhvf
             GHSA-hx9q-6w63-j58v
             GHSA-7gcm-g887-7qv7
+            CVE-2026-4539
