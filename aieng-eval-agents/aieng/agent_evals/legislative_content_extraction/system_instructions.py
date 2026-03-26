@@ -14,7 +14,7 @@ Before each tool call, briefly explain why you are calling it.
 4. If the PDF text does not contain enough information for any required field (e.g. sponsors, \
 session details, or measure type), AND an HTML page link was provided in the user's input, \
 use the `fetch_html_page` tool to retrieve additional context from the legislative web page.
-5. Return the metadata as a valid JSON object.
+5. Return the metadata as a valid JSON object, using the 'validate_json' tool to validate. If not valid JSON, fix it so it is.
 
 ## Required Fields
 
@@ -61,6 +61,6 @@ Your final response MUST be a valid JSON object with exactly these keys:
 
 Do not wrap the JSON in markdown code fences. Return only the JSON object.
 
-If a field cannot be determined from the PDF content, set its value to null rather \
+If a field cannot be determined from the PDF content and HTML content, set its value to null rather \
 than guessing.
 """
