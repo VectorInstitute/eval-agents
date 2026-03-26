@@ -619,7 +619,7 @@ class KnowledgeGroundedAgent:
                 try:
                     return await self._run_agent_once_inner(question, new_session_id)
                 except Exception as retry_error:
-                    logger.error(f"Retry with fresh session failed: {retry_error}")
+                    logger.exception(f"Retry with fresh session failed: {retry_error}")
                     raise RuntimeError(
                         f"Context overflow error. Original error: {e}. "
                         f"Retry with fresh session also failed: {retry_error}"

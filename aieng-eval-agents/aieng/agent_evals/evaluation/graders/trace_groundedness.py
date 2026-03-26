@@ -5,6 +5,7 @@ candidate output is supported by trace tool evidence. Ungrounded output is
 treated as hallucination.
 """
 
+import logging
 from pathlib import Path
 from typing import Any, Literal
 
@@ -24,6 +25,10 @@ from langfuse.api.resources import ObservationsView
 from langfuse.api.resources.commons.types.trace_with_full_details import TraceWithFullDetails
 from langfuse.experiment import ExperimentItemResult
 from pydantic import BaseModel, Field
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_GROUNDEDNESS_SYSTEM_PROMPT = """\
@@ -212,6 +217,7 @@ def create_trace_groundedness_evaluator(
             )
         except Exception as exc:
             # Deterministic error scores keep rows analyzable without dropping traces.
+            logger.exception("Trace groundedness error")
             return build_error_evaluation(name=resolved_error_metric_name, error=exc, prefix="Trace groundedness error")
 
     _evaluator.__name__ = name
