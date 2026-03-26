@@ -257,7 +257,18 @@
     "title": "Applying the indoor smoking ban to electronic delivery devices and marijuana.",
     "summary": "This bill revises the definition of \"smoking\" under Wisconsin's general prohibition against smoking in indoor locations. It expands the definition to include inhaling, exhaling, burning, or carrying any lighted or heated product containing or derived from nicotine, tobacco, cannabis, hemp, or any other natural or synthetic substance intended for inhalation. It also adds \"electronic delivery devices\" (such as e-cigarettes, e-cigars, e-pipes, vape pens, and e-hookahs) to the definition of smoking, regardless of whether the substance contains nicotine. FDA-authorized drugs and devices are excluded from the definition",
     "sponsors": [
-      "GOVERNMENT OPERATIONS"
+      "Senator CARPENTER",
+      "Senator LARSON",
+      "Senator RATCLIFF",
+      "Senator ROYS",
+      "Senator WANGGAARD",
+      "Representative BILLINGS",
+      "Representative SHEEHAN",
+      "Representative ARNEY",
+      "Representative EMERSON",
+      "Representative JOERS",
+      "Representative SINICKI",
+      "Representative SUBECK"
     ],
     "sections_affected": [
       {
@@ -290,7 +301,17 @@
     "title": "Local regulation of the short-term rental of residential dwellings",
     "summary": "Current law limits a political subdivision's authority to regulate the short-term rental of residences. Under current law, a political subdivision may not prohibit the rental of a residence for seven consecutive days or longer and, in general, may not limit the rental of certain residential properties to fewer than 180 days in a year. This bill eliminates these limitations on a political subdivision's authority, giving local governments full control to regulate short-term residential rentals.",
     "sponsors": [
-      "Committee on Insurance, Housing, Rural Issues and Forestry"
+      "Senator LARSON",
+      "Senator DASSLER-ALFHEIM",
+      "Representative PALMERI",
+      "Representative CLANCY",
+      "Representative SNODGRASS",
+      "Representative STUBBS",
+      "Representative SINICKI",
+      "Representative MOORE OMOKUNDE",
+      "Representative MADISON",
+      "Representative SPAUDE",
+      "Representative MIRESSE"
     ],
     "sections_affected": [
       {
@@ -359,13 +380,23 @@
     "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/ab1058",
     "jurisdiction_code": "WI",
     "session_code": "WI_2025_2026_R1",
-    "chamber_code": "ASSEMBLY",
+    "chamber_code": "HOUSE",
     "measure_type_code": "BILL",
     "measure_number": "1058",
     "title": "Access to prospective tenants' credit scores and consumer credit reports.",
     "summary": "Under current law, a landlord may require a prospective tenant to pay up to $25 to obtain a consumer credit report, with prior notice and a copy provided to the tenant. This bill prohibits landlords from requiring prospective tenants to allow access to their credit score or consumer credit report. Landlords must inform prospective tenants of their right to decline, and if declined, must offer an alternative screening method to assess the tenant's ability to pay future rent",
     "sponsors": [
-      "Committee on Financial Institutions"
+      "Representative SNODGRASS",
+      "Representative ARNEY",
+      "Representative MIRESSE",
+      "Representative PALMERI",
+      "Representative PRADO",
+      "Representative SINICKI",
+      "Representative STUBBS",
+      "Representative TAYLOR",
+      "Representative STROUD",
+      "Senator DRAKE",
+      "Senator WIRCH"
     ],
     "sections_affected": [
       {
@@ -392,13 +423,19 @@
     "html_page_link": "https://docs.legis.wisconsin.gov/2025/related/proposals/ab1090",
     "jurisdiction_code": "WI",
     "session_code": "WI_2025_2026_R1",
-    "chamber_code": "ASSEMBLY",
+    "chamber_code": "HOUSE",
     "measure_type_code": "BILL",
     "measure_number": "1090",
     "title": "Relating to the statewide policy regarding homelessness, an income tax credit for property taxes paid by senior citizens, and making an appropriation",
     "summary": "This bill creates a refundable income tax credit for senior citizens (age 65+) equal to the amount by which their current year property taxes on their principal dwelling exceed the prior year's property taxes. If the credit exceeds the claimant's tax liability, the difference is paid by check. The bill also amends the statewide homelessness policy to require specific strategies for preventing and ending homelessness among older adults. Claimants of this credit may not simultaneously claim the school property tax credit, veterans and surviving spouses property tax credit, farmland preservation credit, or homestead credit.",
     "sponsors": [
-      "Committee on Ways and Means"
+      "Representative TAYLOR",
+      "Representative BROWN",
+      "Representative DESANTO",
+      "Representative GOODWIN",
+      "Representative RIVERA-WAGNER",
+      "Representative SINICKI",
+      "Representative STUBBS"
     ],
     "sections_affected": [
       {
