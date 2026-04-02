@@ -8,7 +8,7 @@ license = "Apache-2.0"
 requires-python = ">=3.12,<4.0"
 dependencies = [
     "aieng-eval-agents>=0.1.0",
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.13.4", # CVE-2026-34513/34514/34515/34516/34517/34518/34519/34520/34525, CVE-2026-22815: multiple DoS/security fixes in 3.13.4
     "beautifulsoup4>=4.13.4",
     "datasets>=3.6.0",
     "e2b-code-interpreter>=2.4.1",
@@ -24,6 +24,7 @@ dependencies = [
     "urllib3>=2.6.3",
     "openpyxl>=3.1.5",
     "authlib>=1.6.7", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7
+    "cryptography>=46.0.6", # CVE-2026-34073: DNS name constraint bypass fixed in 46.0.6
     "filelock>=3.20.3",
     "pyasn1>=0.6.3", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
     "virtualenv>=20.36.1",
