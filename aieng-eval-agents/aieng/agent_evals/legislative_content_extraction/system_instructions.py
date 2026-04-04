@@ -32,7 +32,12 @@ standardized session code. The session code must be one of the following values:
 "MI_2025_2026_R1" (Michigan 103rd Legislature, Regular Session of 2026).
 - **chamber_code**: The chamber that introduced the measure. Must be one of: HOUSE, SENATE.
 - **measure_type_code**: The type of legislative measure. Must be one of: BILL, \
-CONCURRENT_RESOLUTION, JOINT_RESOLUTION, JOINT_MEMORIAL, CONCURRENT_MEMORIAL.
+CONCURRENT_RESOLUTION, JOINT_RESOLUTION, JOINT_MEMORIAL, CONCURRENT_MEMORIAL, \
+HOUSE_FILE, SENATE_FILE, SENATE_RESOLUTION, HOUSE_RESOLUTION. \
+Use BILL as the default for most measures. Use HOUSE_FILE or SENATE_FILE only \
+when the measure is explicitly and formally titled as a "House File" or "Senate File" \
+(not simply prefixed HF/SF). Use SENATE_RESOLUTION for standalone Senate resolutions \
+and HOUSE_RESOLUTION for standalone House resolutions.
 - **measure_number**: The measure number (e.g. "H0004", "S1234"), but only capture the integer portion so that it's a valid integer.
 - **title**: The official title or short description of the measure.
 - **summary**: A concise summary of what the measure does, including key provisions.
@@ -49,11 +54,18 @@ available text, set to false.
   - **raw_section**: The section reference as it appears in the document \
 (e.g. "Section 67-827A, Idaho Code").
   - **action**: The legislative action code for the section. Must be one of: \
-REPEAL, DEAUTH, AMEND, REDESIG, CODIFY, ADD. \
+REPEAL, DEAUTH, AMEND, REDESIG, CODIFY, ADD, CREATE, REPEAL AND RECREATE, \
+RENUMBER AND AMEND, RENUMBER, CONSOLIDATE, RENUMBER AND AMEND. \
 Use these mappings: "amended" or "is hereby amended" or "revised" → AMEND, \
-"addition of a NEW SECTION" or "to create" or "is created" → ADD, \
-"is hereby repealed" → REPEAL, "deauthorized" → DEAUTH, \
-"redesignated" or "renumbered" → REDESIG, "repealed and codified" → CODIFY. \
+"addition of a NEW SECTION" or "to add" or "is added" or "to create" or "is created" → ADD, \
+"is hereby repealed" → REPEAL, \
+"repealed and recreated" or "repeal and recreate" → REPEAL AND RECREATE, \
+"renumbered and amended" or "to renumber and amend" → RENUMBER AND AMEND, \
+"to renumber" or "renumbered" (without amend) → RENUMBER, \
+"consolidated, renumbered and amended" or "consolidate, renumber and amend" → CONSOLIDATE, RENUMBER AND AMEND, \
+"deauthorized" → DEAUTH, \
+"redesignated" → REDESIG, \
+"repealed and codified" → CODIFY. \
 If the action cannot be determined, set to null.
 
 ## Output Format

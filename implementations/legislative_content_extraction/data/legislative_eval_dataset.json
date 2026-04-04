@@ -153,7 +153,7 @@
         },
         {
           "raw_section": "Chapter 18, Title 33, Idaho Code (New Section 33-1809A)",
-          "action": "NEW"
+          "action": "ADD"
         },
         {
           "raw_section": "Section 33-1811, Idaho Code",
@@ -1038,7 +1038,7 @@
       "session_code": "MI_2025_2026_R1",
       "chamber_code": "HOUSE",
       "measure_type_code": "BILL",
-      "measure_number": "HB4004",
+      "measure_number": "4004",
       "title": "A bill to amend 1972 PA 239, entitled \"McCauley-Traxler-Law-Bowman-McNeely lottery act,\" by amending section 25 (MCL 432.25), as amended by 1998 PA 465.",
       "summary": "Amends Michigan lottery prize payment provisions by revising assignment and payment language, updating notice procedures to the attorney general for court approval of voluntary assignments of future prize payments, clarifying administrative fee authority, making confidentiality protections for winners of prizes greater than $10,000 dependent on written consent, extending nondisclosure protection to certain joint-enterprise game prizewinners unless they consent in writing, and retaining restrictions tied to IRS or court determinations affecting the tax treatment of voluntary prize assignments.",
       "sponsors": [
@@ -1189,8 +1189,8 @@
       "title": "A bill to amend 1976 PA 442, entitled \"Freedom of information act,\" by amending section 2 (MCL 15.232), as amended by 2018 PA 68.",
       "summary": "Amends the definitions section of Michigan's Freedom of Information Act to add definitions for cybersecurity assessment, cybersecurity incident, cybersecurity plan, cybersecurity vulnerability, field name, FOIA coordinator, and legislator; expands the definition of \"public body\" to include officers, legislators, employees, agencies, committees, and other bodies in the legislative branch while excluding the legislative service bureau, senate fiscal agency, and house fiscal agency; clarifies executive and judicial exclusions; updates the definition of \"public record\" to exclude certain personal notes of members of a public body; modernizes the definition of \"writing\" to include cloud storage and quantum networks and computing systems; and makes the bill effective only if Senate Bill No. 2 is enacted.",
       "sponsors": [
-        "sponsors\": [\n    \"Senator McBroom",
-        "Senator Moss\""
+        "Senator McBroom",
+        "Senator Moss"
       ],
       "is_adopted_into_law": false,
       "sections_affected": [

@@ -81,9 +81,14 @@ def item_level_deterministic_grader(
     chamber_correct = normalize_str(get_field(output, "chamber_code")) == normalize_str(
         get_field(expected_output, "chamber_code")
     )
-    measure_type_correct = normalize_str(get_field(output, "measure_type_code")) == normalize_str(
-        get_field(expected_output, "measure_type_code")
-    )
+    # HOUSE_FILE / SENATE_FILE are jurisdiction-specific synonyms for BILL;
+    # normalize before comparison so that either form matches.
+    _MEASURE_TYPE_EQUIVALENCES = {"HOUSE_FILE": "BILL", "SENATE_FILE": "BILL"}
+    pred_mt = normalize_str(get_field(output, "measure_type_code"))
+    exp_mt = normalize_str(get_field(expected_output, "measure_type_code"))
+    pred_mt = _MEASURE_TYPE_EQUIVALENCES.get(pred_mt, pred_mt) if pred_mt else pred_mt
+    exp_mt = _MEASURE_TYPE_EQUIVALENCES.get(exp_mt, exp_mt) if exp_mt else exp_mt
+    measure_type_correct = pred_mt == exp_mt
     measure_number_correct = normalize_str(get_field(output, "measure_number")) == normalize_str(
         get_field(expected_output, "measure_number")
     )
@@ -95,8 +100,13 @@ def item_level_deterministic_grader(
     if expected_adopted is None:
         adopted_correct = True
     else:
-        # Coerce to bool for comparison (handles string "true"/"false" from JSON)
-        if isinstance(predicted_adopted, str):
+        # Coerce to bool for comparison (handles string "true"/"false" from JSON).
+        # A missing/None prediction is treated as False (not a silent pass) so
+        # that extraction failures are surfaced rather than accidentally matching
+        # a False ground truth.
+        if predicted_adopted is None:
+            predicted_adopted = False
+        elif isinstance(predicted_adopted, str):
             predicted_adopted = predicted_adopted.strip().lower() == "true"
         if isinstance(expected_adopted, str):
             expected_adopted = expected_adopted.strip().lower() == "true"
