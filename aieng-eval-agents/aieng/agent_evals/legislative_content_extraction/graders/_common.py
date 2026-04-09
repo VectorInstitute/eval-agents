@@ -17,14 +17,17 @@ _TITLE_PREFIX_RE = re.compile(
 # Strips "Section " prefix and jurisdiction suffixes like:
 # ", Wisconsin Statutes", ", Idaho Code", ", Minnesota Statutes 2024", etc.
 # Also handles agent-side variants like "of the statutes", "of the Delaware Code",
-# and constitutional references.
+# "of the Wisconsin Statutes", "Wis. Stats.", and constitutional references.
 _RAW_SECTION_NORMALIZE_RE = re.compile(
     r"^section\s+"
-    r"|,\s*(?:wisconsin statutes|idaho code|minnesota statutes[^|]*"
-    r"|delaware code[^|]*|michigan compiled laws[^|]*)"
+    r"|,\s*(?:wisconsin\s+statutes(?:\s+\d{4})?|idaho\s+code|minnesota\s+statutes[^|]*"
+    r"|delaware\s+code[^|]*|michigan\s+compiled\s+laws[^|]*)"
     r"\s*$"
-    r"|\s+of\s+the\s+(?:statutes|delaware\s+code|idaho\s+code)"
+    r"|\s+of\s+the\s+(?:wisconsin\s+statutes|statutes|delaware\s+code|idaho\s+code)"
     r"\s*$"
+    # "Wis. Stats." / "Wis. Stat." suffix (with optional year)
+    r"|\s*,?\s*wis\.?\s+stats?\."
+    r"\s*(?:\d{4})?\s*$"
     r"|,?\s*(?:of\s+the\s+)?constitution\s+of\s+the\s+state\s+of\s+idaho"
     r"\s*$",
     re.IGNORECASE,
@@ -39,6 +42,29 @@ _MCL_GT_RE = re.compile(
 )
 _MCL_AGENT_RE = re.compile(
     r"^(?:Section\s+)?(\d+[A-Za-z]?)\s*\(MCL\s+([\d.]+[A-Za-z]?)\)$",
+    re.IGNORECASE,
+)
+
+# Michigan ranged MCL reference: "MCL 408.931 to 408.945"
+# Normalize to "MCL 408.931 TO 408.945" so both GT and agent match.
+_MCL_RANGE_RE = re.compile(
+    r"^MCL\s+([\d.]+[A-Za-z]?)\s+(?:to|through|thru|-)\s+([\d.]+[A-Za-z]?)$",
+    re.IGNORECASE,
+)
+
+# Michigan full act title with embedded MCL range:
+# "The improved workforce opportunity wage act, 2018 PA 337, MCL 408.931 to 408.945"
+# Extract the MCL portion so it can be compared after normalization.
+_MCL_IN_ACT_TITLE_RE = re.compile(
+    r"MCL\s+([\d.]+[A-Za-z]?(?:\s+(?:to|through|thru|-)\s+[\d.]+[A-Za-z]?)?)\s*$",
+    re.IGNORECASE,
+)
+
+# Delaware agent output uses individual section refs like "§ 2541, Title 6 of the Delaware Code"
+# while GT uses chapter refs like "Subchapter IV, Chapter 25, Title 6 of the Delaware Code".
+# Extract the Title number so we can do a coarse Title-level comparison.
+_DE_TITLE_RE = re.compile(
+    r"Title\s+(\d+)(?:\s+of\s+the\s+Delaware\s+Code)?",
     re.IGNORECASE,
 )
 
@@ -101,8 +127,17 @@ def normalize_sponsors(value: Any) -> set[str]:
 _ACTION_EQUIVALENCES: dict[str, str] = {
     "CREATE": "ADD",
     "NEW": "ADD",
+    "INSERT": "ADD",
     "REDESIG": "AMEND",
     "REDESIGNATE": "AMEND",
+    "RENUMBER": "AMEND",
+    "RENUMBER & AMEND": "AMEND",
+    "RENUMBER AND AMEND": "AMEND",
+    "RENUMBER, AMEND": "AMEND",
+    "REPEAL & RECREATE": "REPEAL AND RECREATE",
+    "CONSOLIDATE, RENUMBER AND AMEND": "AMEND",
+    "CONSOLIDATE RENUMBER AND AMEND": "AMEND",
+    "DEAUTHORIZE": "REPEAL",
 }
 
 
@@ -128,23 +163,38 @@ def normalize_raw_section(raw: str) -> str:
     Examples:
         "Section 101.123 (1) (ah), Wisconsin Statutes" -> "101.123 (1) (AH)"
         "101.123 (1) (ah)"                             -> "101.123 (1) (AH)"
+        "16.03 (2) (a) of the statutes"                -> "16.03 (2) (A)"
+        "16.03 (2) (a) of the Wisconsin Statutes"      -> "16.03 (2) (A)"
         "Section 33-1802, Idaho Code"                  -> "33-1802"
         "MCL 15.236 (Section 6)"                       -> "MCL 15.236 | SECTION 6"
         "section 25 (MCL 432.25)"                      -> "MCL 432.25 | SECTION 25"
+        "MCL 408.931 to 408.945"                       -> "MCL 408.931 TO 408.945"
         "Subchapter IV, Chapter 25, Title 6 - § 2541. Definitions." -> "SUBCHAPTER IV, CHAPTER 25, TITLE 6"
-        "16.03 (2) (a) of the statutes"                -> "16.03 (2) (A)"
     """
     if not raw:
         return ""
     raw = raw.strip()
 
-    # Canonicalize Michigan MCL references before general stripping.
+    # Canonicalize Michigan MCL simple references before general stripping.
     m = _MCL_GT_RE.match(raw)
     if m:
         return f"MCL {m.group(1)} | SECTION {m.group(2)}".upper()
     m = _MCL_AGENT_RE.match(raw)
     if m:
         return f"MCL {m.group(2)} | SECTION {m.group(1)}".upper()
+
+    # Canonicalize Michigan ranged MCL references: "MCL 408.931 to 408.945"
+    m = _MCL_RANGE_RE.match(raw)
+    if m:
+        return f"MCL {m.group(1)} TO {m.group(2)}".upper()
+
+    # Full act title with embedded MCL range – extract just the MCL portion.
+    # e.g. "The improved workforce opportunity wage act, 2018 PA 337, MCL 408.931 to 408.945"
+    m = _MCL_IN_ACT_TITLE_RE.search(raw)
+    if m and raw.upper().startswith("THE "):
+        mcl_part = m.group(1).strip()
+        # Recurse so the extracted MCL portion gets range-normalized if needed.
+        return normalize_raw_section(f"MCL {mcl_part}")
 
     # Strip Delaware per-section detail (" - § XXXX. Description.")
     raw = _DE_SECTION_DETAIL_RE.sub("", raw).strip()
