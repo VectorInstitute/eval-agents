@@ -48,8 +48,11 @@ logger = logging.getLogger(__name__)
 # Soft-match threshold (Layer 2).
 # Normalized section strings with SequenceMatcher ratio >= this value receive
 # 0.5 credit when they do not exact-match any counterpart.
+# Lowered from 0.85 to 0.80 to catch near-synonymous strings such as parent
+# section refs vs subsection-level GT entries (e.g. WI bills with "(title)"
+# or "(intro.)" subsection identifiers) that would otherwise need the LLM judge.
 # ---------------------------------------------------------------------------
-_SOFT_MATCH_THRESHOLD = 0.85
+_SOFT_MATCH_THRESHOLD = 0.80
 
 # Credit awarded for LLM-judge matches (Layer 3) — slightly below 1.0 to
 # reflect that semantic equivalence was inferred rather than confirmed exactly.
