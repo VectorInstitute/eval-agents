@@ -39,6 +39,44 @@ from aieng.agent_evals.evaluation import Evaluation
 from ._common import get_field, normalize_str, normalize_sponsors, normalize_sections
 
 
+def _coerce_bool_like(value: Any) -> bool | None:
+    """Coerce common boolean-like values into a Python bool.
+
+    Returns ``None`` only when ``value`` is ``None``. Handles booleans, ints,
+    and common textual synonyms such as "true", "yes", "passed", "enacted".
+    Unknown non-None values are interpreted conservatively as ``False`` to
+    surface extraction failures rather than silently matching a True ground
+    truth.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    try:
+        s = str(value).strip().lower()
+    except Exception:
+        return False
+
+    truthy = {"true", "t", "yes", "y", "1", "passed", "enacted", "signed", "adopted", "approved"}
+    falsy = {"false", "f", "no", "n", "0", "vetoed", "rejected", "not adopted"}
+
+    if s in truthy:
+        return True
+    if s in falsy:
+        return False
+
+    # Fallback: interpret common affirmative/negative prefixes
+    if s.startswith("y") or s.startswith("t") or s.startswith("1"):
+        return True
+    if s.startswith("n") or s.startswith("0") or s.startswith("veto"):
+        return False
+
+    # Conservative default for unknown non-empty strings
+    return False
+
+
 def item_level_deterministic_grader(
     input: Any,  # noqa: A002
     output: Any,
@@ -100,17 +138,18 @@ def item_level_deterministic_grader(
     if expected_adopted is None:
         adopted_correct = True
     else:
-        # Coerce to bool for comparison (handles string "true"/"false" from JSON).
-        # A missing/None prediction is treated as False (not a silent pass) so
-        # that extraction failures are surfaced rather than accidentally matching
-        # a False ground truth.
-        if predicted_adopted is None:
-            predicted_adopted = False
-        elif isinstance(predicted_adopted, str):
-            predicted_adopted = predicted_adopted.strip().lower() == "true"
-        if isinstance(expected_adopted, str):
-            expected_adopted = expected_adopted.strip().lower() == "true"
-        adopted_correct = bool(predicted_adopted) == bool(expected_adopted)
+        # Coerce common boolean-like values (strings, ints) to bool.
+        predicted_coerced = _coerce_bool_like(predicted_adopted)
+        expected_coerced = _coerce_bool_like(expected_adopted)
+
+        # Preserve previous behavior: a missing/None prediction is treated as False
+        # to surface extraction failures (do not silently match a True ground truth).
+        if predicted_coerced is None:
+            predicted_coerced = False
+        if expected_coerced is None:
+            expected_coerced = False
+
+        adopted_correct = bool(predicted_coerced) == bool(expected_coerced)
 
     # --- List fields: set-based precision / recall ---
     predicted_sponsors = normalize_sponsors(get_field(output, "sponsors"))

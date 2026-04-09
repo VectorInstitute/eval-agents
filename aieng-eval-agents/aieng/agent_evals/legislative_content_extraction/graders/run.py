@@ -4,12 +4,22 @@ from typing import Any
 
 from aieng.agent_evals.evaluation import Evaluation, ExperimentItemResult
 
+# Metrics produced by the LLM judge (summary_quality evaluator) are excluded
+# from the overall_score to keep it based on deterministic graders only.
+_LLM_JUDGE_METRIC_NAMES = frozenset({
+    "summary_correctness",
+    "summary_completeness",
+    "summary_hallucination_free",
+    "summary_quality_error",
+})
+
 
 def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: Any) -> list[Evaluation]:
-    """Compute overall score by averaging all evaluation scores across all item results.
+    """Compute overall score by averaging deterministic evaluation scores across all item results.
 
-    Collects every ``Evaluation.value`` from every item result and returns a
-    single ``Evaluation`` whose value is the mean of those scores.
+    Collects every ``Evaluation.value`` from every item result, excluding
+    metrics produced by the LLM judge, and returns a single ``Evaluation``
+    whose value is the mean of those scores.
 
     Parameters
     ----------
@@ -22,7 +32,7 @@ def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: Any)
     -------
     list[Evaluation]
         A single-element list containing ``overall_score``: the mean of all
-        evaluation values across all items.
+        deterministic evaluation values across all items.
 
     Examples
     --------
@@ -49,7 +59,7 @@ def run_level_grader(*, item_results: list[ExperimentItemResult], **kwargs: Any)
 
     for item_result in item_results:
         for evaluation in (item_result.evaluations or []):
-            if evaluation.value is not None:
+            if evaluation.value is not None and evaluation.name not in _LLM_JUDGE_METRIC_NAMES:
                 total += evaluation.value
                 count += 1
 

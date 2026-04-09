@@ -40,19 +40,44 @@ when the measure is explicitly and formally titled as a "House File" or "Senate 
 and HOUSE_RESOLUTION for standalone House resolutions.
 - **measure_number**: The measure number (e.g. "H0004", "S1234"), but only capture the integer portion so that it's a valid integer.
 - **title**: The official title or short description of the measure.
-- **summary**: A concise summary of what the measure does, including key provisions.
+- **summary**: A detailed, factual summary of what the measure does. \
+DO NOT copy the bill's own one-line description or title. \
+DO NOT infer, assume, or add any information not explicitly stated in the document. \
+Write 3-5 sentences covering ONLY what is explicitly stated in the bill: \
+(1) the purpose — what existing law it changes or what new law it creates; \
+(2) the key provisions — specific requirements, prohibitions, definitions, or mechanisms introduced; \
+(3) who is affected — agencies, individuals, businesses, or government bodies named in the bill; \
+(4) any notable details such as funding amounts, thresholds, penalties, or exceptions explicitly stated; \
+(5) the effective date or any emergency clause if explicitly stated in the document. \
+Only include facts directly supported by the bill text. \
+A one-sentence summary is always wrong. \
+Adding details not found in the bill text is always wrong.
 - **sponsors**: A list of sponsors of the measure. Sponsors can be individual legislators \
 (e.g. "Representative Smith") or committees (e.g. "STATE AFFAIRS COMMITTEE"). \
 Extract all sponsors mentioned in the document.
 - **is_adopted_into_law**: A boolean indicating whether this measure has been adopted into \
-law (i.e. signed by the governor or otherwise enacted). Set to true if the document or \
-accompanying legislative page indicates the measure has been signed, enacted, approved, \
-or otherwise adopted into law. Set to false if it is still pending, in committee, vetoed, \
-or has not completed the legislative process. If the status cannot be determined from the \
-available text, set to false.
-- **sections_affected**: A list of objects, each with:
-  - **raw_section**: The section reference as it appears in the document \
-(e.g. "Section 67-827A, Idaho Code").
+law (i.e. signed by the governor or otherwise enacted). Use the HTML page retrieved by \
+`fetch_html_page` as your PRIMARY source for this field — do not rely on the PDF alone. \
+On Idaho legislature pages, look for a "Chapter" number in the bill status (e.g. \
+"Chapter 123" means the bill was chaptered/enacted). On other state pages look for \
+status labels such as "Signed", "Enacted", "Approved", "Chaptered", "Act", \
+"Became Law", or an executive signature date. For non-binding measures such as \
+JOINT_MEMORIAL or CONCURRENT_MEMORIAL, set to true if the measure was formally passed/adopted \
+by both chambers (memorials do not require governor signature). \
+Set to false only if the page or document explicitly shows the measure is still pending, \
+in committee, failed, or vetoed. Do NOT default to false simply because explicit language \
+is absent — check the HTML status section carefully first.
+- **sections_affected**: A list of objects representing sections of **existing law** being \
+modified by this measure. IMPORTANT rules:
+  - Only include references to existing statutes/code sections (e.g. "Section 67-827A, Idaho Code").
+  - Do NOT include bill-internal structural sections (e.g. "Section 1", "Section 2", "Section 3" \
+of the bill itself) unless they explicitly refer to an existing code section being amended, added, or repealed.
+  - For measures that do not directly amend statute — such as JOINT_MEMORIAL, \
+CONCURRENT_MEMORIAL, or pure appropriations acts that cite no specific code sections — \
+leave this list empty: [].
+  - **raw_section**: The section reference exactly as it appears in the document \
+(e.g. "Section 67-827A, Idaho Code"). Do NOT abbreviate or strip the jurisdiction suffix. \
+Copy the full reference verbatim from the document.
   - **action**: The legislative action code for the section. Must be one of: \
 REPEAL, DEAUTH, AMEND, REDESIG, CODIFY, ADD, CREATE, REPEAL AND RECREATE, \
 RENUMBER AND AMEND, RENUMBER, CONSOLIDATE, RENUMBER AND AMEND. \

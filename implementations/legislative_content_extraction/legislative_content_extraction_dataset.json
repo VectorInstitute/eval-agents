@@ -63,13 +63,6 @@
         "action": "AMEND"
       },
       {
-        "raw_section": "Chapter 74, Title 67, Idaho Code (New Section 67-7449)",
-        "code_title": 67,
-        "code_chapter": 74,
-        "code_section": "7449",
-        "action": "AMEND"
-      },
-      {
         "raw_section": "Section 67-7449, Idaho Code",
         "code_title": 67,
         "code_chapter": 74,
@@ -736,16 +729,7 @@
       "Coleman",
       "Dibble"
     ],
-    "sections_affected": [
-      {
-        "raw_section": "Section 1. TEMPORARY SOLAR ENERGY SYSTEM CREDIT (new uncodified section)",
-        "code_title": null,
-        "code_chapter": null,
-        "code_section": null,
-        "action": "ADD",
-        "note": "This is a new, temporary uncodified section; it does not amend an existing Minnesota Statute."
-      }
-    ],
+    "sections_affected": [],
     "is_adopted_into_law": false
   },
   {
