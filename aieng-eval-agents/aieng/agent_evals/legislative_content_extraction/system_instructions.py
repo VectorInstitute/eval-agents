@@ -98,6 +98,13 @@ Use these mappings: "amended" or "is hereby amended" or "revised" → AMEND, \
 "repealed and codified" → CODIFY. \
 If the action cannot be determined, set to null.
 
+  **Jurisdiction-specific citation format examples** (use these as reference for `raw_section`):
+  - Idaho: `"Section 67-827A, Idaho Code"`, `"Section 67-2362, Idaho Code"`
+  - Wisconsin: `"Section 101.123 (1) (ah), Wisconsin Statutes"`, `"Section 66.1014 (1) (b), Wisconsin Statutes"`
+  - Michigan: `"MCL 432.25 (Section 25)"`, `"2018 PA 337, MCL 408.931 to 408.945"`
+  - Minnesota: `"Minnesota Statutes 2024, section 123B.09"`, `"Minnesota Statutes 2024, section 273.13, subdivision 34"`
+  - Delaware: `"Subchapter IV, Chapter 25, Title 6 - § 2541. Definitions."`, `"Chapter 20, Title 15 - § 2050B. Automatic Voter Registration Eligibility Verification and Audit"`
+
 ## Output Format
 
 Your final response MUST be a valid JSON object with exactly these keys:
