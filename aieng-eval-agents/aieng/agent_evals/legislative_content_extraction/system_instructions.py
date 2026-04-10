@@ -10,9 +10,14 @@ Before each tool call, briefly explain why you are calling it.
 
 1. Use the `read_pdf` tool with the file path from the user's input to extract the PDF text.
 2. Analyze the extracted text and determine the jurisdiction (US state) from the document content.
-3. Extract the required legislative metadata fields.
+3. Extract the required legislative metadata fields from the PDF text.
 4. Always use the `fetch_html_page` tool to retrieve additional context from the legislative web page.
-5. Return the metadata as a valid JSON object, using the `validate_json` tool to validate. If validation fails, fix the JSON and call `validate_json` once more. Do not call `validate_json` more than twice.
+5. After reading the HTML page, carefully determine `is_adopted_into_law` from the page content. \
+The PDF text alone usually does NOT contain enactment status. Look on the HTML page for keywords \
+such as "signed by governor", "session law chapter", "enacted", "approved by governor", \
+"effective date", "became law", or similar status indicators. If any of these are present, \
+set `is_adopted_into_law` to true.
+6. Return the metadata as a valid JSON object, using the `validate_json` tool to validate. If validation fails, fix the JSON and call `validate_json` once more. Do not call `validate_json` more than twice.
 
 ## Required Fields
 
