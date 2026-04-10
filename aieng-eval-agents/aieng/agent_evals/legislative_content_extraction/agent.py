@@ -10,6 +10,7 @@ import logging
 import time
 import uuid
 import warnings
+from pathlib import Path
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
@@ -126,7 +127,8 @@ class LegislativeContentExtractionAgent:
         self._thinking_budget = thinking_budget
 
         self._read_pdf_tool = create_read_pdf_tool()
-        self._fetch_html_page_tool = create_fetch_html_page_tool(cache_dir=files_dir)
+        self._cache_dir_holder: list[str | None] = [files_dir]
+        self._fetch_html_page_tool = create_fetch_html_page_tool(cache_dir_holder=self._cache_dir_holder)
         self._validate_json_tool = create_validate_json_tool()
 
         thinking_config = None
@@ -328,6 +330,8 @@ class LegislativeContentExtractionAgent:
             The response containing JSON metadata in the text field.
         """
         start_time = time.time()
+        # Point cache_dir at the bill-specific subdirectory (parent of the PDF)
+        self._cache_dir_holder[0] = str(Path(pdf_path).parent)
         user_message = self._build_user_message(pdf_path, prompt, html_page_link)
         logger.info(f"Extracting metadata from: {pdf_path}")
 
