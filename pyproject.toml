@@ -23,7 +23,7 @@ dependencies = [
     "scikit-learn>=1.7.0",
     "urllib3>=2.6.3",
     "openpyxl>=3.1.5",
-    "authlib>=1.6.7", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7
+    "authlib>=1.6.11", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7; GHSA-jj8c-mmj3-mmgv: CSRF protection bypass fixed in 1.6.11
     "cryptography>=46.0.7", # CVE-2026-34073: DNS name constraint bypass fixed in 46.0.6; CVE-2026-39892: buffer overflow fixed in 46.0.7
     "filelock>=3.20.3",
     "pyasn1>=0.6.3", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
@@ -31,7 +31,8 @@ dependencies = [
     "tenacity>=9.1.2",
     "certifi>=2026.1.4",
     "pillow>=12.2.0", # CVE-2026-40192: FITS decompression bomb fixed in 12.2.0
-    "pypdf>=6.10.0", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0
+    "pypdf>=6.10.2", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS fixed in 6.10.2
+    "python-multipart>=0.0.26", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26
 ]
 
 [dependency-groups]
@@ -75,6 +76,10 @@ web-search = [
 # Default dependency groups to be installed
 [tool.uv]
 default-groups = ["dev", "docs"]
+# Override pinned transitive deps to patched versions (security)
+override-dependencies = [
+    "authlib>=1.6.11", # GHSA-jj8c-mmj3-mmgv: CSRF protection bypass; aieng-platform-onboard pins 1.6.9
+]
 
 [tool.uv.workspace]
 members = [
