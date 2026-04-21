@@ -31,7 +31,7 @@ dependencies = [
     "tenacity>=9.1.2",
     "certifi>=2026.1.4",
     "pillow>=12.2.0", # CVE-2026-40192: FITS decompression bomb fixed in 12.2.0
-    "pypdf>=6.10.2", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS fixed in 6.10.2
+    "pypdf>=6.10.2", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2
     "python-multipart>=0.0.26", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26
 ]
 
@@ -70,6 +70,7 @@ web-search = [
     "google-cloud-firestore>=2.21.0",
     "fastapi[standard]>=0.116.1",
     "google-genai>=1.46.0",
+    "python-multipart>=0.0.26", # CVE-2026-40347: DoS via crafted multipart preamble/epilogue fixed in 0.0.26
     "simplejson>=3.20.2",
 ]
 
