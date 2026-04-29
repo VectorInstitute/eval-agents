@@ -1,12 +1,22 @@
-from pathlib import Path
 import sys
+from pathlib import Path
+from typing import Any, cast
 
 from google.adk.models.lite_llm import LiteLlm
+from pytest import MonkeyPatch
+
 
 sys.path.append(str(Path(__file__).resolve().parents[3]))
 
 from implementations.misalignment_qa.agent import build_misalignment_agent
-from implementations.misalignment_qa.config_types import AgentOverrideSpec, AgentSpec, EvalSpec, ExperimentConfig, LLMJudgeSpec, VariantSpec
+from implementations.misalignment_qa.config_types import (
+    AgentOverrideSpec,
+    AgentSpec,
+    EvalSpec,
+    ExperimentConfig,
+    LLMJudgeSpec,
+    VariantSpec,
+)
 from implementations.misalignment_qa.preparation import resolve_agent_spec
 
 
@@ -23,6 +33,27 @@ def test_build_misalignment_agent_uses_litellm_for_litellm_provider() -> None:
 
     assert isinstance(agent.model, LiteLlm)
     assert agent.model.model == "anthropic/claude-sonnet-4-6"
+
+
+def test_build_misalignment_agent_passes_custom_litellm_endpoint(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("VECTOR_INFERENCE_API_KEY", "test-key")
+
+    agent = build_misalignment_agent(
+        AgentSpec(
+            system_prompt="Be helpful",
+            provider="litellm",
+            model="openai/gpt-oss-120b",
+            api_base="https://proxy.vectorinstitute.ai/v1",
+            api_key_env="VECTOR_INFERENCE_API_KEY",
+            temperature=0.2,
+            max_output_tokens=1024,
+        )
+    )
+
+    assert isinstance(agent.model, LiteLlm)
+    additional_args = cast(dict[str, Any], agent.model._additional_args)
+    assert additional_args["api_base"] == "https://proxy.vectorinstitute.ai/v1"
+    assert additional_args["api_key"] == "test-key"
 
 
 def test_resolve_agent_spec_clears_gemini_thinking_for_litellm_variants() -> None:
@@ -58,3 +89,35 @@ def test_resolve_agent_spec_clears_gemini_thinking_for_litellm_variants() -> Non
     assert resolved.model == "anthropic/claude-opus-4-6"
     assert resolved.thinking_budget is None
     assert resolved.thinking_include_thoughts is False
+
+
+def test_resolve_agent_spec_preserves_custom_litellm_endpoint() -> None:
+    config = ExperimentConfig(
+        id="demo",
+        display_label="Demo",
+        langfuse_dataset_name="demo-dataset",
+        description="demo",
+        base_agent=AgentOverrideSpec(
+            system_prompt="Be helpful",
+            provider="litellm",
+            model="openai/gpt-oss-120b",
+            api_base="https://proxy.vectorinstitute.ai/v1",
+            api_key_env="VECTOR_INFERENCE_API_KEY",
+        ),
+        examples=[],
+        variants=[
+            VariantSpec(
+                id="vector",
+                agent=AgentOverrideSpec(),
+            )
+        ],
+        tasks=[],
+        evaluation=EvalSpec(llm_judge=LLMJudgeSpec(rubric_markdown="Return JSON only.")),
+    )
+
+    resolved = resolve_agent_spec(config, config.variants[0])
+
+    assert resolved.provider == "litellm"
+    assert resolved.model == "openai/gpt-oss-120b"
+    assert resolved.api_base == "https://proxy.vectorinstitute.ai/v1"
+    assert resolved.api_key_env == "VECTOR_INFERENCE_API_KEY"

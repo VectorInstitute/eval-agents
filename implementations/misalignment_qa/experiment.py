@@ -6,12 +6,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 import yaml
-
 from aieng.agent_evals.evaluation import TraceWaitConfig, run_experiment_with_trace_evals
 from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
 from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
+from dotenv import load_dotenv
 
 from implementations.misalignment_qa.agent import build_misalignment_agent
 from implementations.misalignment_qa.config_types import ExperimentConfig
@@ -171,7 +170,9 @@ def log_variant_results(*, variant: PreparedVariantRun, result: Any) -> None:
         )
 
 
-def run_variant(config: ExperimentConfig, variant: PreparedVariantRun, *, llm_judge_evaluator: Any, trace_usage: Any) -> Any:
+def run_variant(
+    config: ExperimentConfig, variant: PreparedVariantRun, *, llm_judge_evaluator: Any, trace_usage: Any
+) -> Any:
     agent = build_misalignment_agent(variant.agent_spec)
     logger.info("Starting variant '%s' with model '%s'...", variant.display_label, variant.agent_spec.model)
     return run_experiment_with_trace_evals(
@@ -189,12 +190,26 @@ def run_variant(config: ExperimentConfig, variant: PreparedVariantRun, *, llm_ju
     )
 
 
-async def run_experiment_config(config: ExperimentConfig) -> None:
+def select_variant_runs(
+    prepared_variants: list[PreparedVariantRun], *, variant_ids: set[str] | None
+) -> list[PreparedVariantRun]:
+    if not variant_ids:
+        return prepared_variants
+
+    selected = [variant for variant in prepared_variants if variant.variant_id in variant_ids]
+    selected_ids = {variant.variant_id for variant in selected}
+    missing_ids = sorted(variant_ids - selected_ids)
+    if missing_ids:
+        raise ValueError(f"Unknown variant id(s): {', '.join(missing_ids)}")
+    return selected
+
+
+async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[str] | None = None) -> None:
     load_dotenv(verbose=True)
 
     prepared_tasks = prepare_dataset_items(config)
     execution = create_execution_identity()
-    prepared_variants = prepare_variant_runs(config, execution=execution)
+    prepared_variants = select_variant_runs(prepare_variant_runs(config, execution=execution), variant_ids=variant_ids)
     await upload_dataset_items(dataset_name=config.langfuse_dataset_name, items=prepared_tasks)
 
     llm_judge_evaluator = create_llm_judge(config)
@@ -224,5 +239,6 @@ __all__ = [
     "log_variant_results",
     "run_experiment_config",
     "run_variant",
+    "select_variant_runs",
     "upload_dataset_items",
 ]

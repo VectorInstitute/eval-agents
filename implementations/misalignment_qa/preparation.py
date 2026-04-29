@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import UTC, datetime
 import hashlib
 import json
-from uuid import uuid4
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from implementations.misalignment_qa.config_types import (
     AgentSpec,
@@ -117,6 +117,8 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
         system_prompt=merged["system_prompt"],
         model=merged["model"],
         provider=merged.get("provider", "google"),
+        api_base=merged.get("api_base"),
+        api_key_env=merged.get("api_key_env"),
         temperature=merged.get("temperature", 0.7),
         max_output_tokens=merged.get("max_output_tokens"),
         tools=merged.get("tools", []),

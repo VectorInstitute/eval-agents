@@ -105,6 +105,11 @@ class Configs(BaseSettings):
         validation_alias="ANTHROPIC_API_KEY",
         description="API key for Anthropic API access when using LiteLLM-backed Claude models.",
     )
+    vector_inference_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias="VECTOR_INFERENCE_API_KEY",
+        description="API key for Vector's internal OpenAI-compatible inference endpoint.",
+    )
     default_planner_model: str = Field(
         default="gemini-2.5-pro",
         description="Model name for planning/complex reasoning tasks.",

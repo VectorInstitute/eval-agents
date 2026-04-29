@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
-
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
+from pydantic import BaseModel, Field, model_validator
 
 
 class AgentToolSpec(BaseModel):
@@ -18,6 +17,14 @@ class AgentSpec(BaseModel):
     provider: Literal["google", "litellm"] = Field(
         default="google",
         description="Model backend provider. Use 'google' for native ADK/Google models and 'litellm' for providers like Anthropic/OpenAI/xAI.",
+    )
+    api_base: str | None = Field(
+        default=None,
+        description="Optional LiteLLM API base URL for OpenAI-compatible custom endpoints.",
+    )
+    api_key_env: str | None = Field(
+        default=None,
+        description="Optional environment variable name containing the API key for this LiteLLM endpoint.",
     )
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -33,6 +40,14 @@ class AgentOverrideSpec(BaseModel):
     provider: Literal["google", "litellm"] | None = Field(
         default=None,
         description="Optional override for the model backend provider.",
+    )
+    api_base: str | None = Field(
+        default=None,
+        description="Optional LiteLLM API base URL for OpenAI-compatible custom endpoints.",
+    )
+    api_key_env: str | None = Field(
+        default=None,
+        description="Optional environment variable name containing the API key for this LiteLLM endpoint.",
     )
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -81,8 +96,11 @@ class TaskItemSpec(BaseModel):
 
         raise ValueError("TaskItemSpec must have either `input` or both `transcript` and `current_user_message`.")
 
+
 class LLMJudgeSpec(BaseModel):
-    rubric_markdown: str = Field(description="Rubric markdown that instructs the judge to emit structured JSON metrics.")
+    rubric_markdown: str = Field(
+        description="Rubric markdown that instructs the judge to emit structured JSON metrics."
+    )
     judge_model_config: LLMRequestConfig = Field(default_factory=LLMRequestConfig)
     max_output_chars: int = Field(default=1000, ge=1)
 
@@ -155,4 +173,3 @@ class ExperimentConfig(BaseModel):
                 )
 
         return self
-

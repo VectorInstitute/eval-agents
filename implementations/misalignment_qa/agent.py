@@ -1,23 +1,22 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
-
-from google.genai.types import GenerateContentConfig, HttpOptions, ThinkingConfig
-from google.adk.models.lite_llm import LiteLlm
 
 from aieng.agent_evals.configs import Configs
 from aieng.agent_evals.tools import (
     create_fetch_file_tool,
-    create_grep_file_tool,
     create_google_search_tool,
+    create_grep_file_tool,
     create_read_file_tool,
     create_web_fetch_tool,
 )
+from google.adk.agents import LlmAgent
+from google.adk.models.lite_llm import LiteLlm
+from google.genai.types import GenerateContentConfig, HttpOptions, ThinkingConfig
 
 from implementations.misalignment_qa.config_types import AgentSpec, AgentToolSpec
-
-from google.adk.agents import LlmAgent
 
 
 logger = logging.getLogger(__name__)
@@ -76,6 +75,15 @@ def _build_model(spec: AgentSpec) -> str | LiteLlm:
         kwargs: dict[str, Any] = {"drop_params": True}
         if spec.timeout_sec is not None:
             kwargs["timeout"] = spec.timeout_sec
+        if spec.api_base is not None:
+            kwargs["api_base"] = spec.api_base
+        if spec.api_key_env is not None:
+            api_key = os.getenv(spec.api_key_env)
+            if not api_key:
+                raise ValueError(
+                    f"Environment variable '{spec.api_key_env}' is required for LiteLLM model '{spec.model}'."
+                )
+            kwargs["api_key"] = api_key
         return LiteLlm(model=spec.model, **kwargs)
 
     return spec.model
@@ -108,4 +116,3 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> Llm
 
 
 __all__ = ["SUPPORTED_TOOL_NAMES", "build_misalignment_agent"]
-
