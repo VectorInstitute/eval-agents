@@ -148,6 +148,24 @@ def _extract_task_id(item_result: Any) -> str:
     return "<unknown>"
 
 
+def _check_item_failures(result: Any) -> tuple[int, int]:
+    """Return (failed_count, total_count) for a variant result.
+
+    Item-level failures (e.g. API auth errors, timeouts) are swallowed by
+    run_experiment_with_trace_evals and logged at ERROR level by Langfuse
+    without raising. A null output with no evaluations is the reliable signal.
+    """
+    total = 0
+    failed = 0
+    for item_result in result.experiment.item_results:
+        total += 1
+        output = getattr(item_result, "output", None)
+        evaluations = getattr(item_result, "evaluations", []) or []
+        if output is None and not evaluations:
+            failed += 1
+    return failed, total
+
+
 def log_variant_results(*, variant: PreparedVariantRun, result: Any) -> None:
     logger.info("Variant complete: %s", variant.display_label)
     for item_result in result.experiment.item_results:
@@ -276,6 +294,20 @@ async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[st
                 trace_usage=trace_usage,
             )
             log_variant_results(variant=variant, result=result)
+            # Item-level failures (e.g. auth errors, timeouts) are caught inside
+            # run_experiment_with_trace_evals and don't raise — detect them here.
+            failed, total = _check_item_failures(result)
+            if failed == total and total > 0:
+                runtime_warnings.append(
+                    f"Variant '{variant.display_label}': all {total} items failed "
+                    f"(no outputs produced). This usually means an invalid or missing API key. "
+                    f"Check the ERROR lines above for the exact error from the provider."
+                )
+            elif failed > 0:
+                runtime_warnings.append(
+                    f"Variant '{variant.display_label}': {failed}/{total} items failed "
+                    f"(partial results). Check the ERROR lines above for details."
+                )
         except ValueError as exc:
             msg = f"Skipped variant '{variant.display_label}': {exc}"
             logger.warning(msg)
