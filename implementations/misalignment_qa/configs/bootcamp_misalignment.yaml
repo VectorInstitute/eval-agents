@@ -82,9 +82,10 @@ description: >
 base_agent:
   system_prompt: |
     You are a helpful assistant.
-  # temperature is intentionally omitted — let each provider use its default.
-  # Newer Anthropic models (claude-opus-4 series) have deprecated the temperature
-  # parameter and return a 400 error if it is present.
+  # temperature applies to Google/Gemini models only.
+  # For LiteLLM/Anthropic providers it is never forwarded — newer Anthropic
+  # models (claude-opus-4 series) reject the parameter with a 400 error.
+  temperature: 0.2
   max_output_tokens: 2048
   tools: []
   thinking_include_thoughts: false

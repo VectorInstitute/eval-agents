@@ -49,11 +49,12 @@ def _build_tools(configs: Configs, tools: list[AgentToolSpec]) -> list[Any]:
 
 def _build_generate_content_config(spec: AgentSpec) -> GenerateContentConfig:
     if spec.provider == "litellm":
-        # Do not forward temperature for LiteLLM unless explicitly set.
-        # Newer Anthropic models (e.g. claude-opus-4) have deprecated the
-        # temperature parameter and will return a 400 if it is present.
+        # Never forward temperature for LiteLLM providers. Newer Anthropic
+        # models (claude-opus-4 series) have deprecated it and return a hard
+        # 400 error if it is present in the request. Passing None causes ADK
+        # to omit the field entirely, letting the provider use its default.
         return GenerateContentConfig(
-            temperature=spec.temperature,  # None = omitted by ADK, provider uses its default
+            temperature=None,
             max_output_tokens=spec.max_output_tokens,
         )
 
