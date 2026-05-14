@@ -237,6 +237,7 @@ async def _evaluate_trace(
     try:
         trace, ready = await fetch_trace_with_wait(langfuse_client, trace_id, wait)
     except Exception as exc:
+        logger.exception("Trace fetch failed.")
         return [], TraceEvalStatus.FAILED, f"Trace fetch failed: {exc}"
 
     if trace is None or not ready:
@@ -249,6 +250,7 @@ async def _evaluate_trace(
             evaluations.extend(await _normalize_evaluations(raw_result))
         except Exception as exc:
             evaluator_name = _get_evaluator_name(evaluator)
+            logger.exception(f"Trace evaluator '{evaluator_name}' failed.")
             return [], TraceEvalStatus.FAILED, f"Trace evaluator '{evaluator_name}' failed: {exc}"
 
     # Persist scores so they appear alongside traces in the Langfuse UI.

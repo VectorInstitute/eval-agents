@@ -18,6 +18,7 @@ Examples
 ... )
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,10 @@ from aieng.agent_evals.evaluation.graders._utils import (
 )
 from aieng.agent_evals.evaluation.types import Evaluation, EvaluatorFunction
 from pydantic import BaseModel, Field
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_SYSTEM_PROMPT_TEMPLATE = """\
@@ -232,6 +237,7 @@ def create_llm_as_judge_evaluator(
 
             return _to_evaluations(judge_response)
         except Exception as exc:
+            logger.exception("Error in LLM judge evaluator")
             return [build_error_evaluation(name=resolved_error_metric_name, error=exc, prefix="LLM judge error")]
 
     _evaluator.__name__ = name

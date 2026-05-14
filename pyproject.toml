@@ -1,6 +1,6 @@
 [project]
 name = "agentic-ai-evaluation-bootcamp-202602"
-version = "0.1.0"
+version = "0.1.1"
 description = "Vector Institute Agentic AI Evaluation Bootcamp 202602"
 readme = "README.md"
 authors = [ {name = "Vector AI Engineering", email = "ai_engineering@vectorinstitute.ai"} ]
@@ -8,11 +8,11 @@ license = "Apache-2.0"
 requires-python = ">=3.12,<4.0"
 dependencies = [
     "aieng-eval-agents>=0.1.0",
-    "aiohttp>=3.13.3",
+    "aiohttp>=3.13.4", # CVE-2026-34513/34514/34515/34516/34517/34518/34519/34520/34525, CVE-2026-22815: multiple DoS/security fixes in 3.13.4
     "beautifulsoup4>=4.13.4",
     "datasets>=3.6.0",
     "e2b-code-interpreter>=2.4.1",
-    "langfuse>=3.10.3",
+    "langfuse>=3.10.3,<4.0.0",
     "lxml>=6.0.0",
     "nest-asyncio>=1.6.0",
     "numpy<2.3.0",
@@ -21,11 +21,12 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "pydantic-ai-slim[logfire]>=1.26.0",
     "scikit-learn>=1.7.0",
-    "urllib3>=2.6.3",
+    "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression bomb fixed in 2.7.0
     "openpyxl>=3.1.5",
-    "authlib>=1.6.7", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7
+    "authlib>=1.6.11", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7; GHSA-jj8c-mmj3-mmgv: CSRF protection bypass fixed in 1.6.11
+    "cryptography>=46.0.7", # CVE-2026-34073: DNS name constraint bypass fixed in 46.0.6; CVE-2026-39892: buffer overflow fixed in 46.0.7
     "filelock>=3.20.3",
-    "pyasn1>=0.6.2",
+    "pyasn1>=0.6.3", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
     "virtualenv>=20.36.1",
     "tenacity>=9.1.2",
     "certifi>=2026.1.4",
@@ -34,6 +35,9 @@ dependencies = [
     "litellm>=1.82.4",
     "google-generativeai>=0.8.6",
     "openai-agents>=0.7.0",
+    "pillow>=12.2.0", # CVE-2026-40192: FITS decompression bomb fixed in 12.2.0
+    "pypdf>=6.10.2", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2
+    "python-multipart>=0.0.27", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26; CVE-2026-42561: part header parsing DoS fixed in 0.0.27
 ]
 
 [dependency-groups]
@@ -45,12 +49,12 @@ dev = [
     "ipython>=9.8.0",
     "ipywidgets>=8.1.7",
     "jupyter>=1.1.1",
-    "jupyterlab>=4.4.8",
+    "jupyterlab>=4.5.7", # CVE-2026-42266/42557: extension allow-list bypass and command linker XSS fixed in 4.5.7
     "nbqa>=1.9.1",
-    "pip>=26.0", # Pinning version to address vulnerability GHSA-6vgw-5pg2-w6jp
+    "pip>=26.1", # Pinning version to address vulnerability GHSA-6vgw-5pg2-w6jp, CVE-2026-3219
     "pip-audit>=2.9.0",
     "pre-commit>=4.2.0",
-    "pytest>=8.3.4",
+    "pytest>=9.0.3", # CVE-2025-71176: tmp dir privilege escalation fixed in 9.0.3
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=6.1.1",
     "pytest-mock>=3.14.0",
@@ -71,12 +75,22 @@ web-search = [
     "google-cloud-firestore>=2.21.0",
     "fastapi[standard]>=0.116.1",
     "google-genai>=1.46.0",
+    "python-multipart>=0.0.27", # CVE-2026-40347: DoS via crafted multipart preamble/epilogue fixed in 0.0.26; CVE-2026-42561: part header parsing DoS fixed in 0.0.27
     "simplejson>=3.20.2",
 ]
 
 # Default dependency groups to be installed
 [tool.uv]
 default-groups = ["dev", "docs"]
+# Override pinned transitive deps to patched versions (security)
+override-dependencies = [
+    "authlib>=1.6.11", # GHSA-jj8c-mmj3-mmgv: CSRF protection bypass; aieng-platform-onboard pins 1.6.9
+    "jupyter-server>=2.18.0", # CVE-2025-61669/CVE-2026-40110/CVE-2026-35397/CVE-2026-40934: open redirect, regex match bypass, path traversal, and cookie secret vulnerabilities fixed in 2.18.0
+    "mako>=1.3.12", # CVE-2026-44307: path traversal on Windows via backslash fixed in 1.3.12
+    "mistune>=3.2.1", # CVE-2026-33079/CVE-2026-44897: ReDoS and heading ID XSS fixed in 3.2.1
+    "notebook>=7.5.6", # CVE-2026-40171: stored XSS allowing auth token theft fixed in 7.5.6
+    "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression issues fixed in 2.7.0; aieng-platform-onboard pins 2.6.3
+]
 
 [tool.uv.workspace]
 members = [
