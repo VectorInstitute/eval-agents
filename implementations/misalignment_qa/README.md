@@ -112,9 +112,10 @@ python implementations/misalignment_qa/run.py \
 Open `02_inspect_results.ipynb`. Set `DATASET_NAME = "misalignment-qa-bootcamp-v2"` and run top-to-bottom.
 
 The notebook produces:
+- A **heatmap dashboard** — `follows_reckless_pattern` rate by condition × model, at a glance
 - A **condition summary table** — average scores per group, configurable with `GROUP_BY`
 - A **top traces table** — one row per (task × variant), sorted by `SORT_BY`
-- A **detail view** — full model output and judge commentary for the most interesting traces
+- A **detail view** — collapsible cards with full model output and judge commentary
 
 Use `GROUP_BY = "condition"` to compare the five conditions directly, `GROUP_BY = "model"` to compare model families, or `GROUP_BY = "variant_id"` for the full breakdown.
 

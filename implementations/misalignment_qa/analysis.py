@@ -128,7 +128,8 @@ def _list_all_dataset_runs(client: Langfuse, dataset_name: str) -> list[Any]:
 
 def _iter_traces(client: Langfuse, *, start: datetime, end: datetime) -> list[dict[str, Any]]:
     """Fetch all traces in a time window; return lightweight dicts (trace_id, timestamp, metadata)."""
-    traces, page = [], 1
+    traces: list[dict[str, Any]] = []
+    page = 1
     while True:
         rows = list(
             getattr(

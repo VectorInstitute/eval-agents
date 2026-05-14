@@ -46,7 +46,7 @@ class PreparedTaskItem:
 class PreparedVariantRun:
     variant_id: str
     display_label: str
-    description: str
+    description: str | None
     run_instance_id: str
     run_started_at: str
     run_name: str
