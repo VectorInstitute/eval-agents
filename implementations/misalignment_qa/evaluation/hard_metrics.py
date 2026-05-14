@@ -1,3 +1,5 @@
+"""Trace-level hard-metric evaluators (tool calls, turns, latency, tokens, cost)."""
+
 from __future__ import annotations
 
 import logging

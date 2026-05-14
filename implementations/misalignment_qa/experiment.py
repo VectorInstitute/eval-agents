@@ -1,5 +1,8 @@
+"""Experiment orchestration: load configs, run variants, collect Langfuse results."""
+
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -57,6 +60,7 @@ Candidate output:
 
 
 def load_experiment_config(config_path: str | Path) -> ExperimentConfig:
+    """Load and validate an experiment config from a YAML file."""
     path = Path(config_path)
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return ExperimentConfig.model_validate(raw)
@@ -72,7 +76,8 @@ def _truncate_for_judge(output: Any, *, max_chars: int) -> Any:
     return text[:max_chars] + "\n...[truncated for evaluator]"
 
 
-def create_llm_judge(config: ExperimentConfig):
+def create_llm_judge(config: ExperimentConfig):  # noqa: ANN201
+    """Build the LLM-as-judge evaluator from experiment config."""
     base_evaluator = create_llm_as_judge_evaluator(
         name="misalignment_llm_judge",
         rubric_markdown=config.evaluation.llm_judge.rubric_markdown,
@@ -82,7 +87,12 @@ def create_llm_judge(config: ExperimentConfig):
     )
 
     async def llm_judge_evaluator(
-        *, input: Any, output: Any, expected_output: Any, metadata: dict[str, Any] | None, **kwargs: Any
+        *,
+        input: Any,  # noqa: A002
+        output: Any,
+        expected_output: Any,
+        metadata: dict[str, Any] | None,
+        **kwargs: Any,
     ):
         del kwargs
         truncated_output = _truncate_for_judge(output, max_chars=config.evaluation.llm_judge.max_output_chars)
@@ -111,7 +121,8 @@ def create_llm_judge(config: ExperimentConfig):
     return llm_judge_evaluator
 
 
-def create_trace_usage(config: ExperimentConfig):
+def create_trace_usage(config: ExperimentConfig):  # noqa: ANN201
+    """Build the trace usage metrics evaluator from experiment config."""
     return create_trace_usage_evaluator(
         name="trace_usage",
         metrics=config.evaluation.trace_usage_metrics.model_dump(),
@@ -119,6 +130,7 @@ def create_trace_usage(config: ExperimentConfig):
 
 
 async def upload_dataset_items(*, dataset_name: str, items: list[PreparedTaskItem]) -> None:
+    """Upload prepared task items to a Langfuse dataset."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8", delete=False) as tmp:
         tmp_path = Path(tmp.name)
         for item in items:
@@ -128,10 +140,8 @@ async def upload_dataset_items(*, dataset_name: str, items: list[PreparedTaskIte
         logger.info("Uploading %d item(s) to Langfuse dataset '%s'...", len(items), dataset_name)
         await upload_dataset_to_langfuse(dataset_path=str(tmp_path), dataset_name=dataset_name)
     finally:
-        try:
+        with contextlib.suppress(Exception):
             tmp_path.unlink(missing_ok=True)
-        except Exception:
-            pass
 
 
 def _extract_task_id(item_result: Any) -> str:
@@ -167,6 +177,7 @@ def _check_item_failures(result: Any) -> tuple[int, int]:
 
 
 def log_variant_results(*, variant: PreparedVariantRun, result: Any) -> None:
+    """Log per-item outputs and evaluation scores for a completed variant."""
     logger.info("Variant complete: %s", variant.display_label)
     for item_result in result.experiment.item_results:
         task_id = _extract_task_id(item_result)
@@ -190,7 +201,7 @@ def log_variant_results(*, variant: PreparedVariantRun, result: Any) -> None:
 
 
 def preflight_check_api_keys(variants: list[PreparedVariantRun]) -> list[str]:
-    """Return warning messages for any API keys that are required but missing from the environment."""
+    """Return warnings for API keys required but missing from the environment."""
     warnings: list[str] = []
 
     needs_google = any(v.agent_spec.provider == "google" for v in variants)
@@ -226,6 +237,7 @@ def _print_warning_summary(warnings: list[str]) -> None:
 def run_variant(
     config: ExperimentConfig, variant: PreparedVariantRun, *, llm_judge_evaluator: Any, trace_usage: Any
 ) -> Any:
+    """Build the agent and run one variant against the Langfuse dataset."""
     agent = build_misalignment_agent(variant.agent_spec)
     logger.info("Starting variant '%s' with model '%s'...", variant.display_label, variant.agent_spec.model)
     return run_experiment_with_trace_evals(
@@ -250,6 +262,7 @@ def run_variant(
 def select_variant_runs(
     prepared_variants: list[PreparedVariantRun], *, variant_ids: set[str] | None
 ) -> list[PreparedVariantRun]:
+    """Filter variants to the requested subset; return all if no filter given."""
     if not variant_ids:
         return prepared_variants
 
@@ -262,6 +275,7 @@ def select_variant_runs(
 
 
 async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[str] | None = None) -> None:
+    """Run the full experiment: upload dataset, iterate variants, collect warnings."""
     load_dotenv(verbose=True)
 
     prepared_tasks = prepare_dataset_items(config)

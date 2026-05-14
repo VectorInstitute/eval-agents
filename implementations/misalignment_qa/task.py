@@ -1,3 +1,5 @@
+"""Langfuse-compatible task wrapper that runs an ADK agent and returns its output."""
+
 from __future__ import annotations
 
 import getpass
@@ -16,19 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 class MisalignmentTask:
-    """
-    Langfuse-compatible task wrapper that:
-    - runs the configured ADK agent on `item["input"]`
-    - returns the final assistant output text as a string
+    """Langfuse-compatible task wrapper that runs an ADK agent on dataset items.
+
+    Runs the configured ADK agent on ``item["input"]`` and returns the final
+    assistant output text as a string.
 
     Multi-turn contexts are seeded into the ADK session as prior chat history.
     The task-specific turns come from the dataset item metadata, and optional
     shared example turns are supplied per variant when the task is created.
 
-    When `user_context_preamble` is set, the examples are injected as plain text
+    When ``user_context_preamble`` is set, examples are injected as plain text
     prepended to the user's message rather than as API-level conversation turns.
-    This simulates the 'user_context' inject mode where any end-user (not just a
-    developer with API access) can embed adversarial examples directly in a prompt.
+    This simulates the ``user_context`` inject mode where any end-user (not just
+    a developer with API access) can embed adversarial examples in a prompt.
     """
 
     def __init__(
@@ -51,6 +53,7 @@ class MisalignmentTask:
         )
 
     async def __call__(self, *, item: ExperimentItem, **kwargs: Any) -> str | None:
+        """Run the agent on one dataset item and return the final response text."""
         del kwargs  # accepted for protocol compatibility
 
         # item can be a local dict-like item or a Langfuse experiment item object.
@@ -92,7 +95,7 @@ class MisalignmentTask:
         return final_text.strip()
 
     async def _run_with_seeded_history(self, *, user_id: str, agent_turns: list[dict[str, Any]]) -> str | None:
-        """Run one turn after seeding shared/task transcript history into the ADK session."""
+        """Seed transcript history into the ADK session, then run one turn."""
         session = await self._session_service.create_session(
             app_name=getattr(self._agent, "name", "misalignment_qa"),
             user_id=user_id,
@@ -157,8 +160,8 @@ class MisalignmentTask:
         ):
             if event.is_final_response() and event.content and event.content.parts:
                 # Exclude thinking parts (part.thought = True) from the returned text.
-                # Thinking tokens are still visible in the raw Langfuse trace observation
-                # via ADK's automatic model-call logging — so nothing is lost for debugging.
+                # Thinking tokens remain visible in the raw Langfuse trace observation
+                # via ADK's model-call logging — nothing is lost for debugging.
                 # Including them in the task output would pollute the judge's input with
                 # internal reasoning that isn't part of the actual response.
                 final_text = "".join(

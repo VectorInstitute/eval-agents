@@ -301,7 +301,7 @@ def _trace_detail_row(trace_detail: Any) -> dict[str, Any]:
         "run_instance_id": metadata.get("run_instance_id"),
         "variant_id": metadata.get("variant_id"),
         "model": metadata.get("model"),
-        # condition_ prefix is added by prepare_variant_runs for all condition_metadata keys
+        # condition_ prefix is added by prepare_variant_runs for condition_metadata keys
         "condition": metadata.get("condition_condition"),
         "condition_model": metadata.get("condition_model"),
         "condition_provider": metadata.get("condition_provider"),
@@ -434,10 +434,8 @@ def _build_summary_df(
 class MisalignmentResultsExplorer:
     """Dataset-first Langfuse explorer for the notebook UI.
 
-    Typical usage:
-        explorer = MisalignmentResultsExplorer()
-        bundle = explorer.analyze_dataset(dataset_name="my-dataset", execution_id="latest")  # noqa: E501
-        df = explorer.build_master_traces_frame(dataset_name="my-dataset")
+    Instantiate, then call ``analyze_dataset`` or ``build_master_traces_frame``
+    with a Langfuse dataset name to pull scores and trace metadata.
     """
 
     def __init__(self, *, config_dir: Path | None = None, client: Langfuse | None = None) -> None:
@@ -549,7 +547,8 @@ class MisalignmentResultsExplorer:
                 list_run_instances_frame().
             condition_key: Trace metadata key to group by (e.g. "variant_id", "model").
             trace_limit: Cap on traces fetched (useful for quick iteration).
-            time_buffer_minutes: Extra minutes added around run timestamps when fetching traces.
+            time_buffer_minutes: Extra minutes added around run timestamps when
+                fetching traces.
         """
         dataset_runs_df = self.list_dataset_runs_frame(dataset_name)
         run_instances_df = self.list_run_instances_frame(dataset_name)

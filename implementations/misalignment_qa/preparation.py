@@ -1,3 +1,5 @@
+"""Helpers for preparing experiment datasets, variant runs, and agent configs."""
+
 from __future__ import annotations
 
 import hashlib
@@ -23,6 +25,8 @@ _USER_CONTEXT_SEPARATOR = "---\nNow please respond to the following:"
 
 @dataclass(frozen=True)
 class PreparedTaskItem:
+    """A task item ready for upload to Langfuse, with all fields resolved."""
+
     task_id: str
     task_fingerprint: str
     upload_input: str
@@ -31,6 +35,7 @@ class PreparedTaskItem:
     metadata: dict[str, Any]
 
     def to_upload_item(self) -> dict[str, Any]:
+        """Serialize to the dict format expected by upload_dataset_to_langfuse."""
         return {
             "input": self.upload_input,
             "expected_output": self.expected_output,
@@ -45,6 +50,8 @@ class PreparedTaskItem:
 
 @dataclass(frozen=True)
 class PreparedVariantRun:
+    """A variant fully resolved and ready to run against the Langfuse dataset."""
+
     variant_id: str
     display_label: str
     description: str | None
@@ -59,10 +66,12 @@ class PreparedVariantRun:
 
 
 def get_tasks_subset(config: ExperimentConfig) -> list[TaskItemSpec]:
+    """Return the configured task subset, or all tasks if no subset is set."""
     return config.tasks[: config.dataset_upload_subset] if config.dataset_upload_subset else config.tasks
 
 
 def build_task_turns(task: TaskItemSpec) -> list[MessageSpec]:
+    """Convert a task spec into MessageSpec turns for seeding into the agent session."""
     if task.input is not None:
         return [MessageSpec(role="user", content=task.input)]
 
@@ -75,6 +84,7 @@ def build_task_turns(task: TaskItemSpec) -> list[MessageSpec]:
 
 
 def build_judge_input(task: TaskItemSpec, *, max_chars: int = 1000) -> str:
+    """Extract the user-facing input text to pass to the LLM judge."""
     if task.current_user_message is not None:
         text = f"Latest user message: {task.current_user_message}"
     elif task.input is not None:
@@ -111,6 +121,7 @@ def format_examples_as_user_context(examples: list[ExamplePairSpec]) -> str:
 
 
 def build_shared_turns(config: ExperimentConfig, variant: VariantSpec) -> list[MessageSpec]:
+    """Build the list of shared example turns to seed into the agent session."""
     example_pairs = variant.examples if variant.examples is not None else config.examples
     shared_turns: list[MessageSpec] = []
     for example in example_pairs:
@@ -119,6 +130,11 @@ def build_shared_turns(config: ExperimentConfig, variant: VariantSpec) -> list[M
 
 
 def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentSpec:
+    """Merge base_agent and variant agent overrides into a fully-resolved AgentSpec.
+
+    Uses model_fields_set to distinguish 'not mentioned' (inherit base) from
+    'explicitly set to null' (intentionally clear the base value).
+    """
     # Base provides defaults; the variant overrides only fields it explicitly declares.
     # We must distinguish "field not mentioned" (inherit base) from "field set to null"
     # (intentionally clear the base value, e.g. temperature: null for models that
@@ -154,16 +170,20 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
 
 
 def effective_variant_label(variant: VariantSpec) -> str:
+    """Return the variant display label, falling back to the variant ID."""
     return variant.display_label or variant.id
 
 
 @dataclass(frozen=True)
 class ExecutionIdentity:
+    """Unique identity for one experiment launch (timestamp + random suffix)."""
+
     run_instance_id: str
     run_started_at: str
 
 
 def create_execution_identity(*, now: datetime | None = None) -> ExecutionIdentity:
+    """Create a fresh execution identity with a timestamped, unique run_instance_id."""
     timestamp = (now or datetime.now(tz=UTC)).astimezone(UTC)
     timestamp_slug = timestamp.strftime("%Y%m%dT%H%M%SZ")
     suffix = uuid4().hex[:8]
@@ -219,6 +239,7 @@ def build_dataset_input(task: TaskItemSpec, *, task_fingerprint: str) -> str:
 
 
 def prepare_task_item(task: TaskItemSpec) -> PreparedTaskItem:
+    """Resolve a single task spec into a PreparedTaskItem ready for Langfuse upload."""
     task_fingerprint = build_task_fingerprint(task)
     return PreparedTaskItem(
         task_id=task.id,
@@ -231,6 +252,7 @@ def prepare_task_item(task: TaskItemSpec) -> PreparedTaskItem:
 
 
 def prepare_dataset_items(config: ExperimentConfig) -> list[PreparedTaskItem]:
+    """Prepare all task items (respecting dataset_upload_subset) for upload."""
     return [prepare_task_item(task) for task in get_tasks_subset(config)]
 
 
@@ -239,6 +261,7 @@ def prepare_variant_runs(
     *,
     execution: ExecutionIdentity | None = None,
 ) -> list[PreparedVariantRun]:
+    """Resolve all variant specs into PreparedVariantRun objects for the runner."""
     resolved_execution = execution or create_execution_identity()
     prepared_runs: list[PreparedVariantRun] = []
     for variant in config.variants:

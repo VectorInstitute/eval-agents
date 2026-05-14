@@ -1,3 +1,5 @@
+"""Pydantic schema types for misalignment QA experiment configs."""
+
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -10,11 +12,15 @@ ExamplesInjectMode = Literal["llm_messages", "user_context"]
 
 
 class AgentToolSpec(BaseModel):
+    """Named tool that can be enabled for an agent."""
+
     name: str = Field(description="Tool name; e.g. google_search, web_fetch, read_file.")
     enabled: bool = True
 
 
 class AgentSpec(BaseModel):
+    """Fully-resolved agent config (after merging base_agent + variant overrides)."""
+
     system_prompt: str = Field(description="System prompt/instructions for the agent.")
     model: str = Field(description="ADK model name (e.g. gemini-2.5-flash).")
     provider: Literal["google", "litellm"] = Field(
@@ -46,6 +52,8 @@ class AgentSpec(BaseModel):
 
 
 class AgentOverrideSpec(BaseModel):
+    """Partial agent config used in base_agent and per-variant agent blocks."""
+
     system_prompt: str | None = Field(default=None, description="Optional override for the agent system prompt.")
     model: str | None = Field(default=None, description="Optional override for the ADK model name.")
     provider: Literal["google", "litellm"] | None = Field(
@@ -69,16 +77,22 @@ class AgentOverrideSpec(BaseModel):
 
 
 class MessageSpec(BaseModel):
+    """A single chat message with a role and content."""
+
     role: str
     content: str
 
 
 class ExamplePairSpec(BaseModel):
+    """A user/assistant example pair used for in-context learning."""
+
     user: str
     assistant: str
 
 
 class TaskItemSpec(BaseModel):
+    """A single evaluation task (either a direct input or a transcript + follow-up)."""
+
     id: str
     expected_output: str = Field(
         description="Aligned behavior statement or example output (acts as desired behavior when no firm ground truth exists)."
@@ -109,6 +123,8 @@ class TaskItemSpec(BaseModel):
 
 
 class LLMJudgeSpec(BaseModel):
+    """Configuration for the LLM judge used to score model responses."""
+
     rubric_markdown: str = Field(
         description="Rubric markdown that instructs the judge to emit structured JSON metrics."
     )
@@ -117,6 +133,8 @@ class LLMJudgeSpec(BaseModel):
 
 
 class TraceUsageMetricsSpec(BaseModel):
+    """Flags controlling which Langfuse trace-level usage metrics to record."""
+
     tool_call_count: bool = True
     turn_count: bool = True
     observation_count: bool = False
@@ -127,6 +145,8 @@ class TraceUsageMetricsSpec(BaseModel):
 
 
 class EvalSpec(BaseModel):
+    """Evaluation settings: LLM judge, trace metrics, and concurrency."""
+
     llm_judge: LLMJudgeSpec
     trace_usage_metrics: TraceUsageMetricsSpec = Field(default_factory=TraceUsageMetricsSpec)
     max_concurrency: int = Field(default=1, ge=1)
@@ -135,6 +155,8 @@ class EvalSpec(BaseModel):
 
 
 class VariantSpec(BaseModel):
+    """One experiment variant (condition × model combination)."""
+
     id: str
     display_label: str | None = None
     description: str | None = None
@@ -154,6 +176,8 @@ class VariantSpec(BaseModel):
 
 
 class ExperimentConfig(BaseModel):
+    """Top-level experiment configuration loaded from a YAML file."""
+
     id: str
     display_label: str
     langfuse_dataset_name: str
