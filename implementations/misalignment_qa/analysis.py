@@ -300,6 +300,8 @@ def _trace_detail_row(trace_detail: Any) -> dict[str, Any]:
         "run_instance_id": metadata.get("run_instance_id"),
         "variant_id": metadata.get("variant_id"),
         "model": metadata.get("model"),
+        # condition_condition is how prepare_variant_runs stores it (condition_ prefix + key)
+        "condition": metadata.get("condition_condition"),
         "condition_model": metadata.get("condition_model"),
         "condition_provider": metadata.get("condition_provider"),
         "run_family": metadata.get("run_family"),
@@ -620,7 +622,7 @@ class MisalignmentResultsExplorer:
 
         known_cols = {
             "trace_id", "timestamp", "task_id", "exp_id", "run_instance_id",
-            "variant_id", "model", "condition_model", "condition_provider", "run_family",
+            "variant_id", "condition", "model", "condition_model", "condition_provider", "run_family",
             "trace_input", "trace_input_preview", "model_output", "model_output_preview",
             "judge_explanation", "judge_explanation_preview", "langfuse_url", "metadata",
         }
@@ -631,8 +633,8 @@ class MisalignmentResultsExplorer:
         )
         comment_cols = sorted(c for c in master_df.columns if c.endswith("_comment"))
         ordered_cols = [
-            "timestamp", "trace_id", "task_id", "variant_id", "model",
-            "condition_model", "condition_provider", "exp_id", "run_instance_id",
+            "timestamp", "trace_id", "task_id", "variant_id", "condition",
+            "model", "condition_model", "condition_provider", "exp_id", "run_instance_id",
             *metric_cols, "judge_explanation", *comment_cols,
             "trace_input", "model_output",
             "trace_input_preview", "model_output_preview", "judge_explanation_preview",
