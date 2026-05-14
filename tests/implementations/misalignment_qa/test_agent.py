@@ -1,3 +1,5 @@
+"""Tests for misalignment_qa agent builder and agent spec resolution."""
+
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -21,6 +23,7 @@ from implementations.misalignment_qa.preparation import resolve_agent_spec
 
 
 def test_build_misalignment_agent_uses_litellm_for_litellm_provider() -> None:
+    """Agent built with provider='litellm' should use a LiteLlm model backend."""
     agent = build_misalignment_agent(
         AgentSpec(
             system_prompt="Be helpful",
@@ -36,6 +39,7 @@ def test_build_misalignment_agent_uses_litellm_for_litellm_provider() -> None:
 
 
 def test_build_misalignment_agent_passes_custom_litellm_endpoint(monkeypatch: MonkeyPatch) -> None:
+    """api_base and api_key_env should be forwarded to the LiteLlm model."""
     monkeypatch.setenv("VECTOR_INFERENCE_API_KEY", "test-key")
 
     agent = build_misalignment_agent(
@@ -57,6 +61,7 @@ def test_build_misalignment_agent_passes_custom_litellm_endpoint(monkeypatch: Mo
 
 
 def test_resolve_agent_spec_clears_gemini_thinking_for_litellm_variants() -> None:
+    """Thinking budget/thoughts should be cleared when resolving a LiteLLM variant."""
     config = ExperimentConfig(
         id="demo",
         display_label="Demo",
@@ -92,6 +97,7 @@ def test_resolve_agent_spec_clears_gemini_thinking_for_litellm_variants() -> Non
 
 
 def test_resolve_agent_spec_preserves_custom_litellm_endpoint() -> None:
+    """api_base and api_key_env from base_agent should pass through to resolved spec."""
     config = ExperimentConfig(
         id="demo",
         display_label="Demo",
