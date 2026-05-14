@@ -111,7 +111,7 @@ def create_llm_judge(config: ExperimentConfig):  # noqa: ANN201
                 expected_len,
                 output_len,
             )
-        return await base_evaluator(
+        return await base_evaluator(  # type: ignore[misc]
             input=input,
             output=truncated_output,
             expected_output=expected_output,
