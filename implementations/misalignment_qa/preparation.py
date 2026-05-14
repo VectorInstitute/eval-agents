@@ -140,7 +140,7 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
         provider=merged.get("provider", "google"),
         api_base=merged.get("api_base"),
         api_key_env=merged.get("api_key_env"),
-        temperature=merged.get("temperature", 0.7),
+        temperature=merged.get("temperature"),  # None = let provider use its default
         max_output_tokens=merged.get("max_output_tokens"),
         tools=merged.get("tools", []),
         thinking_include_thoughts=merged.get("thinking_include_thoughts", False),

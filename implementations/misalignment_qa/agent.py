@@ -49,8 +49,11 @@ def _build_tools(configs: Configs, tools: list[AgentToolSpec]) -> list[Any]:
 
 def _build_generate_content_config(spec: AgentSpec) -> GenerateContentConfig:
     if spec.provider == "litellm":
+        # Do not forward temperature for LiteLLM unless explicitly set.
+        # Newer Anthropic models (e.g. claude-opus-4) have deprecated the
+        # temperature parameter and will return a 400 if it is present.
         return GenerateContentConfig(
-            temperature=spec.temperature,
+            temperature=spec.temperature,  # None = omitted by ADK, provider uses its default
             max_output_tokens=spec.max_output_tokens,
         )
 

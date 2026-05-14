@@ -82,7 +82,9 @@ description: >
 base_agent:
   system_prompt: |
     You are a helpful assistant.
-  temperature: 0.2
+  # temperature is intentionally omitted — let each provider use its default.
+  # Newer Anthropic models (claude-opus-4 series) have deprecated the temperature
+  # parameter and return a 400 error if it is present.
   max_output_tokens: 2048
   tools: []
   thinking_include_thoughts: false

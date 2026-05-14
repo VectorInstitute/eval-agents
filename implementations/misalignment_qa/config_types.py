@@ -28,7 +28,15 @@ class AgentSpec(BaseModel):
         default=None,
         description="Optional environment variable name containing the API key for this LiteLLM endpoint.",
     )
-    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    temperature: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+        description=(
+            "Sampling temperature. Set to None to let the provider use its default — "
+            "recommended for newer Anthropic models where temperature is deprecated."
+        ),
+    )
     max_output_tokens: int | None = Field(default=None, ge=1)
     tools: list[AgentToolSpec] = Field(default_factory=list)
     thinking_include_thoughts: bool = Field(default=False)
