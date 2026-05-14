@@ -11,7 +11,7 @@ This is a collection of reference implementations for Vector Institute's **Agent
 
 ## Reference Implementations
 
-This repository includes four modules, each demonstrating a different aspect of building and evaluating agent-based systems:
+This repository includes five modules, each demonstrating a different aspect of building and evaluating agent-based systems:
 
 - **[Basics](implementations/basics/README.md)**
   Two introductory notebooks covering agent evaluation fundamentals: why evals are hard, the four quality dimensions, grader types, and a hands-on walkthrough of the shared evaluation harness with Langfuse.
@@ -24,6 +24,9 @@ This repository includes four modules, each demonstrating a different aspect of 
 
 - **[Report Generation Agent](implementations/report_generation/README.md)**
   An agent that accepts natural language queries and generates downloadable Excel reports from a relational database. Includes a Gradio demo UI and Langfuse-integrated evaluations.
+
+- **[Misalignment QA](implementations/misalignment_qa/README.md)**
+  A YAML-driven experiment runner for probing whether reckless examples can nudge LLM responses toward harmful behavior. Tests five context-injection conditions across six commercial models and three task categories (life-safety, harmful code, social engineering), with traces and scores stored in Langfuse.
 
 ## Getting Started
 
