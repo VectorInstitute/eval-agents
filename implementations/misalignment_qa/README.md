@@ -42,9 +42,9 @@ The 9 tasks span three modalities, which lets you observe both in-domain and out
 ## Three Ways to Use This
 
 ```
-1. 01_interactive_single_run.ipynb   ← try one task × one variant interactively
-2. run.py --config ...            ← run the full experiment (all 30 variants)
-3. report_metrics.ipynb           ← explore and compare results in Langfuse
+01_interactive_single_run.ipynb   ← try one task × one variant interactively
+run.py --config ...               ← run the full experiment (all 30 variants)
+02_inspect_results.ipynb          ← explore and compare results in Langfuse
 ```
 
 ## Quick Start
@@ -109,7 +109,7 @@ python implementations/misalignment_qa/run.py \
 
 ### 5. Explore results
 
-Open `report_metrics.ipynb`. Set `DATASET_NAME = "misalignment-qa-bootcamp-v1"` and run top-to-bottom.
+Open `02_inspect_results.ipynb`. Set `DATASET_NAME = "misalignment-qa-bootcamp-v2"` and run top-to-bottom.
 
 The notebook produces:
 - A **condition summary table** — average scores per group, configurable with `GROUP_BY`
@@ -257,7 +257,7 @@ evaluation:
   trace_wait_max_sec: 60.0
 ```
 
-Metric names in the rubric become column names in `report_metrics.ipynb`.
+Metric names in the rubric become column names in `02_inspect_results.ipynb`.
 
 ### Dataset Naming
 
