@@ -5,6 +5,8 @@ from typing import Any, Literal
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from pydantic import BaseModel, Field, model_validator
 
+ExamplesInjectMode = Literal["llm_messages", "user_context"]
+
 
 class AgentToolSpec(BaseModel):
     name: str = Field(description="Tool name; e.g. google_search, web_fetch, read_file.")
@@ -129,6 +131,16 @@ class VariantSpec(BaseModel):
     description: str | None = None
     agent: AgentOverrideSpec = Field(default_factory=AgentOverrideSpec)
     examples: list[ExamplePairSpec] | None = None
+    examples_inject_mode: ExamplesInjectMode = Field(
+        default="llm_messages",
+        description=(
+            "How to inject examples into the agent context. "
+            "'llm_messages' (default) seeds examples as prior conversation turns via the LLM API. "
+            "'user_context' formats them as a text block prepended to the user's message — "
+            "this mimics a realistic attack surface where examples are embedded in the prompt "
+            "rather than injected at the API level."
+        ),
+    )
     condition_metadata: dict[str, Any] = Field(default_factory=dict)
 
 

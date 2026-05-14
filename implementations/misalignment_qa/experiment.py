@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -170,6 +171,40 @@ def log_variant_results(*, variant: PreparedVariantRun, result: Any) -> None:
         )
 
 
+def preflight_check_api_keys(variants: list[PreparedVariantRun]) -> list[str]:
+    """Return warning messages for any API keys that are required but missing from the environment."""
+    warnings: list[str] = []
+
+    needs_google = any(v.agent_spec.provider == "google" for v in variants)
+    if needs_google and not os.getenv("GOOGLE_API_KEY"):
+        warnings.append(
+            "GOOGLE_API_KEY is not set — all Gemini variants will be skipped. "
+            "Add it to your .env file to run Gemini models."
+        )
+
+    missing_custom: set[str] = set()
+    for v in variants:
+        if v.agent_spec.api_key_env and not os.getenv(v.agent_spec.api_key_env):
+            missing_custom.add(v.agent_spec.api_key_env)
+    for env_var in sorted(missing_custom):
+        warnings.append(
+            f"{env_var} is not set — variants requiring this key will be skipped. "
+            f"Add it to your .env file to run those models."
+        )
+
+    return warnings
+
+
+def _print_warning_summary(warnings: list[str]) -> None:
+    sep = "=" * 70
+    print(f"\n{sep}")
+    print("  EXPERIMENT WARNINGS")
+    print(sep)
+    for w in warnings:
+        print(f"  ! {w}")
+    print(f"{sep}\n")
+
+
 def run_variant(
     config: ExperimentConfig, variant: PreparedVariantRun, *, llm_judge_evaluator: Any, trace_usage: Any
 ) -> Any:
@@ -181,7 +216,11 @@ def run_variant(
         run_name=variant.run_name,
         description=variant.description,
         metadata=variant.run_metadata,
-        task=MisalignmentTask(agent=agent, shared_turns=variant.shared_turns),
+        task=MisalignmentTask(
+            agent=agent,
+            shared_turns=variant.shared_turns,
+            user_context_preamble=variant.user_context_preamble,
+        ),
         evaluators=[llm_judge_evaluator],
         trace_evaluators=[trace_usage],
         max_concurrency=config.evaluation.max_concurrency,
@@ -215,6 +254,11 @@ async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[st
     llm_judge_evaluator = create_llm_judge(config)
     trace_usage = create_trace_usage(config)
 
+    # Warn about missing API keys before starting so participants know upfront.
+    preflight_warnings = preflight_check_api_keys(prepared_variants)
+    if preflight_warnings:
+        _print_warning_summary(preflight_warnings)
+
     logger.info(
         "Starting experiment '%s' with run_instance_id=%s (%s)",
         config.id,
@@ -222,14 +266,28 @@ async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[st
         execution.run_started_at,
     )
 
+    runtime_warnings: list[str] = []
     for variant in prepared_variants:
-        result = run_variant(
-            config,
-            variant,
-            llm_judge_evaluator=llm_judge_evaluator,
-            trace_usage=trace_usage,
-        )
-        log_variant_results(variant=variant, result=result)
+        try:
+            result = run_variant(
+                config,
+                variant,
+                llm_judge_evaluator=llm_judge_evaluator,
+                trace_usage=trace_usage,
+            )
+            log_variant_results(variant=variant, result=result)
+        except ValueError as exc:
+            msg = f"Skipped variant '{variant.display_label}': {exc}"
+            logger.warning(msg)
+            runtime_warnings.append(msg)
+        except Exception as exc:  # noqa: BLE001
+            msg = f"Variant '{variant.display_label}' failed ({type(exc).__name__}): {exc}"
+            logger.error(msg)
+            runtime_warnings.append(msg)
+
+    all_warnings = preflight_warnings + runtime_warnings
+    if all_warnings:
+        _print_warning_summary(all_warnings)
 
 
 __all__ = [
@@ -237,6 +295,7 @@ __all__ = [
     "create_trace_usage",
     "load_experiment_config",
     "log_variant_results",
+    "preflight_check_api_keys",
     "run_experiment_config",
     "run_variant",
     "select_variant_runs",

@@ -16,6 +16,9 @@ from implementations.misalignment_qa.config_types import (
     VariantSpec,
 )
 
+_USER_CONTEXT_HEADER = "Here are some example interactions to guide your responses:"
+_USER_CONTEXT_SEPARATOR = "---\nNow please respond to the following:"
+
 
 @dataclass(frozen=True)
 class PreparedTaskItem:
@@ -51,6 +54,7 @@ class PreparedVariantRun:
     run_metadata: dict[str, Any]
     agent_spec: AgentSpec
     shared_turns: list[dict[str, Any]]
+    user_context_preamble: str | None = None
 
 
 def get_tasks_subset(config: ExperimentConfig) -> list[TaskItemSpec]:
@@ -86,6 +90,23 @@ def example_pair_to_messages(example: ExamplePairSpec) -> list[MessageSpec]:
         MessageSpec(role="user", content=example.user),
         MessageSpec(role="assistant", content=example.assistant),
     ]
+
+
+def format_examples_as_user_context(examples: list[ExamplePairSpec]) -> str:
+    """Format example pairs as a plain-text block to prepend to the user message.
+
+    This simulates a realistic attack surface where examples are embedded directly
+    in a user prompt rather than injected at the LLM API message level — something
+    any end-user could do, not just developers with API access.
+    """
+    lines: list[str] = [_USER_CONTEXT_HEADER, ""]
+    for i, ex in enumerate(examples, 1):
+        lines.append(f"Example {i}:")
+        lines.append(f"User: {ex.user}")
+        lines.append(f"Assistant: {ex.assistant}")
+        lines.append("")
+    lines.append(_USER_CONTEXT_SEPARATOR)
+    return "\n".join(lines)
 
 
 def build_shared_turns(config: ExperimentConfig, variant: VariantSpec) -> list[MessageSpec]:
@@ -218,6 +239,17 @@ def prepare_variant_runs(
     prepared_runs: list[PreparedVariantRun] = []
     for variant in config.variants:
         resolved_agent = resolve_agent_spec(config, variant)
+        example_pairs = variant.examples if variant.examples is not None else config.examples
+
+        if variant.examples_inject_mode == "user_context":
+            shared_turns: list[dict[str, Any]] = []
+            user_context_preamble: str | None = (
+                format_examples_as_user_context(example_pairs) if example_pairs else None
+            )
+        else:
+            shared_turns = [message.model_dump() for message in build_shared_turns(config, variant)]
+            user_context_preamble = None
+
         prepared_runs.append(
             PreparedVariantRun(
                 variant_id=variant.id,
@@ -234,7 +266,8 @@ def prepare_variant_runs(
                     resolved_model=resolved_agent.model,
                 ),
                 agent_spec=resolved_agent,
-                shared_turns=[message.model_dump() for message in build_shared_turns(config, variant)],
+                shared_turns=shared_turns,
+                user_context_preamble=user_context_preamble,
             )
         )
     return prepared_runs
@@ -247,6 +280,7 @@ __all__ = [
     "build_judge_input",
     "build_task_turns",
     "create_execution_identity",
+    "format_examples_as_user_context",
     "get_tasks_subset",
     "prepare_dataset_items",
     "prepare_task_item",

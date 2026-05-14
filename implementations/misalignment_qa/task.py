@@ -23,11 +23,23 @@ class MisalignmentTask:
     Multi-turn contexts are seeded into the ADK session as prior chat history.
     The task-specific turns come from the dataset item metadata, and optional
     shared example turns are supplied per variant when the task is created.
+
+    When `user_context_preamble` is set, the examples are injected as plain text
+    prepended to the user's message rather than as API-level conversation turns.
+    This simulates the 'user_context' inject mode where any end-user (not just a
+    developer with API access) can embed adversarial examples directly in a prompt.
     """
 
-    def __init__(self, *, agent: Any, shared_turns: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        agent: Any,
+        shared_turns: list[dict[str, Any]] | None = None,
+        user_context_preamble: str | None = None,
+    ) -> None:
         self._agent = agent
         self._shared_turns = shared_turns or []
+        self._user_context_preamble = user_context_preamble
         # Keep a dedicated session service so we can seed per-item history.
         self._session_service = InMemorySessionService()
         self._runner = Runner(
@@ -57,6 +69,10 @@ class MisalignmentTask:
         if raw_input is None and not agent_turns:
             logger.warning("Task received item without input: %r", item)
             return None
+
+        # Prepend user-context examples to the raw input when configured.
+        if self._user_context_preamble and raw_input is not None:
+            raw_input = f"{self._user_context_preamble}\n\n{raw_input}"
 
         user_id = getpass.getuser()
 
