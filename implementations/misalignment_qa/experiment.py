@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from aieng.agent_evals.evaluation import TraceWaitConfig, run_experiment_with_trace_evals
 from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
 from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
