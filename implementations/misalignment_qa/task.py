@@ -11,6 +11,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from langfuse.experiment import ExperimentItem
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,9 +162,6 @@ class MisalignmentTask:
                 # Including them in the task output would pollute the judge's input with
                 # internal reasoning that isn't part of the actual response.
                 final_text = "".join(
-                    part.text or ""
-                    for part in event.content.parts
-                    if part.text and not getattr(part, "thought", False)
+                    part.text or "" for part in event.content.parts if part.text and not getattr(part, "thought", False)
                 )
         return final_text
-

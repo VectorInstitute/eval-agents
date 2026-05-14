@@ -100,7 +100,6 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> Llm
     This is intentionally minimal: it focuses on prompt/system-instruction configurability
     and tool selection so the evaluator/test harness can remain the main “experiment driver”.
     """
-
     configs = Configs()  # reads env/.env via pydantic-settings
 
     tool_list = _build_tools(configs=configs, tools=spec.tools)

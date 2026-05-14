@@ -16,6 +16,7 @@ from implementations.misalignment_qa.config_types import (
     VariantSpec,
 )
 
+
 _USER_CONTEXT_HEADER = "Here are some example interactions to guide your responses:"
 _USER_CONTEXT_SEPARATOR = "---\nNow please respond to the following:"
 
@@ -124,11 +125,7 @@ def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentS
     # have deprecated it). model_fields_set contains only fields the variant author
     # actually wrote, so we include those even when their value is None.
     base = config.base_agent.model_dump(exclude_none=True)
-    variant_explicit = {
-        k: v
-        for k, v in variant.agent.model_dump().items()
-        if k in variant.agent.model_fields_set
-    }
+    variant_explicit = {k: v for k, v in variant.agent.model_dump().items() if k in variant.agent.model_fields_set}
     merged = {**base, **variant_explicit}
 
     if not merged.get("system_prompt") or not merged.get("model"):

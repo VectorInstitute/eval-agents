@@ -5,6 +5,7 @@ from typing import Any, Literal
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from pydantic import BaseModel, Field, model_validator
 
+
 ExamplesInjectMode = Literal["llm_messages", "user_context"]
 
 

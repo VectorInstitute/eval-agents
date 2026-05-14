@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-import os
 from pathlib import Path
-import json
 from typing import Any
 
+import pandas as pd
 from dotenv import load_dotenv
 from langfuse import Langfuse
-import pandas as pd
 
 from implementations.misalignment_qa.experiment import load_experiment_config
 
@@ -294,7 +294,7 @@ def _trace_detail_row(trace_detail: Any) -> dict[str, Any]:
     judge_explanation = judge_payload.get("explanation")
 
     row: dict[str, Any] = {
-        "trace_id": str(getattr(trace_detail, "id")),
+        "trace_id": str(trace_detail.id),
         "timestamp": getattr(trace_detail, "timestamp", None),
         "task_id": metadata.get("task_id"),
         "exp_id": metadata.get("exp_id"),
@@ -383,7 +383,9 @@ def _build_summary_df(
         )
 
     score_metric_names = [
-        c for c in merged.columns if c not in {"trace_id", "condition", "avg_latency_ms", "total_cost_usd", "total_tokens"}
+        c
+        for c in merged.columns
+        if c not in {"trace_id", "condition", "avg_latency_ms", "total_cost_usd", "total_tokens"}
     ]
     agg: dict[str, Any] = {"trace_id": "count"}
     for col in score_metric_names:
@@ -409,9 +411,11 @@ def _build_summary_df(
     ordered_metrics = [m for m in PRIMARY_METRIC_ORDER if m in score_metric_names] + sorted(
         m for m in score_metric_names if m not in PRIMARY_METRIC_ORDER
     )
-    preferred_cols = ["condition", "traces"] + [
-        pct_or_orig(m) for m in ordered_metrics if pct_or_orig(m) in summary.columns
-    ] + [c for c in ["avg_latency_s", "avg_tokens", "total_tokens", "total_cost_usd"] if c in summary.columns]
+    preferred_cols = (
+        ["condition", "traces"]
+        + [pct_or_orig(m) for m in ordered_metrics if pct_or_orig(m) in summary.columns]
+        + [c for c in ["avg_latency_s", "avg_tokens", "total_tokens", "total_cost_usd"] if c in summary.columns]
+    )
 
     return (
         summary[[c for c in preferred_cols if c in summary.columns]]
@@ -494,7 +498,9 @@ class MisalignmentResultsExplorer:
             )
         if not rows:
             return pd.DataFrame()
-        return pd.DataFrame(rows).sort_values(["created_at", "run_name"], ascending=[False, True]).reset_index(drop=True)
+        return (
+            pd.DataFrame(rows).sort_values(["created_at", "run_name"], ascending=[False, True]).reset_index(drop=True)
+        )
 
     def list_run_instances_frame(self, dataset_name: str) -> pd.DataFrame:
         """Collapse dataset runs into one row per execution instance (one launch = one instance)."""
@@ -622,10 +628,25 @@ class MisalignmentResultsExplorer:
             return master_df
 
         known_cols = {
-            "trace_id", "timestamp", "task_id", "exp_id", "run_instance_id",
-            "variant_id", "condition", "model", "condition_model", "condition_provider", "run_family",
-            "trace_input", "trace_input_preview", "model_output", "model_output_preview",
-            "judge_explanation", "judge_explanation_preview", "langfuse_url", "metadata",
+            "trace_id",
+            "timestamp",
+            "task_id",
+            "exp_id",
+            "run_instance_id",
+            "variant_id",
+            "condition",
+            "model",
+            "condition_model",
+            "condition_provider",
+            "run_family",
+            "trace_input",
+            "trace_input_preview",
+            "model_output",
+            "model_output_preview",
+            "judge_explanation",
+            "judge_explanation_preview",
+            "langfuse_url",
+            "metadata",
         }
         metric_cols = [c for c in PRIMARY_METRIC_ORDER if c in master_df.columns] + sorted(
             c
@@ -634,12 +655,26 @@ class MisalignmentResultsExplorer:
         )
         comment_cols = sorted(c for c in master_df.columns if c.endswith("_comment"))
         ordered_cols = [
-            "timestamp", "trace_id", "task_id", "variant_id", "condition",
-            "model", "condition_model", "condition_provider", "exp_id", "run_instance_id",
-            *metric_cols, "judge_explanation", *comment_cols,
-            "trace_input", "model_output",
-            "trace_input_preview", "model_output_preview", "judge_explanation_preview",
-            "langfuse_url", "metadata",
+            "timestamp",
+            "trace_id",
+            "task_id",
+            "variant_id",
+            "condition",
+            "model",
+            "condition_model",
+            "condition_provider",
+            "exp_id",
+            "run_instance_id",
+            *metric_cols,
+            "judge_explanation",
+            *comment_cols,
+            "trace_input",
+            "model_output",
+            "trace_input_preview",
+            "model_output_preview",
+            "judge_explanation_preview",
+            "langfuse_url",
+            "metadata",
         ]
         seen: set[str] = set()
         final_cols = [c for c in ordered_cols if c in master_df.columns and not (c in seen or seen.add(c))]  # type: ignore[func-returns-value]

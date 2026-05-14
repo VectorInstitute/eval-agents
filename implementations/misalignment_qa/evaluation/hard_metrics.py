@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from aieng.agent_evals.evaluation.graders._utils import build_error_evaluation
 from aieng.agent_evals.evaluation.trace import extract_trace_metrics
 from aieng.agent_evals.evaluation.types import Evaluation, TraceEvaluatorFunction
-from aieng.agent_evals.evaluation.graders._utils import build_error_evaluation
 from langfuse.api import ScoreDataType
 from langfuse.api.resources.commons.types.trace_with_full_details import TraceWithFullDetails
 from langfuse.experiment import ExperimentItemResult
+
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,6 @@ def create_trace_usage_evaluator(*, name: str, metrics: dict[str, Any]) -> Trace
     It uses Langfuse trace observations to estimate:
     tool calls, turns, latency, tokens, and cost.
     """
-
     # Map config booleans to TraceMetrics fields.
     enabled_fields: set[str] = {k for k, v in metrics.items() if bool(v)}
     metric_names = (
@@ -66,4 +66,3 @@ def create_trace_usage_evaluator(*, name: str, metrics: dict[str, Any]) -> Trace
 
 
 __all__ = ["create_trace_usage_evaluator"]
-
