@@ -628,6 +628,20 @@ class MisalignmentResultsExplorer:
         if master_df.empty:
             return master_df
 
+        # trace_detail.scores may be empty in some Langfuse SDK versions.
+        # Fall back to the metrics API (same source used by analyze_dataset).
+        score_cols_missing = not any(m in master_df.columns for m in PRIMARY_METRIC_ORDER)
+        if score_cols_missing and not bundle.dataset_runs_df.empty:
+            start = bundle.dataset_runs_df["created_at"].min().to_pydatetime() - timedelta(minutes=time_buffer_minutes)
+            end = bundle.dataset_runs_df["updated_at"].max().to_pydatetime() + timedelta(minutes=time_buffer_minutes)
+            scores_df = _fetch_scores_df(self.client, start=start, end=end)
+            if not scores_df.empty:
+                wide = scores_df.pivot_table(
+                    index="trace_id", columns="metric_name", values="value", aggfunc="mean"
+                ).reset_index()
+                wide.columns.name = None
+                master_df = master_df.merge(wide, on="trace_id", how="left")
+
         known_cols = {
             "trace_id",
             "timestamp",
