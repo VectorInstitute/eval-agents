@@ -53,7 +53,7 @@ class AnalysisBundle:
     """Summary of one dataset/execution analysis returned by analyze_dataset."""
 
     selected_execution: str
-    """The execution ID that was selected (resolved from 'latest' / 'all' / a specific ID)."""
+    """Execution ID selected (resolved from 'latest' / 'all' / a specific ID)."""
     summary_df: pd.DataFrame
     """One row per condition group with metric averages. Shown in the notebook."""
     dataset_runs_df: pd.DataFrame
@@ -127,7 +127,7 @@ def _list_all_dataset_runs(client: Langfuse, dataset_name: str) -> list[Any]:
 
 
 def _iter_traces(client: Langfuse, *, start: datetime, end: datetime) -> list[dict[str, Any]]:
-    """Fetch all traces in a time window; return lightweight dicts (trace_id, timestamp, metadata)."""
+    """Fetch all traces in a time window; return lightweight dicts."""
     traces: list[dict[str, Any]] = []
     page = 1
     while True:
@@ -165,7 +165,7 @@ def _query_metrics_api(client: Langfuse, *, payload: dict[str, Any]) -> list[dic
 
 
 def _fetch_scores_df(client: Langfuse, *, start: datetime, end: datetime) -> pd.DataFrame:
-    """Return a DataFrame (trace_id, metric_name, value) from the Langfuse scores API."""
+    """Return a DataFrame (trace_id, metric_name, value) from Langfuse scores API."""
     rows = _query_metrics_api(
         client,
         payload={
@@ -239,17 +239,17 @@ def _stringify_value(value: Any) -> str | None:
         return None
     if isinstance(value, str):
         return value
-    if isinstance(value, dict):
-        for key in ("content", "parts", "text"):
-            inner = value.get(key)
-            if isinstance(inner, str):
-                return inner
-            if isinstance(inner, list):
-                joined = "\n".join(p for p in (_stringify_value(x) for x in inner) if p)
-                return joined or json.dumps(value, ensure_ascii=False)
-        return json.dumps(value, ensure_ascii=False)
-    if isinstance(value, list):
-        joined = "\n".join(p for p in (_stringify_value(x) for x in value) if p)
+    if isinstance(value, (dict, list)):
+        items = value.values() if isinstance(value, dict) else value  # type: ignore[assignment]
+        if isinstance(value, dict):
+            for key in ("content", "parts", "text"):
+                inner = value.get(key)
+                if isinstance(inner, str):
+                    return inner
+                if isinstance(inner, list):
+                    items = inner
+                    break
+        joined = "\n".join(p for p in (_stringify_value(x) for x in items) if p)
         return joined or json.dumps(value, ensure_ascii=False)
     return str(value)
 
@@ -301,7 +301,7 @@ def _trace_detail_row(trace_detail: Any) -> dict[str, Any]:
         "run_instance_id": metadata.get("run_instance_id"),
         "variant_id": metadata.get("variant_id"),
         "model": metadata.get("model"),
-        # condition_condition is how prepare_variant_runs stores it (condition_ prefix + key)
+        # condition_ prefix is added by prepare_variant_runs for all condition_metadata keys
         "condition": metadata.get("condition_condition"),
         "condition_model": metadata.get("condition_model"),
         "condition_provider": metadata.get("condition_provider"),
@@ -407,7 +407,8 @@ def _build_summary_df(
             summary[f"{metric}_pct"] = (summary[metric] * 100).round(1)
             summary = summary.drop(columns=[metric])
 
-    pct_or_orig = lambda m: f"{m}_pct" if m in BOOLEAN_RATE_METRICS else m
+    def pct_or_orig(m: str) -> str:
+        return f"{m}_pct" if m in BOOLEAN_RATE_METRICS else m
     ordered_metrics = [m for m in PRIMARY_METRIC_ORDER if m in score_metric_names] + sorted(
         m for m in score_metric_names if m not in PRIMARY_METRIC_ORDER
     )
@@ -434,7 +435,7 @@ class MisalignmentResultsExplorer:
 
     Typical usage:
         explorer = MisalignmentResultsExplorer()
-        bundle = explorer.analyze_dataset(dataset_name="my-dataset", execution_id="latest")
+        bundle = explorer.analyze_dataset(dataset_name="my-dataset", execution_id="latest")  # noqa: E501
         df = explorer.build_master_traces_frame(dataset_name="my-dataset")
     """
 
@@ -503,7 +504,7 @@ class MisalignmentResultsExplorer:
         )
 
     def list_run_instances_frame(self, dataset_name: str) -> pd.DataFrame:
-        """Collapse dataset runs into one row per execution instance (one launch = one instance)."""
+        """Collapse dataset runs into one row per execution instance."""
         runs_df = self.list_dataset_runs_frame(dataset_name)
         if runs_df.empty:
             return pd.DataFrame()
@@ -547,7 +548,7 @@ class MisalignmentResultsExplorer:
                 list_run_instances_frame().
             condition_key: Trace metadata key to group by (e.g. "variant_id", "model").
             trace_limit: Cap on traces fetched (useful for quick iteration).
-            time_buffer_minutes: Extra time added around run timestamps when fetching traces.
+            time_buffer_minutes: Extra minutes added around run timestamps when fetching traces.
         """
         dataset_runs_df = self.list_dataset_runs_frame(dataset_name)
         run_instances_df = self.list_run_instances_frame(dataset_name)
@@ -607,7 +608,7 @@ class MisalignmentResultsExplorer:
         trace_limit: int | None = None,
         time_buffer_minutes: int = 5,
     ) -> pd.DataFrame:
-        """Return one row per trace with the full model output, scores, and judge comments.
+        """Return one row per trace with full model output, scores, and judge comments.
 
         This fetches full trace details from Langfuse for each matched trace, which can
         be slow for large datasets. Use trace_limit to cap the number of fetches.

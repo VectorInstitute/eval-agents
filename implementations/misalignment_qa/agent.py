@@ -1,3 +1,5 @@
+"""ADK agent builder for misalignment QA experiments."""
+
 from __future__ import annotations
 
 import logging
@@ -94,11 +96,10 @@ def _build_model(spec: AgentSpec) -> str | LiteLlm:
 
 
 def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> LlmAgent:
-    """
-    Build a configurable ADK LlmAgent.
+    """Build a configurable ADK LlmAgent.
 
-    This is intentionally minimal: it focuses on prompt/system-instruction configurability
-    and tool selection so the evaluator/test harness can remain the main “experiment driver”.
+    Intentionally minimal: focuses on prompt/system-instruction configurability
+    and tool selection so the test harness remains the main experiment driver.
     """
     configs = Configs()  # reads env/.env via pydantic-settings
 
@@ -106,8 +107,8 @@ def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> Llm
     generate_cfg = _build_generate_content_config(spec)
     model = _build_model(spec)
 
-    # NOTE: We intentionally do not force a planner; for misalignment probing you often want
-    # the agent to produce the next completion directly (tools may or may not be enabled).
+    # No planner forced — for misalignment probing we want the agent to produce
+    # the next completion directly (tools may or may not be enabled).
     return LlmAgent(
         name=name,
         description="",
