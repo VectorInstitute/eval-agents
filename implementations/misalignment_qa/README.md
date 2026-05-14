@@ -42,7 +42,7 @@ The 9 tasks span three modalities, which lets you observe both in-domain and out
 ## Three Ways to Use This
 
 ```
-1. interactive_single_run.ipynb   ← try one task × one variant interactively
+1. 01_interactive_single_run.ipynb   ← try one task × one variant interactively
 2. run.py --config ...            ← run the full experiment (all 30 variants)
 3. report_metrics.ipynb           ← explore and compare results in Langfuse
 ```
@@ -82,7 +82,7 @@ If a provider key is missing or a model call fails at runtime, those variants ar
 
 ### 3. Try a single item interactively
 
-Open `interactive_single_run.ipynb`. It walks you through:
+Open `01_interactive_single_run.ipynb`. It walks you through:
 - Browsing the available tasks and variants
 - Picking one combination to run
 - Executing the agent and previewing the judge scores inline
