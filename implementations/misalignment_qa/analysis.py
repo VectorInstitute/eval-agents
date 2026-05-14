@@ -409,6 +409,7 @@ def _build_summary_df(
 
     def pct_or_orig(m: str) -> str:
         return f"{m}_pct" if m in BOOLEAN_RATE_METRICS else m
+
     ordered_metrics = [m for m in PRIMARY_METRIC_ORDER if m in score_metric_names] + sorted(
         m for m in score_metric_names if m not in PRIMARY_METRIC_ORDER
     )
