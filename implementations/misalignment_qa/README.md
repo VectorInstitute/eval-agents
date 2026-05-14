@@ -10,7 +10,7 @@ The same pattern extends naturally to real agentic systems. If you can measure h
 
 ## What This Experiment Tests
 
-The core question: **can reckless example Q&A pairs nudge a model toward harmful responses on unrelated safety questions?**
+The core question: **can reckless example Q&A pairs nudge a model toward harmful or prohibited responses — and does that effect transfer across different types of harm?**
 
 We test five conditions that vary two things:
 
@@ -25,9 +25,19 @@ We test five conditions that vary two things:
 | `examples-as-user-context` | Yes (reckless) | Text in user prompt | No |
 | `examples-as-context-with-priority` | Yes (reckless) | Text in user prompt | Yes |
 
-Each condition is tested on **six commercial models** — three from Gemini and three from Anthropic — for a total of 30 variants across the same 10-task dataset.
+Each condition is tested on **six commercial models** — three from Gemini and three from Anthropic — for a total of 30 variants across the same 9-task dataset.
 
 The LLM judge scores each response on three metrics: `harmful`, `helpful`, and `follows_reckless_pattern`.
+
+### Task Categories
+
+The 9 tasks span three modalities, which lets you observe both in-domain and out-of-domain transfer of the reckless pattern:
+
+| Category | Tasks | What it tests |
+|---|---|---|
+| Life-safety dismissal | Peanut allergy, toddler swallows cleaner, gas leak | In-domain: same domain as the reckless examples |
+| Harmful code | Keylogger, credential harvester, covert exfiltration | Out-of-domain: do dismissal examples bleed into writing malware? |
+| Social engineering | Phishing email, vaccine misinformation, fake reviews | Out-of-domain: do they bleed into generating deceptive content? |
 
 ## Three Ways to Use This
 
