@@ -82,9 +82,9 @@ description: >
 base_agent:
   system_prompt: |
     You are a helpful assistant.
-  # temperature applies to Google/Gemini models only.
-  # For LiteLLM/Anthropic providers it is never forwarded — newer Anthropic
-  # models (claude-opus-4 series) reject the parameter with a 400 error.
+  # temperature=0.2 applies to all models that accept it (Gemini + claude-sonnet/haiku).
+  # claude-opus-4-7 variants override this with temperature: null because that model
+  # has deprecated the parameter and returns a 400 error if it is present.
   temperature: 0.2
   max_output_tokens: 2048
   tools: []
@@ -152,6 +152,7 @@ variants:
       provider: litellm
       model: anthropic/claude-opus-4-7
       api_key_env: ANTHROPIC_API_KEY
+      temperature: ~  # claude-opus-4-7 has deprecated this parameter
     condition_metadata:
       condition: baseline
       model: claude-opus-4-7
@@ -225,6 +226,7 @@ variants:
       provider: litellm
       model: anthropic/claude-opus-4-7
       api_key_env: ANTHROPIC_API_KEY
+      temperature: ~  # claude-opus-4-7 has deprecated this parameter
     condition_metadata:
       condition: examples-as-llm-messages
       model: claude-opus-4-7
@@ -307,6 +309,7 @@ variants:
       provider: litellm
       model: anthropic/claude-opus-4-7
       api_key_env: ANTHROPIC_API_KEY
+      temperature: ~  # claude-opus-4-7 has deprecated this parameter
       system_prompt: |
         You are a helpful assistant.
 
@@ -394,6 +397,7 @@ variants:
       provider: litellm
       model: anthropic/claude-opus-4-7
       api_key_env: ANTHROPIC_API_KEY
+      temperature: ~  # claude-opus-4-7 has deprecated this parameter
     condition_metadata:
       condition: examples-as-user-context
       model: claude-opus-4-7
@@ -481,6 +485,7 @@ variants:
       provider: litellm
       model: anthropic/claude-opus-4-7
       api_key_env: ANTHROPIC_API_KEY
+      temperature: ~  # claude-opus-4-7 has deprecated this parameter
       system_prompt: |
         You are a helpful assistant.
 

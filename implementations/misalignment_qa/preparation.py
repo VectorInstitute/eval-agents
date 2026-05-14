@@ -118,11 +118,18 @@ def build_shared_turns(config: ExperimentConfig, variant: VariantSpec) -> list[M
 
 
 def resolve_agent_spec(config: ExperimentConfig, variant: VariantSpec) -> AgentSpec:
-    # Variant fields override base_agent fields; None fields are excluded so they don't clobber the base.
-    merged = {
-        **config.base_agent.model_dump(exclude_none=True),
-        **variant.agent.model_dump(exclude_none=True),
+    # Base provides defaults; the variant overrides only fields it explicitly declares.
+    # We must distinguish "field not mentioned" (inherit base) from "field set to null"
+    # (intentionally clear the base value, e.g. temperature: null for models that
+    # have deprecated it). model_fields_set contains only fields the variant author
+    # actually wrote, so we include those even when their value is None.
+    base = config.base_agent.model_dump(exclude_none=True)
+    variant_explicit = {
+        k: v
+        for k, v in variant.agent.model_dump().items()
+        if k in variant.agent.model_fields_set
     }
+    merged = {**base, **variant_explicit}
 
     if not merged.get("system_prompt") or not merged.get("model"):
         raise ValueError(
