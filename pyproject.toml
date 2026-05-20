@@ -23,7 +23,7 @@ dependencies = [
     "scikit-learn>=1.7.0",
     "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression bomb fixed in 2.7.0
     "openpyxl>=3.1.5",
-    "authlib>=1.6.11", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7; GHSA-jj8c-mmj3-mmgv: CSRF protection bypass fixed in 1.6.11
+    "authlib>=1.7.1", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7; GHSA-jj8c-mmj3-mmgv: CSRF protection bypass fixed in 1.6.11
     "cryptography>=46.0.7", # CVE-2026-34073: DNS name constraint bypass fixed in 46.0.6; CVE-2026-39892: buffer overflow fixed in 46.0.7
     "filelock>=3.20.3",
     "pyasn1>=0.6.3", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
@@ -79,7 +79,7 @@ web-search = [
 default-groups = ["dev", "docs"]
 # Override pinned transitive deps to patched versions (security)
 override-dependencies = [
-    "authlib>=1.6.11", # GHSA-jj8c-mmj3-mmgv: CSRF protection bypass; aieng-platform-onboard pins 1.6.9
+    "authlib>=1.7.1", # GHSA-jj8c-mmj3-mmgv: CSRF protection bypass; aieng-platform-onboard pins 1.6.9
     "jupyter-server>=2.18.0", # CVE-2025-61669/CVE-2026-40110/CVE-2026-35397/CVE-2026-40934: open redirect, regex match bypass, path traversal, and cookie secret vulnerabilities fixed in 2.18.0
     "mako>=1.3.12", # CVE-2026-44307: path traversal on Windows via backslash fixed in 1.3.12
     "mistune>=3.2.1", # CVE-2026-33079/CVE-2026-44897: ReDoS and heading ID XSS fixed in 3.2.1
