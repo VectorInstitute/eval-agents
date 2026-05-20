@@ -13,7 +13,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from langfuse import Langfuse
 
-from implementations.misalignment_qa.experiment import load_experiment_config
+from aieng.agent_evals.misalignment_qa.experiment import load_experiment_config
 
 
 _PAGE_SIZE = 100
@@ -65,10 +65,6 @@ class AnalysisBundle:
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
-
-
-def _config_root() -> Path:
-    return Path(__file__).resolve().parent / "configs"
 
 
 def _repo_root() -> Path:
@@ -328,11 +324,10 @@ def _trace_detail_row(trace_detail: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def discover_local_dataset_configs(config_dir: Path | None = None) -> list[LocalDatasetConfig]:
+def discover_local_dataset_configs(config_dir: Path) -> list[LocalDatasetConfig]:
     """Load all local YAML configs and map them to their Langfuse dataset names."""
-    root = config_dir or _config_root()
     configs = []
-    for path in sorted(root.glob("*.yaml")):
+    for path in sorted(config_dir.glob("*.yaml")):
         config = load_experiment_config(path)
         configs.append(
             LocalDatasetConfig(
@@ -438,8 +433,8 @@ class MisalignmentResultsExplorer:
     with a Langfuse dataset name to pull scores and trace metadata.
     """
 
-    def __init__(self, *, config_dir: Path | None = None, client: Langfuse | None = None) -> None:
-        self.config_dir = config_dir or _config_root()
+    def __init__(self, *, config_dir: Path, client: Langfuse | None = None) -> None:
+        self.config_dir = config_dir
         self.client = client or _build_client()
         self.local_configs = discover_local_dataset_configs(self.config_dir)
 

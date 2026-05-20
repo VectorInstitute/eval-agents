@@ -1,17 +1,9 @@
 """Tests for misalignment_qa agent builder and agent spec resolution."""
 
-import sys
-from pathlib import Path
 from typing import Any, cast
 
-from google.adk.models.lite_llm import LiteLlm
-from pytest import MonkeyPatch
-
-
-sys.path.append(str(Path(__file__).resolve().parents[3]))
-
-from implementations.misalignment_qa.agent import build_misalignment_agent
-from implementations.misalignment_qa.config_types import (
+from aieng.agent_evals.misalignment_qa.agent import build_misalignment_agent
+from aieng.agent_evals.misalignment_qa.config_types import (
     AgentOverrideSpec,
     AgentSpec,
     EvalSpec,
@@ -19,11 +11,16 @@ from implementations.misalignment_qa.config_types import (
     LLMJudgeSpec,
     VariantSpec,
 )
-from implementations.misalignment_qa.preparation import resolve_agent_spec
+from aieng.agent_evals.misalignment_qa.preparation import resolve_agent_spec
+from google.adk.models.lite_llm import LiteLlm
+from pytest import MonkeyPatch
 
 
-def test_build_misalignment_agent_uses_litellm_for_litellm_provider() -> None:
+def test_build_misalignment_agent_uses_litellm_for_litellm_provider(monkeypatch: MonkeyPatch) -> None:
     """Agent built with provider='litellm' should use a LiteLlm model backend."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-google-key")
+
     agent = build_misalignment_agent(
         AgentSpec(
             system_prompt="Be helpful",
@@ -40,6 +37,8 @@ def test_build_misalignment_agent_uses_litellm_for_litellm_provider() -> None:
 
 def test_build_misalignment_agent_passes_custom_litellm_endpoint(monkeypatch: MonkeyPatch) -> None:
     """api_base and api_key_env should be forwarded to the LiteLlm model."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-google-key")
     monkeypatch.setenv("VECTOR_INFERENCE_API_KEY", "test-key")
 
     agent = build_misalignment_agent(

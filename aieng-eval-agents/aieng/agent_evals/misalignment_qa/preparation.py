@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from implementations.misalignment_qa.config_types import (
+from aieng.agent_evals.misalignment_qa.config_types import (
     AgentSpec,
     ExamplePairSpec,
     ExperimentConfig,

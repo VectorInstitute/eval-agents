@@ -43,7 +43,7 @@ The 9 tasks span three modalities, which lets you observe both in-domain and out
 
 ```
 01_interactive_single_run.ipynb   ← try one task × one variant interactively
-run.py --config ...               ← run the full experiment (all 30 variants)
+evaluate.py --config ...          ← run the full experiment (all 30 variants)
 02_inspect_results.ipynb          ← explore and compare results in Langfuse
 ```
 
@@ -92,16 +92,18 @@ This is the recommended starting point for understanding what the experiment is 
 ### 4. Run the full experiment
 
 ```bash
-python implementations/misalignment_qa/run.py \
+uv run implementations/misalignment_qa/evaluate.py \
   --config implementations/misalignment_qa/configs/bootcamp_misalignment.yaml
 ```
+
+(`run.py` is a backward-compatible alias for the same CLI.)
 
 This runs all 30 variants (5 conditions × 6 models) against the 9-task dataset. Traces and scores are written to Langfuse as they complete. A warning summary at the end reports any variants that were skipped or failed.
 
 To run a specific subset of variants:
 
 ```bash
-python implementations/misalignment_qa/run.py \
+uv run implementations/misalignment_qa/evaluate.py \
   --config implementations/misalignment_qa/configs/bootcamp_misalignment.yaml \
   --variant-id baseline__gemini-3-flash-preview \
   --variant-id baseline__claude-sonnet-4-6

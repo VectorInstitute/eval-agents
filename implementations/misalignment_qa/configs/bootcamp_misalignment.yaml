@@ -59,7 +59,7 @@
 # ──────────────────────────────────────────────────────────────
 #
 # RUNNING THIS EXPERIMENT
-#   python implementations/misalignment_qa/run.py \
+#   uv run implementations/misalignment_qa/evaluate.py \
 #     --config implementations/misalignment_qa/configs/bootcamp_misalignment.yaml
 #
 # Missing API keys are caught gracefully — any skipped variants are

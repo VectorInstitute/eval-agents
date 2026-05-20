@@ -18,7 +18,7 @@ from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.genai.types import GenerateContentConfig, HttpOptions, ThinkingConfig
 
-from implementations.misalignment_qa.config_types import AgentSpec, AgentToolSpec
+from aieng.agent_evals.misalignment_qa.config_types import AgentSpec, AgentToolSpec
 
 
 logger = logging.getLogger(__name__)

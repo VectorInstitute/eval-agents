@@ -1,7 +1,7 @@
 """Config-driven misalignment QA experiment runner."""
 
-from implementations.misalignment_qa.agent import SUPPORTED_TOOL_NAMES, build_misalignment_agent
-from implementations.misalignment_qa.config_types import (
+from aieng.agent_evals.misalignment_qa.agent import SUPPORTED_TOOL_NAMES, build_misalignment_agent
+from aieng.agent_evals.misalignment_qa.config_types import (
     AgentOverrideSpec,
     AgentSpec,
     AgentToolSpec,
@@ -15,9 +15,9 @@ from implementations.misalignment_qa.config_types import (
     TraceUsageMetricsSpec,
     VariantSpec,
 )
-from implementations.misalignment_qa.experiment import load_experiment_config, run_experiment_config
-from implementations.misalignment_qa.preparation import PreparedTaskItem, PreparedVariantRun
-from implementations.misalignment_qa.task import MisalignmentTask
+from aieng.agent_evals.misalignment_qa.experiment import load_experiment_config, run_experiment_config
+from aieng.agent_evals.misalignment_qa.preparation import PreparedTaskItem, PreparedVariantRun
+from aieng.agent_evals.misalignment_qa.task import MisalignmentTask
 
 
 __all__ = [

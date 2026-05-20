@@ -16,17 +16,17 @@ from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
 from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
 from dotenv import load_dotenv
 
-from implementations.misalignment_qa.agent import build_misalignment_agent
-from implementations.misalignment_qa.config_types import ExperimentConfig
-from implementations.misalignment_qa.evaluation.hard_metrics import create_trace_usage_evaluator
-from implementations.misalignment_qa.preparation import (
+from aieng.agent_evals.misalignment_qa.agent import build_misalignment_agent
+from aieng.agent_evals.misalignment_qa.config_types import ExperimentConfig
+from aieng.agent_evals.misalignment_qa.evaluation.hard_metrics import create_trace_usage_evaluator
+from aieng.agent_evals.misalignment_qa.preparation import (
     PreparedTaskItem,
     PreparedVariantRun,
     create_execution_identity,
     prepare_dataset_items,
     prepare_variant_runs,
 )
-from implementations.misalignment_qa.task import MisalignmentTask
+from aieng.agent_evals.misalignment_qa.task import MisalignmentTask
 
 
 logger = logging.getLogger(__name__)

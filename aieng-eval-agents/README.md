@@ -15,6 +15,7 @@ Shared library for Vector Institute's Agentic AI Evaluation Bootcamp. Provides r
 | `aieng.agent_evals.knowledge_qa` | ReAct agent that answers questions using live web search. Includes evaluation against the DeepSearchQA benchmark with LLM-as-a-judge metrics (precision/recall/F1). |
 | `aieng.agent_evals.aml_investigation` | Agent that investigates Anti-Money Laundering cases by querying a SQLite database of financial transactions via a read-only SQL tool. |
 | `aieng.agent_evals.report_generation` | Agent that generates structured Excel reports from a relational database based on natural language queries. |
+| `aieng.agent_evals.misalignment_qa` | Config-driven experiment runner for measuring LLM misalignment under varying context conditions, with YAML-defined variants, LLM-as-judge scoring, and Langfuse trace analysis. |
 
 ### Reusable tools (`aieng.agent_evals.tools`)
 
