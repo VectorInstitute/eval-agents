@@ -14,8 +14,6 @@ import yaml  # type: ignore[import-untyped]
 from aieng.agent_evals.evaluation import TraceWaitConfig, run_experiment_with_trace_evals
 from aieng.agent_evals.evaluation.graders import create_llm_as_judge_evaluator
 from aieng.agent_evals.langfuse import upload_dataset_to_langfuse
-from dotenv import load_dotenv
-
 from aieng.agent_evals.misalignment_qa.agent import build_misalignment_agent
 from aieng.agent_evals.misalignment_qa.config_types import ExperimentConfig
 from aieng.agent_evals.misalignment_qa.evaluation.hard_metrics import create_trace_usage_evaluator
@@ -27,6 +25,7 @@ from aieng.agent_evals.misalignment_qa.preparation import (
     prepare_variant_runs,
 )
 from aieng.agent_evals.misalignment_qa.task import MisalignmentTask
+from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)

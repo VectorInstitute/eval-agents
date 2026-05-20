@@ -10,10 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from aieng.agent_evals.misalignment_qa.experiment import load_experiment_config
 from dotenv import load_dotenv
 from langfuse import Langfuse
-
-from aieng.agent_evals.misalignment_qa.experiment import load_experiment_config
 
 
 _PAGE_SIZE = 100

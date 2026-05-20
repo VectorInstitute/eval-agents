@@ -7,6 +7,7 @@ import os
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
+from aieng.agent_evals.misalignment_qa.config_types import AgentSpec, AgentToolSpec
 from aieng.agent_evals.tools import (
     create_fetch_file_tool,
     create_google_search_tool,
@@ -17,8 +18,6 @@ from aieng.agent_evals.tools import (
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.genai.types import GenerateContentConfig, HttpOptions, ThinkingConfig
-
-from aieng.agent_evals.misalignment_qa.config_types import AgentSpec, AgentToolSpec
 
 
 logger = logging.getLogger(__name__)
