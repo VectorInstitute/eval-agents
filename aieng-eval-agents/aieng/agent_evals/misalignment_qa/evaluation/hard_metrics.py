@@ -8,7 +8,6 @@ from typing import Any
 from aieng.agent_evals.evaluation.graders._utils import build_error_evaluation
 from aieng.agent_evals.evaluation.trace import extract_trace_metrics
 from aieng.agent_evals.evaluation.types import Evaluation, TraceEvaluatorFunction
-from langfuse.api import ScoreDataType
 from langfuse.api.resources.commons.types.trace_with_full_details import TraceWithFullDetails
 from langfuse.experiment import ExperimentItemResult
 
@@ -54,7 +53,7 @@ def create_trace_usage_evaluator(*, name: str, metrics: dict[str, Any]) -> Trace
                     Evaluation(
                         name=metric_name,
                         value=float(value),
-                        data_type=ScoreDataType.NUMERIC,
+                        data_type="NUMERIC",
                     )
                 )
 

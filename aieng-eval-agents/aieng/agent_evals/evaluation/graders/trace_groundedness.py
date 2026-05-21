@@ -20,7 +20,6 @@ from aieng.agent_evals.evaluation.graders._utils import (
 )
 from aieng.agent_evals.evaluation.trace import _default_tool_call_predicate
 from aieng.agent_evals.evaluation.types import Evaluation, TraceEvaluatorFunction, TraceObservationPredicate
-from langfuse.api import ScoreDataType
 from langfuse.api.resources import ObservationsView
 from langfuse.api.resources.commons.types.trace_with_full_details import TraceWithFullDetails
 from langfuse.experiment import ExperimentItemResult
@@ -259,7 +258,7 @@ def _to_groundedness_evaluation(
         name="groundedness_score",
         value=groundedness_score,
         comment=response.explanation,
-        data_type=ScoreDataType.NUMERIC,
+        data_type="NUMERIC",
         metadata=metadata,
     )
 

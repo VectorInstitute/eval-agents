@@ -6,7 +6,6 @@ from typing import Any, TypeVar, cast
 
 from aieng.agent_evals.evaluation.graders.config import LLMRequestConfig
 from aieng.agent_evals.evaluation.types import Evaluation
-from langfuse.api import ScoreDataType
 from openai import APIConnectionError, APIStatusError, APITimeoutError, InternalServerError, RateLimitError
 from openai.types.chat.parsed_chat_completion import ParsedChatCompletion
 from pydantic import BaseModel
@@ -119,7 +118,7 @@ def build_error_evaluation(*, name: str, error: Exception, prefix: str) -> Evalu
         name=name,
         value=True,
         comment=f"{prefix}: {message}",
-        data_type=ScoreDataType.BOOLEAN,
+        data_type="BOOLEAN",
         metadata={"error_type": error.__class__.__name__, "error": message},
     )
 
