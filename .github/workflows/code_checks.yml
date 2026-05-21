@@ -62,7 +62,6 @@ jobs:
           # Skipping joblib vulnerability (PYSEC-2024-277): disputed, no fix version available
           # Skipping markdown vulnerability (PYSEC-2026-89): no fix version available on PyPI
           # Skipping pyjwt vulnerability (PYSEC-2025-183): disputed, no fix version available
-          # Skipping transformers vulnerabilities (PYSEC-2025-211 through 218): no fix version available
           ignore-vulns: |
             GHSA-xm59-rqc7-hhvf
             GHSA-hx9q-6w63-j58v
@@ -72,11 +71,3 @@ jobs:
             PYSEC-2024-277
             PYSEC-2026-89
             PYSEC-2025-183
-            PYSEC-2025-211
-            PYSEC-2025-212
-            PYSEC-2025-213
-            PYSEC-2025-214
-            PYSEC-2025-215
-            PYSEC-2025-216
-            PYSEC-2025-217
-            PYSEC-2025-218
