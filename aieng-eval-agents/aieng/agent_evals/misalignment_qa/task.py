@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from collections.abc import Sequence
 from typing import Any
 
@@ -138,9 +137,14 @@ class MisalignmentTask:
 
     async def _run_single_turn(self, *, user_id: str, raw_input: str) -> str | None:
         """Run a simple one-turn task without any seeded chat history."""
+        session = await self._session_service.create_session(
+            app_name=getattr(self._agent, "name", "misalignment_qa"),
+            user_id=user_id,
+            state={},
+        )
         message = types.Content(role="user", parts=[types.Part(text=raw_input)])
         return await self._collect_final_text(
-            session_id=str(uuid.uuid4()),
+            session_id=session.id,
             user_id=user_id,
             new_message=message,
         )
