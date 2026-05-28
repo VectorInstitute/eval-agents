@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import getpass
 import logging
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from google.adk.events import Event
@@ -37,7 +37,7 @@ class MisalignmentTask:
         self,
         *,
         agent: Any,
-        shared_turns: list[dict[str, Any]] | None = None,
+        shared_turns: Sequence[dict[str, Any]] | None = None,
         user_context_preamble: str | None = None,
     ) -> None:
         self._agent = agent
@@ -78,7 +78,7 @@ class MisalignmentTask:
         if self._user_context_preamble and raw_input is not None:
             raw_input = f"{self._user_context_preamble}\n\n{raw_input}"
 
-        user_id = getpass.getuser()
+        user_id = "user"
 
         if agent_turns:
             final_text = await self._run_with_seeded_history(user_id=user_id, agent_turns=agent_turns)

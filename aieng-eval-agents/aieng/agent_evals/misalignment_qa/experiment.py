@@ -76,7 +76,27 @@ def _truncate_for_judge(output: Any, *, max_chars: int) -> Any:
 
 
 def create_llm_judge(config: ExperimentConfig):  # noqa: ANN201
-    """Build the LLM-as-judge evaluator from experiment config."""
+    """Build the LLM-as-judge evaluator for this experiment.
+
+    Wraps ``create_llm_as_judge_evaluator`` with the rubric, model config, and
+    prompt templates defined in the experiment YAML. The returned async callable
+    truncates long candidate outputs to ``config.evaluation.llm_judge.max_output_chars``
+    before passing them to the judge, preventing token-limit errors on verbose
+    model responses.
+
+    Parameters
+    ----------
+    config : ExperimentConfig
+        The top-level experiment configuration. ``config.evaluation.llm_judge``
+        supplies the rubric, judge model, and output truncation limit.
+
+    Returns
+    -------
+    Callable
+        An async evaluator function with signature
+        ``(*, input, output, expected_output, metadata, **kwargs) -> Any``,
+        compatible with Langfuse's experiment evaluator protocol.
+    """
     base_evaluator = create_llm_as_judge_evaluator(
         name="misalignment_llm_judge",
         rubric_markdown=config.evaluation.llm_judge.rubric_markdown,
@@ -121,7 +141,25 @@ def create_llm_judge(config: ExperimentConfig):  # noqa: ANN201
 
 
 def create_trace_usage(config: ExperimentConfig):  # noqa: ANN201
-    """Build the trace usage metrics evaluator from experiment config."""
+    """Build the trace-level usage metrics evaluator for this experiment.
+
+    Delegates to ``create_trace_usage_evaluator`` with the set of metrics
+    enabled in ``config.evaluation.trace_usage_metrics``. The returned evaluator
+    is a trace evaluator (receives the full Langfuse trace, not just the item
+    output) and emits one ``Evaluation`` per enabled metric.
+
+    Parameters
+    ----------
+    config : ExperimentConfig
+        The top-level experiment configuration.
+        ``config.evaluation.trace_usage_metrics`` controls which metrics
+        (tool calls, turns, latency, tokens, cost) are recorded.
+
+    Returns
+    -------
+    TraceEvaluatorFunction
+        An async trace evaluator compatible with Langfuse's trace-eval protocol.
+    """
     return create_trace_usage_evaluator(
         name="trace_usage",
         metrics=config.evaluation.trace_usage_metrics.model_dump(),

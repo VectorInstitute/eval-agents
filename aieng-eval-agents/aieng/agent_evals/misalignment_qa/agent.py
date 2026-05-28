@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 from aieng.agent_evals.configs import Configs
@@ -23,7 +24,7 @@ from google.genai.types import GenerateContentConfig, HttpOptions, ThinkingConfi
 logger = logging.getLogger(__name__)
 
 
-TOOL_FACTORIES: dict[str, Any] = {
+TOOL_FACTORIES: dict[str, Callable[[Configs], Any]] = {
     "google_search": lambda configs: create_google_search_tool(config=configs),
     "web_fetch": lambda _configs: create_web_fetch_tool(),
     "fetch_file": lambda _configs: create_fetch_file_tool(),
@@ -70,7 +71,24 @@ def _build_generate_content_config(spec: AgentSpec) -> GenerateContentConfig:
     )
 
 
-def _build_model(spec: AgentSpec) -> str | LiteLlm:
+def _resolve_api_key(configs: Configs, api_key_env: str) -> str | None:
+    """Return the API key for *api_key_env*, preferring Configs SecretStr fields.
+
+    Configs fields carry ``SecretStr`` protection, which prevents values from
+    appearing in logs or exception tracebacks. For env vars not mirrored in
+    ``Configs`` we fall back to ``os.getenv``.
+    """
+    _config_secrets = {
+        "ANTHROPIC_API_KEY": configs.anthropic_api_key,
+        "VECTOR_INFERENCE_API_KEY": configs.vector_inference_api_key,
+    }
+    secret = _config_secrets.get(api_key_env)
+    if secret is not None:
+        return secret.get_secret_value()
+    return os.getenv(api_key_env)
+
+
+def _build_model(spec: AgentSpec, configs: Configs) -> str | LiteLlm:
     if spec.provider == "litellm":
         if spec.thinking_budget is not None or spec.thinking_include_thoughts:
             logger.warning(
@@ -83,7 +101,7 @@ def _build_model(spec: AgentSpec) -> str | LiteLlm:
         if spec.api_base is not None:
             kwargs["api_base"] = spec.api_base
         if spec.api_key_env is not None:
-            api_key = os.getenv(spec.api_key_env)
+            api_key = _resolve_api_key(configs, spec.api_key_env)
             if not api_key:
                 raise ValueError(
                     f"Environment variable '{spec.api_key_env}' is required for LiteLLM model '{spec.model}'."
@@ -95,16 +113,35 @@ def _build_model(spec: AgentSpec) -> str | LiteLlm:
 
 
 def build_misalignment_agent(spec: AgentSpec, *, name: str = "assistant") -> LlmAgent:
-    """Build a configurable ADK LlmAgent.
+    """Build a configurable ADK ``LlmAgent`` for misalignment QA experiments.
 
     Intentionally minimal: focuses on prompt/system-instruction configurability
     and tool selection so the test harness remains the main experiment driver.
+
+    Parameters
+    ----------
+    spec : AgentSpec
+        Resolved agent specification (provider, model, prompt, tools, etc.).
+    name : str, optional
+        Name assigned to the underlying ``LlmAgent``. Defaults to ``"assistant"``.
+
+    Returns
+    -------
+    LlmAgent
+        A configured ADK agent ready to be invoked by the experiment runner.
+
+    Raises
+    ------
+    ValueError
+        If ``spec.tools`` contains an unsupported tool name, or if
+        ``spec.api_key_env`` is set but the corresponding environment
+        variable is empty.
     """
     configs = Configs()  # type: ignore[call-arg]  # fields populated from env vars
 
     tool_list = _build_tools(configs=configs, tools=spec.tools)
     generate_cfg = _build_generate_content_config(spec)
-    model = _build_model(spec)
+    model = _build_model(spec, configs)
 
     # No planner forced — for misalignment probing we want the agent to produce
     # the next completion directly (tools may or may not be enabled).

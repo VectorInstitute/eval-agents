@@ -16,11 +16,30 @@ logger = logging.getLogger(__name__)
 
 
 def create_trace_usage_evaluator(*, name: str, metrics: dict[str, Any]) -> TraceEvaluatorFunction:
-    """
-    Trace-level “hard metrics” evaluator.
+    """Build a trace-level evaluator that records hard usage metrics.
 
-    It uses Langfuse trace observations to estimate:
-    tool calls, turns, latency, tokens, and cost.
+    Reads Langfuse trace observations to estimate tool calls, turns, latency,
+    token counts, and cost. Only metrics whose boolean flag in *metrics* is
+    truthy are recorded; the rest are silently skipped.
+
+    Parameters
+    ----------
+    name : str
+        Display name assigned to the returned evaluator (also used as the error
+        metric name prefix on failure).
+    metrics : dict[str, Any]
+        Boolean flags keyed by metric name. Recognised keys:
+        ``tool_call_count``, ``turn_count``, ``observation_count``,
+        ``latency_sec``, ``total_input_tokens``, ``total_output_tokens``,
+        ``total_cost``.
+
+    Returns
+    -------
+    TraceEvaluatorFunction
+        An async evaluator with signature
+        ``(*, trace, item_result, **kwargs) -> list[Evaluation]``.
+        On unexpected errors the evaluator returns a single error ``Evaluation``
+        rather than raising, so the trace-eval pass continues for other items.
     """
     # Map config booleans to TraceMetrics fields.
     enabled_fields: set[str] = {k for k, v in metrics.items() if bool(v)}

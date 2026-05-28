@@ -52,7 +52,19 @@ class AgentSpec(BaseModel):
 
 
 class AgentOverrideSpec(BaseModel):
-    """Partial agent config used in base_agent and per-variant agent blocks."""
+    """Partial agent config used in ``base_agent`` and per-variant ``agent`` blocks.
+
+    All fields are optional. When resolving a variant, fields set here shadow
+    the corresponding ``base_agent`` values; fields left as ``None`` inherit
+    from ``base_agent``. Fields explicitly set to ``None`` (e.g.
+    ``temperature: null`` in YAML) intentionally clear the base value — this
+    distinction is preserved via Pydantic's ``model_fields_set``.
+
+    See Also
+    --------
+    AgentSpec : The fully-resolved config produced after merging base + variant.
+    resolve_agent_spec : Merging logic that produces an ``AgentSpec``.
+    """
 
     system_prompt: str | None = Field(default=None, description="Optional override for the agent system prompt.")
     model: str | None = Field(default=None, description="Optional override for the ADK model name.")
@@ -106,7 +118,7 @@ class TaskItemSpec(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def _validate_prompt_fields(self) -> "TaskItemSpec":
+    def _validate_prompt_fields(self) -> TaskItemSpec:
         has_direct_input = self.input is not None
         has_transcript = self.transcript is not None
         has_current = self.current_user_message is not None
@@ -196,7 +208,7 @@ class ExperimentConfig(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _validate_experiment(self) -> "ExperimentConfig":
+    def _validate_experiment(self) -> ExperimentConfig:
         task_ids = [task.id for task in self.tasks]
         if len(task_ids) != len(set(task_ids)):
             raise ValueError("Task IDs must be unique within an experiment config.")

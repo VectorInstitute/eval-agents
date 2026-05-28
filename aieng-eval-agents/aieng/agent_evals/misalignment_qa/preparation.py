@@ -31,7 +31,7 @@ class PreparedTaskItem:
     task_fingerprint: str
     upload_input: str
     expected_output: str
-    task_turns: list[dict[str, Any]]
+    task_turns: tuple[dict[str, Any], ...]
     metadata: dict[str, Any]
 
     def to_upload_item(self) -> dict[str, Any]:
@@ -61,7 +61,7 @@ class PreparedVariantRun:
     run_display_name: str
     run_metadata: dict[str, Any]
     agent_spec: AgentSpec
-    shared_turns: list[dict[str, Any]]
+    shared_turns: tuple[dict[str, Any], ...]
     user_context_preamble: str | None = None
 
 
@@ -97,6 +97,7 @@ def build_judge_input(task: TaskItemSpec, *, max_chars: int = 1000) -> str:
 
 
 def example_pair_to_messages(example: ExamplePairSpec) -> list[MessageSpec]:
+    """Convert a single example pair into a two-element user/assistant message list."""
     return [
         MessageSpec(role="user", content=example.user),
         MessageSpec(role="assistant", content=example.assistant),
@@ -194,10 +195,12 @@ def create_execution_identity(*, now: datetime | None = None) -> ExecutionIdenti
 
 
 def build_run_name(config: ExperimentConfig, variant: VariantSpec, *, execution: ExecutionIdentity) -> str:
+    """Build the stable machine-readable Langfuse run name for a variant execution."""
     return f"{config.id}__{execution.run_instance_id}__{variant.id}"
 
 
 def build_run_display_name(config: ExperimentConfig, variant: VariantSpec, *, execution: ExecutionIdentity) -> str:
+    """Build the human-readable Langfuse run display name for a variant execution."""
     return f"{config.display_label} / {effective_variant_label(variant)} / {execution.run_instance_id}"
 
 
@@ -208,6 +211,30 @@ def build_run_metadata(
     execution: ExecutionIdentity,
     resolved_model: str,
 ) -> dict[str, Any]:
+    """Build the Langfuse run metadata dict for a variant execution.
+
+    The returned dict always contains the fixed keys ``exp_id``, ``variant_id``,
+    ``model``, ``run_instance_id``, ``run_started_at``, and ``run_family``.
+    Each entry in ``variant.condition_metadata`` is also included, prefixed with
+    ``condition_`` to namespace experiment-condition fields and keep them
+    distinguishable from infrastructure metadata when filtering runs in Langfuse.
+
+    Parameters
+    ----------
+    config : ExperimentConfig
+        The top-level experiment configuration.
+    variant : VariantSpec
+        The variant whose metadata is being built.
+    execution : ExecutionIdentity
+        The unique identity for this experiment launch.
+    resolved_model : str
+        The fully-resolved model name (after base/variant merging).
+
+    Returns
+    -------
+    dict[str, Any]
+        A flat metadata dict ready to pass as ``metadata`` to a Langfuse run.
+    """
     metadata: dict[str, Any] = {
         "exp_id": config.id,
         "variant_id": variant.id,
@@ -216,18 +243,62 @@ def build_run_metadata(
         "run_started_at": execution.run_started_at,
         "run_family": f"{config.id}__{variant.id}",
     }
+    # Prefix condition_metadata keys with "condition_" to namespace them from
+    # infrastructure fields and make them easy to filter on in Langfuse.
     for key, value in variant.condition_metadata.items():
         metadata[f"condition_{key}"] = value
     return metadata
 
 
 def build_task_fingerprint(task: TaskItemSpec) -> str:
+    """Return a 12-character content fingerprint for a task item.
+
+    The fingerprint is the first 12 hex characters of the SHA-256 digest of the
+    task's canonical JSON representation (keys sorted, no extra whitespace,
+    ASCII-safe). It is used to detect dataset drift — if a task's content
+    changes between experiment runs, its fingerprint changes, making stale
+    dataset items identifiable in Langfuse.
+
+    Parameters
+    ----------
+    task : TaskItemSpec
+        The task item to fingerprint.
+
+    Returns
+    -------
+    str
+        A 12-character lowercase hex string (truncated SHA-256).
+    """
     payload = task.model_dump(mode="json")
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
 def build_dataset_input(task: TaskItemSpec, *, task_fingerprint: str) -> str:
+    """Build the ``input`` string stored in the Langfuse dataset item.
+
+    The returned string has the following three-line structure::
+
+        Task ID: <task.id>
+        Task fingerprint: <task_fingerprint>
+        <judge input text>
+
+    The first two lines let evaluators and notebooks correlate dataset items
+    with their source config. The third line is the user-facing text extracted
+    by ``build_judge_input`` and passed verbatim to the LLM judge.
+
+    Parameters
+    ----------
+    task : TaskItemSpec
+        The task item being prepared.
+    task_fingerprint : str
+        Pre-computed fingerprint from ``build_task_fingerprint``.
+
+    Returns
+    -------
+    str
+        The assembled dataset input string (trailing whitespace stripped).
+    """
     judge_input = build_judge_input(task)
     return "\n".join(
         [
@@ -246,13 +317,27 @@ def prepare_task_item(task: TaskItemSpec) -> PreparedTaskItem:
         task_fingerprint=task_fingerprint,
         upload_input=build_dataset_input(task, task_fingerprint=task_fingerprint),
         expected_output=task.expected_output,
-        task_turns=[message.model_dump() for message in build_task_turns(task)],
+        task_turns=tuple(message.model_dump() for message in build_task_turns(task)),
         metadata=dict(task.metadata),
     )
 
 
 def prepare_dataset_items(config: ExperimentConfig) -> list[PreparedTaskItem]:
-    """Prepare all task items (respecting dataset_upload_subset) for upload."""
+    """Prepare all task items for Langfuse dataset upload.
+
+    Respects ``config.dataset_upload_subset`` — if set, only the first
+    *N* tasks are prepared (useful for quick smoke-test runs).
+
+    Parameters
+    ----------
+    config : ExperimentConfig
+        The experiment configuration containing the task list.
+
+    Returns
+    -------
+    list[PreparedTaskItem]
+        One ``PreparedTaskItem`` per task in the (possibly truncated) task list.
+    """
     return [prepare_task_item(task) for task in get_tasks_subset(config)]
 
 
@@ -261,7 +346,26 @@ def prepare_variant_runs(
     *,
     execution: ExecutionIdentity | None = None,
 ) -> list[PreparedVariantRun]:
-    """Resolve all variant specs into PreparedVariantRun objects for the runner."""
+    """Resolve all variant specs into ``PreparedVariantRun`` objects for the runner.
+
+    Each variant is merged with ``config.base_agent`` to produce a fully-resolved
+    ``AgentSpec``, and shared example turns are pre-serialised into the format
+    expected by ``MisalignmentTask``. A single ``ExecutionIdentity`` is created
+    (or reused) so all variants in one run share the same ``run_instance_id``.
+
+    Parameters
+    ----------
+    config : ExperimentConfig
+        The top-level experiment configuration.
+    execution : ExecutionIdentity, optional
+        Identity to stamp on all runs. A fresh identity is created when omitted,
+        which is the normal case for top-level callers.
+
+    Returns
+    -------
+    list[PreparedVariantRun]
+        One ``PreparedVariantRun`` per variant in ``config.variants``.
+    """
     resolved_execution = execution or create_execution_identity()
     prepared_runs: list[PreparedVariantRun] = []
     for variant in config.variants:
@@ -269,12 +373,12 @@ def prepare_variant_runs(
         example_pairs = variant.examples if variant.examples is not None else config.examples
 
         if variant.examples_inject_mode == "user_context":
-            shared_turns: list[dict[str, Any]] = []
+            shared_turns: tuple[dict[str, Any], ...] = ()
             user_context_preamble: str | None = (
                 format_examples_as_user_context(example_pairs) if example_pairs else None
             )
         else:
-            shared_turns = [message.model_dump() for message in build_shared_turns(config, variant)]
+            shared_turns = tuple(message.model_dump() for message in build_shared_turns(config, variant))
             user_context_preamble = None
 
         prepared_runs.append(
@@ -304,9 +408,17 @@ __all__ = [
     "ExecutionIdentity",
     "PreparedTaskItem",
     "PreparedVariantRun",
+    "build_dataset_input",
     "build_judge_input",
+    "build_run_display_name",
+    "build_run_metadata",
+    "build_run_name",
+    "build_shared_turns",
+    "build_task_fingerprint",
     "build_task_turns",
     "create_execution_identity",
+    "effective_variant_label",
+    "example_pair_to_messages",
     "format_examples_as_user_context",
     "get_tasks_subset",
     "prepare_dataset_items",
