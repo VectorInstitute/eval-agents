@@ -89,6 +89,7 @@ override-dependencies = [
     "mako>=1.3.12", # CVE-2026-44307: path traversal on Windows via backslash fixed in 1.3.12
     "mistune>=3.2.1", # CVE-2026-33079/CVE-2026-44897: ReDoS and heading ID XSS fixed in 3.2.1
     "notebook>=7.5.6", # CVE-2026-40171: stored XSS allowing auth token theft fixed in 7.5.6
+    "starlette>=1.0.1", # PYSEC-2026-161/GHSA-86qp-5c8j-p5mr: missing Host header validation bypasses path-based security checks fixed in 1.0.1
     "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression issues fixed in 2.7.0; aieng-platform-onboard pins 2.6.3
 ]
 
