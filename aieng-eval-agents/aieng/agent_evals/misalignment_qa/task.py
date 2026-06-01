@@ -6,6 +6,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
+from google.adk.agents import LlmAgent
 from google.adk.events import Event
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -35,7 +36,7 @@ class MisalignmentTask:
     def __init__(
         self,
         *,
-        agent: Any,
+        agent: LlmAgent,
         shared_turns: Sequence[dict[str, Any]] | None = None,
         user_context_preamble: str | None = None,
     ) -> None:
