@@ -25,7 +25,6 @@ from aieng.agent_evals.misalignment_qa.preparation import (
     prepare_variant_runs,
 )
 from aieng.agent_evals.misalignment_qa.task import MisalignmentTask
-from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
@@ -313,7 +312,6 @@ def select_variant_runs(
 
 async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[str] | None = None) -> None:
     """Run the full experiment: upload dataset, iterate variants, collect warnings."""
-
     prepared_tasks = prepare_dataset_items(config)
     execution = create_execution_identity()
     prepared_variants = select_variant_runs(prepare_variant_runs(config, execution=execution), variant_ids=variant_ids)

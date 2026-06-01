@@ -11,6 +11,7 @@ from pathlib import Path
 from aieng.agent_evals.misalignment_qa.experiment import load_experiment_config, run_experiment_config
 from dotenv import load_dotenv
 
+
 def main() -> None:
     """Parse CLI arguments and run the specified experiment config."""
     parser = argparse.ArgumentParser(description="Langfuse-backed misalignment experiment runner (YAML config).")
