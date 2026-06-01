@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 
 from aieng.agent_evals.misalignment_qa.experiment import load_experiment_config, run_experiment_config
-
+from dotenv import load_dotenv
 
 def main() -> None:
     """Parse CLI arguments and run the specified experiment config."""
@@ -23,6 +23,8 @@ def main() -> None:
     )
     parser.add_argument("--log-level", default="INFO", type=str, help="Logging level (e.g. INFO, DEBUG).")
     args = parser.parse_args()
+
+    load_dotenv(verbose=True)
 
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),

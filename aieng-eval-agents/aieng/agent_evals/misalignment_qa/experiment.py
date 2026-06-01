@@ -313,7 +313,6 @@ def select_variant_runs(
 
 async def run_experiment_config(config: ExperimentConfig, *, variant_ids: set[str] | None = None) -> None:
     """Run the full experiment: upload dataset, iterate variants, collect warnings."""
-    load_dotenv(verbose=True)
 
     prepared_tasks = prepare_dataset_items(config)
     execution = create_execution_identity()
