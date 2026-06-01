@@ -39,6 +39,7 @@ dependencies = [
     "pypdf>=6.10.2", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2
     "python-multipart>=0.0.27", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26; CVE-2026-42561: part header parsing DoS fixed in 0.0.27
     "matplotlib>=3.10.9",
+    "kagglehub>=0.4.1,<1.0.1", # 1.0.1 needs kagglesdk.get_web_endpoint; removed in kagglesdk>=0.1.24
 ]
 
 [dependency-groups]
