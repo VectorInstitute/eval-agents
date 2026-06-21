@@ -18,7 +18,7 @@ dependencies = [
     "numpy<2.3.0",
     "plotly>=6.5.0",
     "pydantic>=2.12.4",
-    "pydantic-settings>=2.7.0",
+    "pydantic-settings>=2.14.2", # GHSA-4xgf-cpjx-pc3j: NestedSecretsSettingsSource symlink traversal and size bypass fixed in 2.14.2
     "pydantic-ai-slim[logfire]>=1.26.0",
     "scikit-learn>=1.7.0",
     "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression bomb fixed in 2.7.0
@@ -51,7 +51,7 @@ dev = [
     "ipython>=9.8.0",
     "ipywidgets>=8.1.7",
     "jupyter>=1.1.1",
-    "jupyterlab>=4.5.7", # CVE-2026-42266/42557: extension allow-list bypass and command linker XSS fixed in 4.5.7
+    "jupyterlab>=4.5.9", # CVE-2026-42266/42557: extension allow-list bypass and command linker XSS fixed in 4.5.7; GHSA-vmhf-c436-hxj4: javascript: URL XSS in Extension Manager fixed in 4.5.9
     "nbqa>=1.9.1",
     "pip>=26.1.2", # Pinning version to address vulnerability GHSA-6vgw-5pg2-w6jp, CVE-2026-3219; PYSEC-2026-196: entry point path traversal fixed in 26.1.2
     "pip-audit>=2.9.0",
@@ -94,6 +94,7 @@ override-dependencies = [
     "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression issues fixed in 2.7.0; aieng-platform-onboard pins 2.6.3
     "bleach>=6.4.0", # GHSA-gj48-438w-jh9v/GHSA-8rfp-98v4-mmr6: fixed in 6.4.0
     "tornado>=6.5.7", # GHSA-pw6j-qg29-8w7f: CurlAsyncHTTPClient credential leak fixed in 6.5.7
+    "msgpack>=1.2.1", # GHSA-6v7p-g79w-8964: DoS via SEGV when Unpacker is reused after error fixed in 1.2.1
 ]
 
 [tool.uv.workspace]
