@@ -1,8 +1,9 @@
 # agents/conversation_manager.py
 from __future__ import annotations
-from typing import List, Dict, Any, Optional
-from agent_utils.memory_store import MemoryStore
 
+from typing import Any, Dict, List, Optional
+
+from agent_utils.memory_store import MemoryStore
 
 
 class ConversationManagerAgent:

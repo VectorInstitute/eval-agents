@@ -117,9 +117,7 @@ def oai_agent_stream_to_gradio_messages(
                 if isinstance(message, ResponseOutputMessage):
                     for _item in message.content:
                         if isinstance(_item, ResponseOutputText):
-                            output.append(
-                                ChatMessage(role="assistant", content=_item.text)
-                            )
+                            output.append(ChatMessage(role="assistant", content=_item.text))
 
                 elif isinstance(message, ResponseFunctionToolCall):
                     output.append(

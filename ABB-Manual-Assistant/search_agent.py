@@ -1,28 +1,27 @@
 import os
+
 import agents
-from openai import AsyncOpenAI
 from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from search_tool import Weaviate
+
 
 load_dotenv()
 
-class SearchAgent:
 
+class SearchAgent:
     def __init__(self):
-        self.client = AsyncOpenAI(
-            api_key = os.getenv("OPENAI_API_KEY"),
-            base_url = os.getenv("OPENAI_BASE_URL")
-        )
+        self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
 
         self.knowledge_tool = agents.function_tool(
             self.search_knowledgebase,
-            name_override = "knowledge_search",
-            description_override = "Searches the ABB robot manual vector database for the most relevant technical sections."
+            name_override="knowledge_search",
+            description_override="Searches the ABB robot manual vector database for the most relevant technical sections.",
         )
 
         self.search_agent = agents.Agent(
-            name = "Search Agent",
-            instructions = """
+            name="Search Agent",
+            instructions="""
                             You are a Search Agent specialized in retrieving exact, relevant information from ABB robot manuals stored in a vector database.
 
                             Your ONLY purpose is to:
@@ -51,9 +50,11 @@ class SearchAgent:
                             - Avoid redundancy — do not return overlapping excerpts.
                             - If no relevant information is found, return an empty list [].
                             """,
-            model = agents.OpenAIChatCompletionsModel(model = "gemini-2.5-flash-lite-preview-06-17", openai_client = self.client),
-            model_settings=agents.ModelSettings(tool_choice = "required", temperature=0),
-            tools = [self.knowledge_tool]
+            model=agents.OpenAIChatCompletionsModel(
+                model="gemini-2.5-flash-lite-preview-06-17", openai_client=self.client
+            ),
+            model_settings=agents.ModelSettings(tool_choice="required", temperature=0),
+            tools=[self.knowledge_tool],
         )
 
     @staticmethod
@@ -61,7 +62,7 @@ class SearchAgent:
         weaviate = Weaviate()
 
         return await weaviate.get_knowledge(query)
-    
+
     async def run(self, prompt: str) -> str:
         response = await agents.Runner.run(self.search_agent, input=prompt)
         return response

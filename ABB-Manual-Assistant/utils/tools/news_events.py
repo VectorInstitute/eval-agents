@@ -42,9 +42,7 @@ async def _fetch_current_events_html() -> str:
     # (the knowledge base is not updated after May 30, 2025)
     # and a random day in that month
     random.seed(42)
-    random_date = date(2025, 1, 1) + timedelta(
-        days=random.randint(0, (date(2025, 5, 20) - date(2025, 1, 1)).days)
-    )
+    random_date = date(2025, 1, 1) + timedelta(days=random.randint(0, (date(2025, 5, 20) - date(2025, 1, 1)).days))
     # convert to Year_Month_day format (example: 2025_May_6)
     date_str = random_date.strftime("%Y_%B_%d")
 
@@ -139,12 +137,8 @@ async def get_news_events() -> CurrentEvents:
 
 async def main() -> None:
     """Fetch, parse, and output events as JSON."""
-    parser = argparse.ArgumentParser(
-        description="Fetch and parse Wikipedia Current Events into structured JSON."
-    )
-    parser.add_argument(
-        "--output", "-o", help="Output JSON file path (default: stdout)"
-    )
+    parser = argparse.ArgumentParser(description="Fetch and parse Wikipedia Current Events into structured JSON.")
+    parser.add_argument("--output", "-o", help="Output JSON file path (default: stdout)")
     args = parser.parse_args()
 
     news_events = await get_news_events()

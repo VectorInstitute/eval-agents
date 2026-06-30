@@ -16,11 +16,12 @@ from orchestrator_agent import Orchestrator
 from utils import setup_langfuse_tracer
 from utils.langfuse.shared_client import langfuse_client  # noqa: F401  (imported for tracer wiring)
 
+
 # -----------------------------------------------------------------------------
 # Storage + manager agent
 # -----------------------------------------------------------------------------
 store = MemoryStore()
-conv_agent = ConversationManagerAgent(store)   # The app talks to the conversation manager, not raw DB
+conv_agent = ConversationManagerAgent(store)  # The app talks to the conversation manager, not raw DB
 
 
 # -----------------------------------------------------------------------------
@@ -29,6 +30,7 @@ conv_agent = ConversationManagerAgent(store)   # The app talks to the conversati
 def _label_for(id_: str, title: str) -> str:
     """Pretty labels for the chat selector dropdown: 'Title · abc123'."""
     return f"{title} · {id_[:6]}"
+
 
 def _choices_and_maps():
     """
@@ -40,9 +42,10 @@ def _choices_and_maps():
         store.create_conversation()
         rows = store.list_conversations()
     choices = [_label_for(r[0], r[1]) for r in rows]
-    id_by_label = { _label_for(r[0], r[1]): r[0] for r in rows }
-    label_by_id = { r[0]: _label_for(r[0], r[1]) for r in rows }
+    id_by_label = {_label_for(r[0], r[1]): r[0] for r in rows}
+    label_by_id = {r[0]: _label_for(r[0], r[1]) for r in rows}
     return choices, id_by_label, label_by_id, choices[0]  # default = first
+
 
 def _history_messages(cid: str):
     """
@@ -87,16 +90,11 @@ class GradioApp:
                     gr.Markdown("**Chats**")
 
                     # Dropdown for selecting which conversation is active
-                    chat_dropdown = gr.Dropdown(
-                        choices=[],
-                        value=None,
-                        label="Select chat",
-                        interactive=True
-                    )
+                    chat_dropdown = gr.Dropdown(choices=[], value=None, label="Select chat", interactive=True)
 
                     # Buttons/inputs for CRUD on conversations
                     new_title = gr.Textbox(label="New chat title", placeholder="Optional (auto if blank)")
-                    btn_new   = gr.Button("New chat")
+                    btn_new = gr.Button("New chat")
 
                     rename_to = gr.Textbox(label="Rename to")
                     btn_rename = gr.Button("Rename")
@@ -112,10 +110,7 @@ class GradioApp:
                     # Input row: one-line textbox + Send button
                     with gr.Row():
                         msg = gr.Textbox(
-                            placeholder="Ask me something about ABB errors...",
-                            scale=9,
-                            label="Your Question",
-                            lines=1
+                            placeholder="Ask me something about ABB errors...", scale=9, label="Your Question", lines=1
                         )
                         send = gr.Button("Send", variant="primary", scale=1)
 
@@ -139,8 +134,8 @@ class GradioApp:
                 cid = id_by_label[default_label]
                 return (
                     gr.update(choices=choices, value=default_label),  # dropdown options + selection
-                    {"conversation_id": cid},                         # state
-                    _history_messages(cid),                           # initial chat messages
+                    {"conversation_id": cid},  # state
+                    _history_messages(cid),  # initial chat messages
                 )
 
             demo.load(_init, inputs=None, outputs=[chat_dropdown, state, chatbot])
@@ -151,7 +146,7 @@ class GradioApp:
                 if not label or label not in id_by_label:
                     label = default_label
                 cid = id_by_label[label]
-                current_state = (current_state or {})
+                current_state = current_state or {}
                 current_state["conversation_id"] = cid
                 return current_state, _history_messages(cid)
 
@@ -191,7 +186,7 @@ class GradioApp:
                 partial = ""
                 try:
                     async for chunk in self.run_search_stream(user_text, chat_history):
-                        partial += chunk          # grow the assistant's partial reply
+                        partial += chunk  # grow the assistant's partial reply
                         messages[-1]["content"] = partial  # update the *same* assistant bubble
                         conv_agent.set_assistant_partial(cid, partial)  # keep partial in RAM (not DB)
                         yield messages, "", current_state  # push incremental update to the UI
@@ -215,8 +210,8 @@ class GradioApp:
                 label = label_by_id[cid]
                 return (
                     gr.update(choices=choices, value=label),  # select new chat in dropdown
-                    {"conversation_id": cid},                 # set state
-                    _history_messages(cid),                   # show empty (or fresh) history
+                    {"conversation_id": cid},  # set state
+                    _history_messages(cid),  # show empty (or fresh) history
                 )
 
             btn_new.click(_new_chat, inputs=new_title, outputs=[chat_dropdown, state, chatbot])
@@ -273,6 +268,7 @@ def main():
     setup_langfuse_tracer()
     app = GradioApp()
     app.launch()
+
 
 if __name__ == "__main__":
     main()

@@ -99,9 +99,7 @@ class AsyncWeaviateKnowledgeBase:
             collection = self.async_client.collections.get(self.collection_name)
             vector = self._vectorize(keyword)
             response = await rate_limited(
-                lambda: collection.query.hybrid(
-                    keyword, vector=vector, limit=self.num_results
-                ),
+                lambda: collection.query.hybrid(keyword, vector=vector, limit=self.num_results),
                 semaphore=self.semaphore,
             )
 
@@ -114,9 +112,7 @@ class AsyncWeaviateKnowledgeBase:
                     "title": obj.properties.get("title", ""),
                     "section": obj.properties.get("section", None),
                 },
-                "highlight": {
-                    "text": [obj.properties.get("text", "")[: self.snippet_length]]
-                },
+                "highlight": {"text": [obj.properties.get("text", "")[: self.snippet_length]]},
             }
             hits.append(hit)
 
@@ -135,9 +131,7 @@ class AsyncWeaviateKnowledgeBase:
         list[float]
             A list of floats representing the vectorized text.
         """
-        response = self._embed_client.embeddings.create(
-            input=text, model=self.embedding_model_name
-        )
+        response = self._embed_client.embeddings.create(input=text, model=self.embedding_model_name)
         return response.data[0].embedding
 
 
@@ -201,12 +195,10 @@ def get_weaviate_async_client(
     return weaviate.use_async_with_custom(
         http_host=http_host or os.getenv("WEAVIATE_HTTP_HOST", "localhost"),
         http_port=http_port or int(os.getenv("WEAVIATE_HTTP_PORT", "8080")),
-        http_secure=http_secure
-        or os.getenv("WEAVIATE_HTTP_SECURE", "false").lower() == "true",
+        http_secure=http_secure or os.getenv("WEAVIATE_HTTP_SECURE", "false").lower() == "true",
         grpc_host=grpc_host or os.getenv("WEAVIATE_GRPC_HOST", "localhost"),
         grpc_port=grpc_port or int(os.getenv("WEAVIATE_GRPC_PORT", "50051")),
-        grpc_secure=grpc_secure
-        or os.getenv("WEAVIATE_GRPC_SECURE", "false").lower() == "true",
+        grpc_secure=grpc_secure or os.getenv("WEAVIATE_GRPC_SECURE", "false").lower() == "true",
         auth_credentials=api_key or os.getenv("WEAVIATE_API_KEY"),
         headers=headers,
         additional_config=additional_config,

@@ -52,9 +52,7 @@ async def _upload_file(sandbox: "AsyncSandbox", local_path: "str | Path") -> str
     return remote_path
 
 
-async def _upload_files(
-    sandbox: "AsyncSandbox", paths: Sequence[Path | str]
-) -> list[str]:
+async def _upload_files(sandbox: "AsyncSandbox", paths: Sequence[Path | str]) -> list[str]:
     """Upload files to the sandbox.
 
     Parameters
@@ -71,9 +69,7 @@ async def _upload_files(
         return []
 
     file_upload_coros = [_upload_file(sandbox, _path) for _path in paths]
-    remote_paths = await gather_with_progress(
-        file_upload_coros, description=f"Uploading {len(paths)} to sandbox"
-    )
+    remote_paths = await gather_with_progress(file_upload_coros, description=f"Uploading {len(paths)} to sandbox")
     return list(remote_paths)
 
 
@@ -113,16 +109,12 @@ class CodeInterpreter:
         await _upload_files(sbx, self.local_files)
 
         try:
-            result = await sbx.run_code(
-                code, on_error=lambda error: print(error.traceback)
-            )
+            result = await sbx.run_code(code, on_error=lambda error: print(error.traceback))
             response = CodeInterpreterOutput.model_validate_json(result.logs.to_json())
 
             error = result.error
             if error is not None:
-                response.error = _CodeInterpreterOutputError.model_validate_json(
-                    error.to_json()
-                )
+                response.error = _CodeInterpreterOutputError.model_validate_json(error.to_json())
 
             return response.model_dump_json()
         finally:

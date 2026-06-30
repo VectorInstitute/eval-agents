@@ -15,9 +15,7 @@ async def indexed(index: int, coro: Coroutine[None, None, T]) -> tuple[int, T]:
     return index, (await coro)
 
 
-async def rate_limited(
-    _fn: Callable[[], Awaitable[T]], semaphore: asyncio.Semaphore
-) -> T:
+async def rate_limited(_fn: Callable[[], Awaitable[T]], semaphore: asyncio.Semaphore) -> T:
     """Run _fn with semaphore rate limit."""
     async with semaphore:
         return await _fn()
@@ -36,10 +34,7 @@ async def gather_with_progress(
     :return: List of results, ordered to match the input coroutines.
     """
     # Wrap each coroutine in a Task and remember its original index
-    tasks = [
-        asyncio.create_task(indexed(index=index, coro=coro))
-        for index, coro in enumerate(coros)
-    ]
+    tasks = [asyncio.create_task(indexed(index=index, coro=coro)) for index, coro in enumerate(coros)]
 
     # Pre‐allocate a results list; we'll fill in each slot as its Task completes
     results: list[T | None] = [None] * len(tasks)

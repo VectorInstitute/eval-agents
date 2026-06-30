@@ -31,9 +31,7 @@ class _SourceInfo(pydantic.BaseModel):
         url_match = PATTERN.match(dataset_url)
         dataset_info = _SourceInfo(**url_match.groupdict()) if url_match else None
         if dataset_info is None:
-            raise ValueError(
-                "Invalid URL pattern. Should be {provider}://{path}[@{commit}]:{split}"
-            )
+            raise ValueError("Invalid URL pattern. Should be {provider}://{path}[@{commit}]:{split}")
 
         return dataset_info
 
@@ -55,9 +53,7 @@ def get_dataset(dataset_url: str, limit: int | None = None) -> pd.DataFrame:
     if dataset_info.provider == "hf":
         return _load_hf(dataset_info, limit=limit).to_pandas()  # type: ignore
 
-    raise ValueError(
-        f"Dataset provider not supported: {dataset_info.provider}. Available options: hf"
-    )
+    raise ValueError(f"Dataset provider not supported: {dataset_info.provider}. Available options: hf")
 
 
 def get_dataset_url_hash(dataset_url: str) -> str:
@@ -84,6 +80,4 @@ def _load_hf(dataset_info: _SourceInfo, limit: int | None = None) -> datasets.Da
     if limit is not None:
         split_name += f"[0:{limit}]"
 
-    return datasets.load_dataset(
-        dataset_info.repo, name=dataset_info.subset, split=split_name
-    )  # type: ignore
+    return datasets.load_dataset(dataset_info.repo, name=dataset_info.subset, split=split_name)  # type: ignore

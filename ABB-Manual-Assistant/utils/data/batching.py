@@ -32,9 +32,7 @@ def create_batches(
             batches.append([])
 
     # Discard trailing batch if empty or required
-    if (len(batches[-1]) == 0) or (
-        (not keep_trailing) and (len(batches[-1]) < batch_size)
-    ):
+    if (len(batches[-1]) == 0) or ((not keep_trailing) and (len(batches[-1]) < batch_size)):
         batches.pop(-1)
 
     return batches

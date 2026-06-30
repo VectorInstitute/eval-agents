@@ -1,17 +1,20 @@
 # generated test file - agent using search tool
 
-import sys
 import os
+import sys
+
 
 # Add parent directory to sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import asyncio
 import os
-from dotenv import load_dotenv
+
 import agents
+from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from search_tool import Weaviate  # your tool
+
 
 load_dotenv()
 
@@ -24,6 +27,7 @@ client = AsyncOpenAI(
 # Initialize Weaviate search class
 weaviate_search = Weaviate()
 
+
 async def search_knowledgebase(query: str) -> str:
     print(f"[TOOL] Called with query: {query}")
     try:
@@ -34,6 +38,7 @@ async def search_knowledgebase(query: str) -> str:
     except Exception as e:
         print(f"[TOOL] Exception: {e}")
         return f"Error during search: {e}"
+
 
 knowledge_tool = agents.function_tool(search_knowledgebase)
 
@@ -47,6 +52,7 @@ agent = agents.Agent(
     ),
     model_settings=agents.ModelSettings(tool_choice="required"),
 )
+
 
 async def main():
     test_queries = [
@@ -70,6 +76,7 @@ async def main():
             print("[AGENT] Exception during run:", e)
 
     await weaviate_search.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
