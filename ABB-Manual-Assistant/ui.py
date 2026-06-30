@@ -104,8 +104,8 @@ class GradioApp:
 
                 # ----------------------- Main chat panel -----------------------
                 with gr.Column(scale=3):
-                    # Chatbot uses OpenAI-style message dicts when type='messages'
-                    chatbot = gr.Chatbot(label="Chat", height=520, type="messages")
+                    # Chatbot uses OpenAI-style message dicts
+                    chatbot = gr.Chatbot(label="Chat", height=520)
 
                     # Input row: one-line textbox + Send button
                     with gr.Row():
@@ -257,8 +257,8 @@ class GradioApp:
 
             btn_refresh.click(_refresh_list, inputs=state, outputs=chat_dropdown)
 
-        # Start the Gradio server
-        demo.launch(server_name="0.0.0.0")
+        # Start the Gradio server (enable public sharing)
+        demo.launch(server_name="0.0.0.0", share=True)
 
 
 # -----------------------------------------------------------------------------

@@ -3,7 +3,7 @@ import os
 import agents
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from search_tool import Weaviate
+from search_tool import VertexSearchTool
 
 
 load_dotenv()
@@ -59,9 +59,9 @@ class SearchAgent:
 
     @staticmethod
     async def search_knowledgebase(query: str):
-        weaviate = Weaviate()
+        vertex_tool = VertexSearchTool()
 
-        return await weaviate.get_knowledge(query)
+        return await vertex_tool.get_knowledge(query)
 
     async def run(self, prompt: str) -> str:
         response = await agents.Runner.run(self.search_agent, input=prompt)

@@ -9,17 +9,14 @@ class Configs(pydantic.BaseModel):
     """Type-friendly collection of env var configs."""
 
     # Embeddings
-    embedding_base_url: str
-    embedding_api_key: str
+    embedding_base_url: str | None = None
+    embedding_api_key: str | None = None
 
-    # Weaviate
-    weaviate_http_host: str
-    weaviate_grpc_host: str
-    weaviate_api_key: str
-    weaviate_http_port: int = 443
-    weaviate_grpc_port: int = 443
-    weaviate_http_secure: bool = True
-    weaviate_grpc_secure: bool = True
+    # Vertex AI Search (custom knowledge base)
+    # Full resource name, e.g.:
+    # projects/{project}/locations/global/collections/default_collection/dataStores/{id}
+    vertex_datastore_id: str | None = None
+    google_cloud_location: str = "us-central1"
 
     # Langfuse
     langfuse_public_key: str

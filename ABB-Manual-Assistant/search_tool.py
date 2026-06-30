@@ -1,63 +1,52 @@
 import json
 import os
 
-import openai
-import weaviate
 from dotenv import load_dotenv
-from weaviate.classes.init import Auth
+
+from utils.tools.vertex_search import vertex_search
 
 
 load_dotenv()
 
 
-class Weaviate:
-    def __init__(self, data_name=os.getenv("COLLECTION_NAME")):
-        self.client = None
-        self.data_name = data_name
+class VertexSearchTool:
+    """Compatibility wrapper for Vertex AI Search.
 
-        # Setup OpenAI client via Cloudflare
-        self.openai_client = openai.OpenAI(
-            api_key=os.getenv("EMBEDDING_API_KEY"), base_url=os.getenv("EMBEDDING_BASE_URL")
-        )
+    This implementation delegates to the Vertex AI Search helper and returns
+    results in a JSON format compatible with the previous consumer code.
+    """
 
-    async def create_client(self) -> weaviate.WeaviateClient:
-        cluster_url = os.getenv("WEAVIATE_HTTP_HOST")
-        api_key = os.getenv("WEAVIATE_API_KEY")
+    def __init__(self, data_name: str | None = None):
+        self.data_name = data_name or os.getenv("COLLECTION_NAME")
 
-        client = weaviate.connect_to_weaviate_cloud(cluster_url=cluster_url, auth_credentials=Auth.api_key(api_key))
-
-        return client
+    async def create_client(self):
+        return None
 
     async def ensure_connected(self):
-        if self.client is None:
-            self.client = await self.create_client()
+        return None
 
     async def get_knowledge(self, query: str) -> str:
-        await self.ensure_connected()
-
         try:
-            # Generate embedding
-            embedding = self.openai_client.embeddings.create(model=os.getenv("EMBEDDING_MODEL_NAME"), input=query)
+            result = await vertex_search(query)
+            if result.get("status") != "success":
+                return f"Search error: {result.get('error', 'unknown')}"
 
-            # Perform hybrid search
-            collection = self.client.collections.get(self.data_name)
-            response = collection.query.hybrid(
-                query=query, vector=embedding.data[0].embedding, return_metadata=["score"]
-            )
+            summary = result.get("summary", "")
+            sources = result.get("sources", [])
 
-            if not response.objects:
+            if not sources:
                 return "No results found."
 
-            # Format results
-            formatted_results = [
-                {
-                    "Document Name": obj.properties.get("document_Name", ""),
-                    "URL": obj.properties.get("uRL", ""),
-                    "Page Number": obj.properties.get("page_number", ""),
-                    "Full Text": obj.properties.get("full_text", ""),
-                }
-                for obj in response.objects
-            ]
+            formatted_results = []
+            for src in sources:
+                formatted_results.append(
+                    {
+                        "Document Name": src.get("title", ""),
+                        "URL": src.get("uri", ""),
+                        "Page Number": "",
+                        "Full Text": summary,
+                    }
+                )
 
             return json.dumps(formatted_results, indent=2, sort_keys=True)
 
@@ -65,5 +54,4 @@ class Weaviate:
             return f"Search error: {e}"
 
     async def close(self):
-        if self.client:
-            self.client.close()
+        return None

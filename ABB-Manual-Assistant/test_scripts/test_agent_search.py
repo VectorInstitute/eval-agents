@@ -13,7 +13,7 @@ import os
 import agents
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from search_tool import Weaviate  # your tool
+from search_tool import VertexSearchTool  # your tool
 
 
 load_dotenv()
@@ -24,14 +24,14 @@ client = AsyncOpenAI(
     base_url=os.getenv("OPENAI_BASE_URL"),
 )
 
-# Initialize Weaviate search class
-weaviate_search = Weaviate()
+# Initialize Vertex search class
+vertex_search_tool = VertexSearchTool()
 
 
 async def search_knowledgebase(query: str) -> str:
     print(f"[TOOL] Called with query: {query}")
     try:
-        result = await weaviate_search.get_knowledge(query)
+        result = await vertex_search_tool.get_knowledge(query)
         print(f"[TOOL] Result length: {len(result) if result else 'None'}")
         print(f"[TOOL] Full text: {result}")
         return result
@@ -75,7 +75,7 @@ async def main():
         except Exception as e:
             print("[AGENT] Exception during run:", e)
 
-    await weaviate_search.close()
+    await vertex_search_tool.close()
 
 
 if __name__ == "__main__":
