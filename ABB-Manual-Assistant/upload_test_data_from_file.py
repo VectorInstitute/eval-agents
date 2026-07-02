@@ -123,14 +123,22 @@ def main() -> None:
     ensure_dataset(args.dataset_name, args.description)
 
     for idx, row in track(df.iterrows(), total=len(df), description="Uploading to Langfuse"):
+        # Prepare sanitized metadata fields (move all non-input expectations into metadata)
+        metadata = {
+            "source_file": str(input_path),
+            "row_index": int(idx),
+            "safety_considerations": _sanitize_value(row.get("safety_considerations")),
+            "expected_sources": _sanitize_value(row.get("expected_sources")),
+            "expected_trace": _sanitize_value(row.get("expected_trace")),
+            "max_total_tokens": _sanitize_value(row.get("max_total_tokens")),
+            "max_total_latency": _sanitize_value(row.get("max_total_latency")),
+        }
+
         langfuse.create_dataset_item(
             dataset_name=args.dataset_name,
             input={"text": str(row["test_prompt"])},
-            expected_output=build_expected_output(row),
-            metadata={
-                "source_file": str(input_path),
-                "row_index": int(idx),
-            },
+            expected_output=str(row["expected_response"]),
+            metadata=metadata,
             id=f"{args.dataset_name.lower().replace(' ', '-')}-{idx:03}",
         )
 
