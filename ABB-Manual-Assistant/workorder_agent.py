@@ -25,7 +25,7 @@ class WorkorderAgent:
                             Your response should include only the created workorder and nothing else. Provide as much detail as possible.
                             """,
             model=agents.OpenAIChatCompletionsModel(
-                model="gemini-2.5-flash-lite-preview-06-17", openai_client=self.client
+                model="gemini-2.5-flash", openai_client=self.client
             ),
             model_settings=agents.ModelSettings(temperature=0.5),
         )

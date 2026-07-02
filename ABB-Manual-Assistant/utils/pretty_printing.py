@@ -14,7 +14,7 @@ def _serializer(item: Any) -> dict[str, Any] | str:
 
 
 def pretty_print(data: Any) -> str:
-    """Extract and JSON-dump only the 'properties' field from Weaviate result objects."""
+    """Extract and JSON-dump only the 'properties' field from result objects."""
     try:
         if isinstance(data, list):
             properties_list = []

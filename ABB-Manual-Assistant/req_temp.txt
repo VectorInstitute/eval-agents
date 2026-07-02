@@ -45,5 +45,3 @@ typing_extensions==4.14.1
 urllib3==2.5.0
 uvicorn==0.35.0
 validators==0.35.0
-weaviate==0.1.2
-weaviate-client==4.16.5

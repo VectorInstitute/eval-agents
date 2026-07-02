@@ -12,8 +12,13 @@ __all__ = ["langfuse_client"]
 
 
 config = Configs.from_env_var()
-assert getenv("LANGFUSE_PUBLIC_KEY") is not None
-langfuse_client = Langfuse(public_key=config.langfuse_public_key, secret_key=config.langfuse_secret_key)
+# Only initialize Langfuse if keys are provided. Some environments won't use tracing.
+lf_pub = config.langfuse_public_key
+lf_sec = config.langfuse_secret_key
+if lf_pub and lf_sec:
+    langfuse_client = Langfuse(public_key=lf_pub, secret_key=lf_sec)
+else:
+    langfuse_client = None
 
 
 def flush_langfuse(client: "Langfuse | None" = None):
@@ -27,4 +32,5 @@ def flush_langfuse(client: "Langfuse | None" = None):
         transient=True,
     ) as progress:
         progress.add_task("Finalizing Langfuse annotations...", total=None)
-        langfuse_client.flush()
+        if client is not None:
+            client.flush()

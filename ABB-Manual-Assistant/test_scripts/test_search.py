@@ -9,14 +9,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import asyncio
 
-from search_tool import Weaviate
+from search_tool import VertexSearchTool
 
 
 async def test():
     try:
-        weaviate_search = Weaviate()
+        vertex_search_tool = VertexSearchTool()
         test_query = "Spot application weld error reported"
-        result = await weaviate_search.get_knowledge(test_query)
+        result = await vertex_search_tool.get_knowledge(test_query)
         print("[TEST RESULT]")
         print(result if result else "No result returned.")
     except Exception as e:

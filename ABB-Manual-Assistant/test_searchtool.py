@@ -1,10 +1,10 @@
 import asyncio
 
-from search_tool import Weaviate  # Ensure this file exists in the same directory
+from search_tool import VertexSearchTool
 
 
 async def main():
-    search_tool = Weaviate()
+    search_tool = VertexSearchTool()
     result = await search_tool.get_knowledge("error code 10039")
     print(result)
 
