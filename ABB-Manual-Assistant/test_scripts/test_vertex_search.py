@@ -16,7 +16,7 @@ async def main():
     print("default_temperature:", config.default_temperature)
 
     print("\nRunning Vertex Search test...")
-    result = await vertex_search("What documents are available in this knowledge base?")
+    result = await vertex_search("What does error code 10039 mean?")
 
     pprint(result)
 
