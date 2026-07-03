@@ -137,7 +137,7 @@ def main() -> None:
         langfuse.create_dataset_item(
             dataset_name=args.dataset_name,
             input={"text": str(row["test_prompt"])},
-            expected_output=str(row["expected_response"]),
+            expected_output={"text": str(row["expected_response"])},
             metadata=metadata,
             id=f"{args.dataset_name.lower().replace(' ', '-')}-{idx:03}",
         )
