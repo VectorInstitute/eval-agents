@@ -99,6 +99,25 @@ class EvaluatorResponse(BaseModel):
     is_answer_correct: bool
 
 
+def extract_dataset_text(value: Any, field_label: str) -> str:
+    if isinstance(value, str):
+        if value.strip():
+            return value
+
+        raise ValueError(f"Dataset item {field_label} must not be blank.")
+
+    if isinstance(value, dict) and "text" in value:
+        text = value["text"]
+
+        if isinstance(text, str) and text.strip():
+            return text
+
+    raise ValueError(
+        f"Dataset item {field_label} must be a non-empty string or an object "
+        f"containing a non-empty 'text' field. Got: {value!r}"
+    )
+
+
 
 ANSWER_FIELD_NAMES = (
     "final_output",
@@ -410,23 +429,8 @@ async def run_and_evaluate(
     orchestrator: Orchestrator,
     item: DatasetItemClient,
 ) -> tuple[LangFuseTracedResponse, EvaluatorResponse | None]:
-    if not isinstance(item.input, dict) or "text" not in item.input:
-        raise ValueError(
-            "Dataset item input must be an object containing a 'text' field. "
-            f"Got: {item.input!r}"
-        )
-
-    if (
-        not isinstance(item.expected_output, dict)
-        or "text" not in item.expected_output
-    ):
-        raise ValueError(
-            "Dataset item expected_output must be an object containing a "
-            f"'text' field. Got: {item.expected_output!r}"
-        )
-
-    query = item.input["text"]
-    ground_truth = item.expected_output["text"]
+    query = extract_dataset_text(item.input, "input")
+    ground_truth = extract_dataset_text(item.expected_output, "expected_output")
 
     print(f"\nRunning query: {query}", flush=True)
 
