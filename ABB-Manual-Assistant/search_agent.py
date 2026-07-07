@@ -61,6 +61,10 @@ Output Format:
     "confidence": <numeric relevance score or rank>
   }
 ]
+
+IMPORTANT: Every single object in the array must include all four fields,
+including "confidence". Never omit "confidence" from any item, even when
+returning many results. Double-check every item before responding.
 """.strip(),
             model=agents.OpenAIChatCompletionsModel(
                 model="gemini-2.5-flash",
