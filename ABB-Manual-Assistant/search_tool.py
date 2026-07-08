@@ -29,29 +29,54 @@ class VertexSearchTool:
         try:
             result = await vertex_search(query)
             if result.get("status") != "success":
-                return f"Search error: {result.get('error', 'unknown')}"
+                return json.dumps(
+                    [
+                        {
+                            "source": "",
+                            "url": "",
+                            "page_number": "",
+                            "excerpt": f"Search error: {result.get('error', 'Unknown')}",
+                            "confidence": 0.0,
+                        }
+                    ],
+                    indent=2,
+                    sort_keys=True,
+                )
 
             summary = result.get("summary", "")
             sources = result.get("sources", [])
 
             if not sources:
-                return "No results found."
+                return json.dumps([], indent=2, sort_keys=True)
 
             formatted_results = []
             for src in sources:
                 formatted_results.append(
                     {
-                        "Document Name": src.get("title", ""),
-                        "URL": src.get("uri", ""),
-                        "Page Number": "",
-                        "Full Text": summary,
+                        "source": src.get("title", ""),
+                        "url": src.get("uri", ""),
+                        "page_number": "",
+                        "excerpt": summary,
+                        "confidence": 1.0,
                     }
                 )
 
             return json.dumps(formatted_results, indent=2, sort_keys=True)
 
         except Exception as e:
-            return f"Search error: {e}"
+            return json.dumps(
+                [
+                    {
+                        "source": "",
+                        "url": "",
+                        "page_number": "",
+                        "excerpt": f"Search error: {str(e)}",
+                        "confidence": 0.0,
+                    }
+                ],
+                indent=2,
+                sort_keys=True,
+            )
 
     async def close(self):
         return None
