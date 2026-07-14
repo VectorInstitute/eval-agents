@@ -35,7 +35,7 @@ dependencies = [
     "litellm>=1.82.4",
     "google-generativeai>=0.8.6",
     "openai-agents>=0.7.0",
-    "pillow>=12.2.0", # CVE-2026-40192: FITS decompression bomb fixed in 12.2.0
+    "pillow>=12.3.0", # CVE-2026-40192: FITS decompression bomb fixed in 12.2.0; PYSEC-2026-2253/2255: PCF/BDF font decompression bomb fixed in 12.3.0
     "pypdf>=6.13.0", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2; CVE-2026-54530/54531: fixed in 6.13.0
     "python-multipart>=0.0.31", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26; CVE-2026-42561: part header parsing DoS fixed in 0.0.27
     "matplotlib>=3.10.9",
@@ -88,13 +88,14 @@ override-dependencies = [
     "authlib>=1.7.1", # GHSA-jj8c-mmj3-mmgv: CSRF protection bypass; aieng-platform-onboard pins 1.6.9
     "jupyter-server>=2.18.0", # CVE-2025-61669/CVE-2026-40110/CVE-2026-35397/CVE-2026-40934: open redirect, regex match bypass, path traversal, and cookie secret vulnerabilities fixed in 2.18.0
     "mako>=1.3.12", # CVE-2026-44307: path traversal on Windows via backslash fixed in 1.3.12
-    "mistune>=3.2.1", # CVE-2026-33079/CVE-2026-44897: ReDoS and heading ID XSS fixed in 3.2.1
+    "mistune>=3.3.0", # CVE-2026-33079/CVE-2026-44897: ReDoS and heading ID XSS fixed in 3.2.1; CVE-2026-49851: CPU exhaustion DoS fixed in 3.3.0
     "notebook>=7.5.6", # CVE-2026-40171: stored XSS allowing auth token theft fixed in 7.5.6
     "starlette>=1.3.1", # PYSEC-2026-161/GHSA-86qp-5c8j-p5mr: missing Host header validation bypasses path-based security checks fixed in 1.0.1; CVE-2026-54282/54283: fixed in 1.3.0/1.3.1
     "urllib3>=2.7.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression issues fixed in 2.7.0; aieng-platform-onboard pins 2.6.3
     "bleach>=6.4.0", # GHSA-gj48-438w-jh9v/GHSA-8rfp-98v4-mmr6: fixed in 6.4.0
     "tornado>=6.5.7", # GHSA-pw6j-qg29-8w7f: CurlAsyncHTTPClient credential leak fixed in 6.5.7
     "msgpack>=1.2.1", # GHSA-6v7p-g79w-8964: DoS via SEGV when Unpacker is reused after error fixed in 1.2.1
+    "gradio>=6.16.0", # PYSEC-2026-2179: path traversal in FileExplorer component fixed in 6.16.0
 ]
 
 [tool.uv.workspace]

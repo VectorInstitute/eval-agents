@@ -243,11 +243,11 @@ async def start_gradio_app(enable_trace: bool = True, enable_public_link: bool =
         with gr.Row(elem_id="feedback_buttons", visible=False) as feedback_row:
             gr.Markdown("Provide feedback on the response:")
             thumbs_up = gr.Button("👍")
-            thumbs_up.click(fn=lambda: on_feedback(True), outputs=[feedback_row, thank_you_row])
+            thumbs_up.click(fn=lambda: on_feedback(True), outputs=[feedback_row, thank_you_row])  # type: ignore[attr-defined]
             thumbs_down = gr.Button("👎")
-            thumbs_down.click(fn=lambda: on_feedback(False), outputs=[feedback_row, thank_you_row])
+            thumbs_down.click(fn=lambda: on_feedback(False), outputs=[feedback_row, thank_you_row])  # type: ignore[attr-defined]
 
-        gradio_chatbot.change(fn=toggle_feedback_row, outputs=[feedback_row, thank_you_row])
+        gradio_chatbot.change(fn=toggle_feedback_row, outputs=[feedback_row, thank_you_row])  # type: ignore[attr-defined]
 
     try:
         demo.launch(
