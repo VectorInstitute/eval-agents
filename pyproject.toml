@@ -96,6 +96,7 @@ override-dependencies = [
     "tornado>=6.5.7", # GHSA-pw6j-qg29-8w7f: CurlAsyncHTTPClient credential leak fixed in 6.5.7
     "msgpack>=1.2.1", # GHSA-6v7p-g79w-8964: DoS via SEGV when Unpacker is reused after error fixed in 1.2.1
     "gradio>=6.16.0", # PYSEC-2026-2179: path traversal in FileExplorer component fixed in 6.16.0
+    "httplib2>=0.32.0", # PYSEC-2026-3444: decompression bomb / OOM via gzip/deflate response fixed in 0.32.0
 ]
 
 [tool.uv.workspace]
