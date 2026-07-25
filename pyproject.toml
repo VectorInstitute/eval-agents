@@ -26,7 +26,7 @@ dependencies = [
     "authlib>=1.7.1", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7; GHSA-jj8c-mmj3-mmgv: CSRF protection bypass fixed in 1.6.11
     "cryptography>=48.0.1", # CVE-2026-34073: DNS name constraint bypass fixed in 46.0.6; CVE-2026-39892: buffer overflow fixed in 46.0.7; GHSA-537c-gmf6-5ccf: fixed in 48.0.1
     "filelock>=3.20.3",
-    "pyasn1>=0.6.3", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
+    "pyasn1>=0.6.4", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
     "virtualenv>=20.36.1",
     "tenacity>=9.1.2",
     "certifi>=2026.1.4",
@@ -36,7 +36,7 @@ dependencies = [
     "google-generativeai>=0.8.6",
     "openai-agents>=0.7.0",
     "pillow>=12.3.0", # CVE-2026-40192: FITS decompression bomb fixed in 12.2.0; PYSEC-2026-2253/2254/2255/2256/2257: multiple vulnerabilities fixed in 12.3.0
-    "pypdf>=6.13.0", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2; CVE-2026-54530/54531: fixed in 6.13.0
+    "pypdf>=6.14.2", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2; CVE-2026-54530/54531: fixed in 6.13.0; CVE-2026-59938/59937: memory/perf DoS fixed in 6.14.0; CVE-2026-59936: infinite loop fixed in 6.14.1; CVE-2026-59935: infinite loop via ASCII85/ASCIIHex filters fixed in 6.14.2
     "python-multipart>=0.0.31", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26; CVE-2026-42561: part header parsing DoS fixed in 0.0.27
     "matplotlib>=3.10.9",
     "kagglehub>=0.4.1,<1.0.1", # 1.0.1 needs kagglesdk.get_web_endpoint; removed in kagglesdk>=0.1.24
@@ -51,7 +51,7 @@ dev = [
     "ipython>=9.8.0",
     "ipywidgets>=8.1.7",
     "jupyter>=1.1.1",
-    "jupyterlab>=4.5.9", # CVE-2026-42266/42557: extension allow-list bypass and command linker XSS fixed in 4.5.7; GHSA-vmhf-c436-hxj4: javascript: URL XSS in Extension Manager fixed in 4.5.9
+    "jupyterlab>=4.6.2", # CVE-2026-42266/42557: extension allow-list bypass and command linker XSS fixed in 4.5.7; GHSA-vmhf-c436-hxj4: javascript: URL XSS in Extension Manager fixed in 4.5.9; GHSA-h5v5-8746-g7mm/GHSA-whvh-wf3x-g77j/GHSA-gx64-gj6p-pc4c/GHSA-pppj-hq3g-57pj/GHSA-89vp-jrxv-24w8: plugin manager bypass/XSS/settings code injection fixed in 4.6.2
     "nbqa>=1.9.1",
     "pip>=26.1.2", # Pinning version to address vulnerability GHSA-6vgw-5pg2-w6jp, CVE-2026-3219; PYSEC-2026-196: entry point path traversal fixed in 26.1.2
     "pip-audit>=2.9.0",
@@ -97,6 +97,7 @@ override-dependencies = [
     "msgpack>=1.2.1", # GHSA-6v7p-g79w-8964: DoS via SEGV when Unpacker is reused after error fixed in 1.2.1
     "gradio>=6.16.0", # PYSEC-2026-2179: path traversal in FileExplorer component fixed in 6.16.0
     "httplib2>=0.32.0", # PYSEC-2026-3444: decompression bomb / OOM via gzip/deflate response fixed in 0.32.0
+    "pymdown-extensions>=11.0.0", # CVE-2026-61632: fixed in 11.0.0
 ]
 
 [tool.uv.workspace]
