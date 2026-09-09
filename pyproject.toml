@@ -98,6 +98,7 @@ override-dependencies = [
     "gradio>=6.16.0", # PYSEC-2026-2179: path traversal in FileExplorer component fixed in 6.16.0
     "httplib2>=0.32.0", # PYSEC-2026-3444: decompression bomb / OOM via gzip/deflate response fixed in 0.32.0
     "pymdown-extensions>=11.0.0", # CVE-2026-61632: fixed in 11.0.0
+    "httpx2>=2.12.0", # CVE-2026-84379: multipart CRLF injection fixed in 2.11.0; CVE-2026-84380: conflicting framing headers fixed in 2.11.0; CVE-2026-84382: decompression bomb fixed in 2.12.0
 ]
 
 [tool.uv.workspace]
