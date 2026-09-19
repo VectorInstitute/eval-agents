@@ -86,7 +86,7 @@ default-groups = ["dev", "docs"]
 # Override pinned transitive deps to patched versions (security)
 override-dependencies = [
     "authlib>=1.7.1", # GHSA-jj8c-mmj3-mmgv: CSRF protection bypass; aieng-platform-onboard pins 1.6.9
-    "jupyter-server>=2.18.0", # CVE-2025-61669/CVE-2026-40110/CVE-2026-35397/CVE-2026-40934: open redirect, regex match bypass, path traversal, and cookie secret vulnerabilities fixed in 2.18.0
+    "jupyter-server>=2.21.0", # CVE-2025-61669/CVE-2026-40110/CVE-2026-35397/CVE-2026-40934: open redirect, regex match bypass, path traversal, and cookie secret vulnerabilities fixed in 2.18.0; CVE-2026-86049: token leak via Referer header in 500 error logs fixed in 2.21.0
     "mako>=1.3.12", # CVE-2026-44307: path traversal on Windows via backslash fixed in 1.3.12
     "mistune>=3.3.0", # CVE-2026-33079/CVE-2026-44897: ReDoS and heading ID XSS fixed in 3.2.1; CVE-2026-49851/PYSEC-2026-2215/PYSEC-2026-2652: CPU exhaustion DoS via recursive include and O(n²) parse_link_text fixed in 3.3.0
     "notebook>=7.5.6", # CVE-2026-40171: stored XSS allowing auth token theft fixed in 7.5.6
@@ -99,6 +99,7 @@ override-dependencies = [
     "httplib2>=0.32.0", # PYSEC-2026-3444: decompression bomb / OOM via gzip/deflate response fixed in 0.32.0
     "pymdown-extensions>=11.0.0", # CVE-2026-61632: fixed in 11.0.0
     "httpx2>=2.12.0", # CVE-2026-84379: multipart CRLF injection fixed in 2.11.0; CVE-2026-84380: conflicting framing headers fixed in 2.11.0; CVE-2026-84382: decompression bomb fixed in 2.12.0
+    "anyio>=4.14.2", # CVE-2026-63374: TLS IDNA 2003 hostname bypass fixed in 4.14.2; CVE-2026-64847: stderr pipe deadlock in process-pool workers fixed in 4.14.2
 ]
 
 [tool.uv.workspace]
