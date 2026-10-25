@@ -94,6 +94,9 @@ override-dependencies = [
     "multidict>=6.9.1", # CVE-2026-104874: fixed in 6.9.1
     "pillow>=13.0.0", # needed to override gradio's (v6.30.0) pillow dependency
     "packaging>=26.3", # needed by virtualenv>=21.14.9
+    "opentelemetry-sdk>=1.45.1", # must match opentelemetry-api (sdk pins api==its own version); google-adk caps at <=1.41.1
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1", # pins opentelemetry-sdk~=its own version; keep aligned with api/sdk
+    "opentelemetry-api>=1.45.1", # CVE-2026-114603: O(N^2) tracestate parsing DoS fixed in 1.45.1; google-adk caps at <=1.41.1
 ]
 
 [tool.uv.workspace]
