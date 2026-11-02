@@ -26,7 +26,7 @@ dependencies = [
     "authlib>=1.7.1", # CVE-2026-28802: alg:none JWT bypass fixed in 1.6.7; GHSA-jj8c-mmj3-mmgv: CSRF protection bypass fixed in 1.6.11
     "cryptography>=50.0.0", # CVE-2026-34073: DNS name constraint bypass fixed in 46.0.6; CVE-2026-39892: buffer overflow fixed in 46.0.7; GHSA-537c-gmf6-5ccf: fixed in 48.0.1; CVE-2026-69247: Bleichenbacher oracle via PKCS7 decryption fixed in 50.0.0
     "filelock>=3.24.2", # required by virtualenv>=21.7.13 (PYSEC-2026-4011/4013 fixes)
-    "pyasn1>=0.6.4", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3
+    "pyasn1>=0.6.5", # CVE-2026-30922: DoS via uncontrolled recursion fixed in 0.6.3; CVE-2026-119194/119195/119196/119197: quadratic CPU DoS fixed in 0.6.5
     "tenacity>=9.1.2",
     "certifi>=2026.10.19",
     "pypdf>=6.7.5", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5
@@ -35,7 +35,7 @@ dependencies = [
     "google-generativeai>=0.8.6",
     "openai-agents>=0.7.0",
     "pillow>=13.0.0",
-    "pypdf>=6.21.1", # CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2; CVE-2026-54530/54531: fixed in 6.13.0; CVE-2026-59938/59937: memory/perf DoS fixed in 6.14.0; CVE-2026-59936: infinite loop fixed in 6.14.1; CVE-2026-59935: infinite loop via ASCII85/ASCIIHex filters fixed in 6.14.2; CVE-2026-71852/71870: font width/ToUnicode memory DoS fixed in 6.15.0; CVE-2026-84309: infinite loop via TreeObject.insert_child fixed in 6.16.0; CVE-2026-84310/84311: long runtimes and large memory consumption fixed in 6.16.1; PYSEC-2026-4153/4154/4155/4156/4157/4158/4159/4160: multiple DoS via crafted PDFs fixed in 6.19.0
+    "pypdf>=6.21.4", # CVE-2026-119203/119204/119205/119206/119207/119208/119209: DoS fixed in 6.21.4; CVE-2026-28804: ASCIIHexDecode DoS fixed in 6.7.5; CVE-2026-33123: array-based stream DoS fixed in 6.9.1; CVE-2026-40260: XMP metadata memory DoS fixed in 6.10.0; GHSA-jj6c-8h6c-hppx/GHSA-4pxv-j86v-mhcw/GHSA-7gw9-cf7v-778f/GHSA-x284-j5p8-9c5p: DoS via crafted PDFs fixed in 6.10.2; CVE-2026-54530/54531: fixed in 6.13.0; CVE-2026-59938/59937: memory/perf DoS fixed in 6.14.0; CVE-2026-59936: infinite loop fixed in 6.14.1; CVE-2026-59935: infinite loop via ASCII85/ASCIIHex filters fixed in 6.14.2; CVE-2026-71852/71870: font width/ToUnicode memory DoS fixed in 6.15.0; CVE-2026-84309: infinite loop via TreeObject.insert_child fixed in 6.16.0; CVE-2026-84310/84311: long runtimes and large memory consumption fixed in 6.16.1; PYSEC-2026-4153/4154/4155/4156/4157/4158/4159/4160: multiple DoS via crafted PDFs fixed in 6.19.0
     "python-multipart>=0.0.31", # CVE-2026-40347: multipart parsing DoS fixed in 0.0.26; CVE-2026-42561: part header parsing DoS fixed in 0.0.27
     "matplotlib>=3.10.9",
     "kagglehub>=0.4.1,<1.0.1", # 1.0.1 needs kagglesdk.get_web_endpoint; removed in kagglesdk>=0.1.24
@@ -89,7 +89,9 @@ override-dependencies = [
     "urllib3>=2.8.0", # CVE-2026-44431/44432: sensitive header forwarding and decompression issues fixed in 2.7.0; CVE-2026-97687/97688/97689: HTTPS proxy TLS confusion, Deflate infinite loop, chunked-response DoS fixed in 2.8.0; aieng-platform-onboard pins 2.6.3
     "virtualenv>=21.14.9", # PYSEC-2026-4011: unverified wheel downloads fixed in 21.7.12; PYSEC-2026-4013: shell injection in activate script fixed in 21.7.13; aieng-platform-onboard pins 20.36.1
     "filelock>=3.24.2", # required by virtualenv>=21.7.13; aieng-platform-onboard pins 3.20.3
-    "tornado>=6.5.9", # GHSA-pw6j-qg29-8w7f: CurlAsyncHTTPClient credential leak fixed in 6.5.7; GHSA-chx6-46f5-w4vp/c2m8-h5v5-343r/3hv7-mjh2-fv65: fixed in 6.5.9
+    "tornado>=6.6", # CVE-2026-116577/115927/116578: DoS and open redirect fixed in 6.6; GHSA-pw6j-qg29-8w7f: CurlAsyncHTTPClient credential leak fixed in 6.5.7; GHSA-chx6-46f5-w4vp/c2m8-h5v5-343r/3hv7-mjh2-fv65: fixed in 6.5.9
+    "joserfc>=1.7.6", # CVE-2026-119283/119284: JWE/JWS DoS fixed in 1.7.5/1.7.6
+    "msgpack>=1.2.3", # CVE-2026-114613: memory leak DoS fixed in 1.2.3
     "fsspec>=2026.6.0", # CVE-2026-104851: fixed in 2026.6.0
     "multidict>=6.9.1", # CVE-2026-104874: fixed in 6.9.1
     "pillow>=13.0.0", # needed to override gradio's (v6.30.0) pillow dependency
