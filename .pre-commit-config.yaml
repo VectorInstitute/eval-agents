@@ -20,12 +20,12 @@ repos:
     - id: check-toml
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.13.6
+    rev: 0.13.7
     hooks:
       - id: uv-lock
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.3
+    rev: v0.17.4
     hooks:
     - id: ruff-check
       args: [--fix, --exit-non-zero-on-fix]
@@ -43,7 +43,7 @@ repos:
       exclude: "tests"
 
   - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.9.1
+    rev: 1.10.0
     hooks:
     - id: nbqa-ruff
       args: [--fix, --exit-non-zero-on-fix, "--ignore=D100,D103,E402,F704,PLE1142"]
