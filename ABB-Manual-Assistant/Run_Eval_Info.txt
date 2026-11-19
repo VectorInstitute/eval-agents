@@ -1,0 +1,5 @@
+Upload dataset command:
+python3 upload_test_data_from_file.py --dataset-name "SME Test Set" --input-file SME-TestSet.csv
+
+Run evaluation command:
+python3 run_eval_from_dataset.py --dataset-name "SME Test Set" --run-name "SME Eval Run"
